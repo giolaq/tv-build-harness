@@ -4,3 +4,4 @@ out/
 *.log
 .claude-prompt.txt
 skills/.remote-cache/
+packages/harness/app/
