@@ -1,0 +1,31 @@
+{
+  "remotes": [
+    {
+      "repo": "react-native-tvos/skills",
+      "branch": "main",
+      "basePath": "plugins/rntv/skills",
+      "skills": [
+        {
+          "path": "specific-features/SKILL.md",
+          "as": "rntv-focus-navigation"
+        },
+        {
+          "path": "project-create/SKILL.md",
+          "as": "rntv-project-setup"
+        },
+        {
+          "path": "platform-detection/SKILL.md",
+          "as": "rntv-platform-detection"
+        },
+        {
+          "path": "build-configuration/SKILL.md",
+          "as": "rntv-build-config"
+        },
+        {
+          "path": "third-party/SKILL.md",
+          "as": "rntv-third-party"
+        }
+      ]
+    }
+  ]
+}

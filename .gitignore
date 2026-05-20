@@ -3,3 +3,4 @@ dist/
 out/
 *.log
 .claude-prompt.txt
+skills/.remote-cache/

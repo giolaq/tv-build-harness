@@ -8,6 +8,7 @@ import { ToolRegistry } from "./tool-registry.js";
 import { registerAllTools } from "./tools/index.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { ReplayClient } from "./recorder.js";
+import { SkillFetcher } from "./skill-fetcher.js";
 import {
   ContentManifestSchema,
   BrandKitSchema,
@@ -20,9 +21,11 @@ const command = args[0];
 async function main() {
   switch (command) {
     case "run":
+      await ensureSkills();
       await runHarness();
       break;
     case "claude-run":
+      await ensureSkills();
       await runWithClaude();
       break;
     case "doctor":
@@ -30,6 +33,12 @@ async function main() {
       break;
     case "replay":
       await runReplay();
+      break;
+    case "install-skills":
+      await installSkills();
+      break;
+    case "update-skills":
+      await updateSkills();
       break;
     default:
       printUsage();
@@ -139,6 +148,47 @@ async function runWithClaude() {
   }
 }
 
+async function ensureSkills() {
+  const fetcher = new SkillFetcher(resolve("../../skills"));
+  if (!fetcher.isPopulated()) {
+    console.log("  Fetching remote skills...");
+    const { fetched, failed } = await fetcher.fetchAll();
+    if (fetched.length > 0) {
+      console.log(`  Fetched ${fetched.length} remote skills: ${fetched.join(", ")}`);
+    }
+    if (failed.length > 0) {
+      console.log(`  Warning: ${failed.length} skills failed to fetch:`);
+      for (const f of failed) console.log(`    - ${f}`);
+    }
+  }
+}
+
+async function installSkills() {
+  const fetcher = new SkillFetcher(resolve("../../skills"));
+  console.log("\n  Fetching remote skills...\n");
+  const { fetched, failed } = await fetcher.fetchAll();
+  for (const name of fetched) {
+    console.log(`  ✓ ${name}`);
+  }
+  for (const f of failed) {
+    console.log(`  ✗ ${f}`);
+  }
+  console.log(`\n  ${fetched.length} installed, ${failed.length} failed.\n`);
+}
+
+async function updateSkills() {
+  const fetcher = new SkillFetcher(resolve("../../skills"));
+  console.log("\n  Updating remote skills...\n");
+  const { updated, failed } = await fetcher.update();
+  for (const name of updated) {
+    console.log(`  ✓ ${name}`);
+  }
+  for (const f of failed) {
+    console.log(`  ✗ ${f}`);
+  }
+  console.log(`\n  ${updated.length} updated, ${failed.length} failed.\n`);
+}
+
 async function runDoctorCommand() {
   const results = await runDoctor();
   printDoctorReport(results);
@@ -173,10 +223,12 @@ function printUsage() {
     run --example <name>   Run with a bundled example (e.g. cooking-shows)
     doctor                 Check prerequisites
     replay <file>          Replay a recorded run
+    install-skills         Fetch remote skills (react-native-tvos/skills etc.)
+    update-skills          Re-fetch remote skills to get latest versions
 
   Examples:
     npx tv-harness claude-run --example cooking-shows
-    npx tv-harness run --example cooking-shows
+    npx tv-harness install-skills
     npx tv-harness doctor
     npx tv-harness run ./my-app-inputs
 `);
