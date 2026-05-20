@@ -4,16 +4,16 @@ import type { Phase, SkillMeta } from "./types.js";
 
 const PHASE_SKILL_MAP: Record<Phase, string[]> = {
   plan: [],
-  clone_template: ["template-anatomy"],
+  clone_template: ["template-anatomy", "rntv-project-setup"],
   metadata_branding: ["template-anatomy", "theming", "firetv-leanback"],
   manifest_wiring: ["template-anatomy", "manifest-wiring"],
-  screen_customization: ["template-anatomy", "shared-ui-catalog", "spatial-navigation", "10ft-ui"],
+  screen_customization: ["template-anatomy", "shared-ui-catalog", "rntv-focus-navigation", "10ft-ui"],
   navigation_update: ["template-anatomy", "shared-ui-catalog"],
-  prebuild: ["expo-tv-config", "firetv-leanback"],
-  static_checks: ["spatial-navigation"],
-  simulator_build: ["expo-tv-config"],
+  prebuild: ["rntv-build-config", "firetv-leanback"],
+  static_checks: ["rntv-focus-navigation", "rntv-platform-detection"],
+  simulator_build: ["rntv-build-config"],
   vega_build: ["vega-sdk"],
-  visual_smoke_test: ["10ft-ui", "video-player"],
+  visual_smoke_test: ["10ft-ui", "rntv-third-party"],
   eas_build: ["eas-build"],
   package: [],
 };
