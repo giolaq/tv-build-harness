@@ -338,10 +338,11 @@ function invokeClaude(prompt: string, cwd: string): string {
   const claudePath = process.env.CLAUDE_PATH ?? findClaudeBinary();
 
   const result = spawnSync(claudePath, [
-    "-p", prompt,
+    "-p", "-",
     "--allowedTools", "Bash,Read,Write,Edit",
   ], {
     cwd,
+    input: prompt,
     stdio: ["pipe", "pipe", "pipe"],
     timeout: 600_000,
     maxBuffer: 10 * 1024 * 1024,
