@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { spawnSync, execSync } from "node:child_process";
 import { TVAppHarness } from "./orchestrator.js";
 import { ClaudeOrchestrator } from "./claude-orchestrator.js";
 import { ToolRegistry } from "./tool-registry.js";
@@ -9,6 +10,7 @@ import { registerAllTools } from "./tools/index.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { ReplayClient } from "./recorder.js";
 import { SkillFetcher } from "./skill-fetcher.js";
+import { SkillLibrary } from "./skill-library.js";
 import {
   ContentManifestSchema,
   BrandKitSchema,
@@ -39,6 +41,14 @@ async function main() {
       break;
     case "update-skills":
       await updateSkills();
+      break;
+    case "add-screen":
+      await ensureSkills();
+      await addScreen();
+      break;
+    case "review":
+      await ensureSkills();
+      await reviewCode();
       break;
     default:
       printUsage();
@@ -189,6 +199,186 @@ async function updateSkills() {
   console.log(`\n  ${updated.length} updated, ${failed.length} failed.\n`);
 }
 
+async function addScreen() {
+  const screenName = args[1];
+  if (!screenName) {
+    console.error("  Usage: tv-harness add-screen <ScreenName> --type=<layout>");
+    console.error("  Types: hero+rails, grid, detail, player, settings, search");
+    process.exit(1);
+  }
+
+  const typeFlag = args.find((a) => a.startsWith("--type="));
+  const layout = typeFlag?.split("=")[1] ?? "grid";
+  const validLayouts = ["hero+rails", "grid", "detail", "player", "settings", "search"];
+  if (!validLayouts.includes(layout)) {
+    console.error(`  Invalid type "${layout}". Valid: ${validLayouts.join(", ")}`);
+    process.exit(1);
+  }
+
+  const appDir = findAppDir();
+  const skillsDir = resolveSkillsDir();
+  const skills = loadSkillsForCommand(skillsDir, [
+    "template-anatomy", "shared-ui-catalog", "rntv-focus-navigation", "10ft-ui"
+  ]);
+
+  const prompt = [
+    skills,
+    "",
+    "## Your Task",
+    "",
+    `Add a new screen called "${screenName}" with layout type "${layout}" to the TV app at ${appDir}.`,
+    "",
+    "Steps:",
+    `1. Create ${appDir}/packages/shared-ui/src/screens/${screenName}Screen.tsx`,
+    `2. The screen should use the "${layout}" layout pattern`,
+    "3. Import and use existing components from shared-ui where possible (check the components directory first)",
+    "4. Make all interactive elements focusable using Pressable with onFocus/onBlur handlers",
+    "5. Add the screen to the navigation — update the drawer/tab navigator to include a route for this screen",
+    "6. Export the screen from the screens index file",
+    "",
+    "Use TVFocusGuideView for focus management. Ensure D-pad navigation works correctly.",
+    "Follow the existing code patterns in the project.",
+  ].join("\n");
+
+  console.log(`\n  Adding screen: ${screenName} (${layout})\n`);
+  invokeClaude(prompt, appDir);
+  console.log(`\n  Screen "${screenName}" added.\n`);
+}
+
+async function reviewCode() {
+  const appDir = findAppDir();
+  const skillsDir = resolveSkillsDir();
+  const skills = loadSkillsForCommand(skillsDir, [
+    "template-anatomy", "shared-ui-catalog", "rntv-focus-navigation",
+    "rntv-platform-detection", "10ft-ui"
+  ]);
+
+  const scope = args[1] ?? "";
+  const scopeInstruction = scope
+    ? `Focus your review on: ${scope}`
+    : "Review the entire app for issues.";
+
+  const prompt = [
+    skills,
+    "",
+    "## Your Task",
+    "",
+    `Review the TV app code at ${appDir} for quality, correctness, and TV-specific issues.`,
+    "",
+    scopeInstruction,
+    "",
+    "Check for:",
+    "1. Focus navigation issues — every interactive element must be focusable and reachable via D-pad",
+    "2. TVFocusGuideView usage — focus traps where needed (modals, sidebars), autoFocus on containers",
+    "3. Platform-specific code — Platform.isTV checks where TV behavior differs from mobile",
+    "4. 10-foot UI compliance — text size (min 24px body), contrast ratios, safe area margins",
+    "5. Performance — no unnecessary re-renders in lists, proper use of FlatList over ScrollView",
+    "6. Missing error states — loading indicators, empty states, network error handling",
+    "7. Accessibility — focus indicators visible, meaningful labels on Pressable elements",
+    "",
+    "For each issue found, report:",
+    "- File and line number",
+    "- What's wrong",
+    "- How to fix it",
+    "",
+    "If you can fix issues directly (simple fixes), go ahead and edit the files.",
+    "For architectural issues, just report them without changing code.",
+  ].join("\n");
+
+  console.log(`\n  Reviewing TV app code...\n`);
+  const output = invokeClaude(prompt, appDir);
+  console.log(output);
+}
+
+function findAppDir(): string {
+  const appFlag = args.find((a) => a.startsWith("--app="));
+  if (appFlag) {
+    const dir = resolve(appFlag.split("=")[1]);
+    if (existsSync(join(dir, "package.json"))) return dir;
+  }
+
+  const outDir = resolve("out");
+  if (existsSync(outDir)) {
+    const entries = readdirSync(outDir)
+      .map((e) => ({ name: e, mtime: statSync(join(outDir, e)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    if (entries.length > 0) {
+      const appPath = join(outDir, entries[0].name, "app");
+      if (existsSync(join(appPath, "package.json"))) return appPath;
+    }
+  }
+
+  if (existsSync(join(resolve("."), "package.json")) && existsSync(join(resolve("."), "apps"))) {
+    return resolve(".");
+  }
+
+  console.error("  Could not find app directory. Use --app=<path> or run from within an app.");
+  process.exit(1);
+}
+
+function resolveSkillsDir(): string {
+  const candidates = [resolve("../../skills"), resolve("skills"), resolve("../skills")];
+  for (const dir of candidates) {
+    if (existsSync(dir)) return dir;
+  }
+  return resolve("../../skills");
+}
+
+function loadSkillsForCommand(skillsDir: string, skillNames: string[]): string {
+  const lib = new SkillLibrary(skillsDir);
+  const parts: string[] = [lib.alwaysLoad()];
+  for (const name of skillNames) {
+    const content = lib.loadSkill(name);
+    if (content) parts.push(content);
+  }
+  return parts.join("\n\n");
+}
+
+function invokeClaude(prompt: string, cwd: string): string {
+  const claudePath = process.env.CLAUDE_PATH ?? findClaudeBinary();
+
+  const result = spawnSync(claudePath, [
+    "-p", prompt,
+    "--allowedTools", "Bash,Read,Write,Edit",
+  ], {
+    cwd,
+    stdio: ["pipe", "pipe", "pipe"],
+    timeout: 600_000,
+    maxBuffer: 10 * 1024 * 1024,
+    encoding: "utf-8",
+    env: { ...process.env, PATH: `${process.env.PATH}:${process.env.HOME}/.toolbox/bin` },
+  });
+
+  if (result.error) {
+    throw new Error(`claude CLI error: ${result.error.message}`);
+  }
+
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString() ?? "";
+    throw new Error(`claude CLI exited with ${result.status}: ${stderr.slice(0, 500)}`);
+  }
+
+  return result.stdout?.toString() ?? "";
+}
+
+function findClaudeBinary(): string {
+  const candidates = [
+    join(process.env.HOME ?? "", ".toolbox", "bin", "claude"),
+    join(process.env.HOME ?? "", ".local", "bin", "claude"),
+    "/usr/local/bin/claude",
+    "/opt/homebrew/bin/claude",
+  ];
+
+  for (const p of candidates) {
+    try {
+      execSync(`test -x "${p}"`, { stdio: "pipe" });
+      return p;
+    } catch {}
+  }
+
+  return "claude";
+}
+
 async function runDoctorCommand() {
   const results = await runDoctor();
   printDoctorReport(results);
@@ -218,18 +408,26 @@ function printUsage() {
   tv-harness — AI-orchestrated multi-platform TV app generator
 
   Commands:
-    run [dir]              Run using Anthropic API directly (requires ANTHROPIC_API_KEY)
-    claude-run [dir]       Run using Claude CLI (easier — just needs 'claude' installed)
-    run --example <name>   Run with a bundled example (e.g. cooking-shows)
+    claude-run [dir]       Run full pipeline using Claude CLI
+    run [dir]              Run full pipeline using Anthropic API (requires ANTHROPIC_API_KEY)
+    add-screen <Name>      Add a screen to the generated app (--type=grid|hero+rails|detail|...)
+    review [scope]         Review the generated app code for TV-specific issues
     doctor                 Check prerequisites
     replay <file>          Replay a recorded run
     install-skills         Fetch remote skills (react-native-tvos/skills etc.)
     update-skills          Re-fetch remote skills to get latest versions
 
+  Options:
+    --example <name>       Use a bundled example (e.g. cooking-shows)
+    --generate-only        Skip simulator build phases
+    --app=<path>           Specify app directory for add-screen/review
+
   Examples:
     npx tv-harness claude-run --example cooking-shows
-    npx tv-harness install-skills
-    npx tv-harness doctor
+    npx tv-harness add-screen Watchlist --type=grid
+    npx tv-harness add-screen Home --type=hero+rails
+    npx tv-harness review
+    npx tv-harness review "focus navigation"
     npx tv-harness run ./my-app-inputs
 `);
 }
