@@ -1,0 +1,1 @@
+A streaming app for indie cooking shows. Dark theme with warm accent colors. Home page should have a featured hero row, then categories. The app should feel cozy and inviting, like a well-lit kitchen at golden hour.
