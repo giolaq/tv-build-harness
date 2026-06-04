@@ -5,8 +5,6 @@ import { resolve, join } from "node:path";
 import { spawnSync, execSync } from "node:child_process";
 import { TVAppHarness } from "./orchestrator.js";
 import { ClaudeOrchestrator } from "./claude-orchestrator.js";
-import { ToolRegistry } from "./tool-registry.js";
-import { registerAllTools } from "./tools/index.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { ReplayClient } from "./recorder.js";
 import { SkillFetcher } from "./skill-fetcher.js";
@@ -142,16 +140,11 @@ async function runHarness() {
   const skillsDir = resolve("skills");
   const workdir = resolve(".");
 
-  const skillLibrary = new SkillLibrary(skillsDir);
-  const registry = new ToolRegistry();
-  registerAllTools(registry, skillLibrary);
-
   const harness = new TVAppHarness(
-    { prompt, content, brand, config, workdir, skillsDir },
-    registry
+    { prompt, content, brand, config, workdir, skillsDir }
   );
 
-  console.log(`\n  TV App Harness — Starting run`);
+  console.log(`\n  TV App Harness — Agent SDK mode`);
   console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
   console.log(`  Platforms: ${config.platforms.join(", ")}`);
   console.log(`  Skills dir: ${skillsDir}\n`);
