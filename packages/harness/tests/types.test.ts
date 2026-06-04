@@ -8,8 +8,8 @@ import {
 } from "../src/types.js";
 
 describe("V1_PHASES", () => {
-  it("contains exactly 7 active phases", () => {
-    expect(V1_PHASES).toHaveLength(7);
+  it("contains exactly 10 active phases", () => {
+    expect(V1_PHASES).toHaveLength(10);
   });
 
   it("starts with plan and ends with visual_smoke_test", () => {

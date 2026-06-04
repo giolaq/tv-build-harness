@@ -1,0 +1,1 @@
+A music video streaming app with a dark neon aesthetic. Think late-night club vibes — deep blacks, electric purple and cyan accents, glowing highlights. Home screen has a featured artist hero, then genre-based rows. The app should feel immersive and high-energy.

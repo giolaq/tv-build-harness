@@ -105,8 +105,9 @@ async function runHarness() {
   const skillsDir = resolve("skills");
   const workdir = resolve(".");
 
+  const skillLibrary = new SkillLibrary(skillsDir);
   const registry = new ToolRegistry();
-  registerAllTools(registry);
+  registerAllTools(registry, skillLibrary);
 
   const harness = new TVAppHarness(
     { prompt, content, brand, config, workdir, skillsDir },

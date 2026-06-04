@@ -1,0 +1,133 @@
+{
+  "title": "NeonWave",
+  "description": "Music videos from underground and indie artists worldwide",
+  "categories": [
+    { "id": "electronic", "name": "Electronic & Synth", "items": ["v1", "v2", "v3"] },
+    { "id": "hiphop", "name": "Hip Hop & R&B", "items": ["v4", "v5", "v6"] },
+    { "id": "indie", "name": "Indie & Alternative", "items": ["v7", "v8", "v9"] },
+    { "id": "latin", "name": "Latin & Reggaeton", "items": ["v10", "v11", "v12"] }
+  ],
+  "videos": [
+    {
+      "id": "v1",
+      "title": "Midnight Protocol",
+      "description": "A cyberpunk visual journey through neon-lit Tokyo streets",
+      "duration_sec": 245,
+      "thumbnail_url": "https://picsum.photos/seed/synthwave1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["synthwave", "visual", "electronic"]
+    },
+    {
+      "id": "v2",
+      "title": "Crystal Frequencies",
+      "description": "Ambient electronic with generative art visuals",
+      "duration_sec": 312,
+      "thumbnail_url": "https://picsum.photos/seed/ambient1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["ambient", "generative", "electronic"]
+    },
+    {
+      "id": "v3",
+      "title": "Bass Drop Cathedral",
+      "description": "Heavy bass music performed in an abandoned warehouse",
+      "duration_sec": 198,
+      "thumbnail_url": "https://picsum.photos/seed/bass1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["dubstep", "bass", "live"]
+    },
+    {
+      "id": "v4",
+      "title": "Gold Chains & Velvet",
+      "description": "Smooth R&B with cinematic choreography in a luxury penthouse",
+      "duration_sec": 276,
+      "thumbnail_url": "https://picsum.photos/seed/rnb1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["rnb", "choreography", "luxury"]
+    },
+    {
+      "id": "v5",
+      "title": "Concrete Poetry",
+      "description": "Raw street-level hip hop shot on Super 8 film",
+      "duration_sec": 223,
+      "thumbnail_url": "https://picsum.photos/seed/hiphop1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["hiphop", "underground", "film"]
+    },
+    {
+      "id": "v6",
+      "title": "Phantom Flow",
+      "description": "Trap beats with abstract 3D animation",
+      "duration_sec": 189,
+      "thumbnail_url": "https://picsum.photos/seed/trap1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["trap", "3d", "animation"]
+    },
+    {
+      "id": "v7",
+      "title": "Faded Polaroids",
+      "description": "Dreamy indie pop with vintage 70s Super 8 footage",
+      "duration_sec": 267,
+      "thumbnail_url": "https://picsum.photos/seed/indie1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["indie-pop", "vintage", "dreamy"]
+    },
+    {
+      "id": "v8",
+      "title": "Garage Revival",
+      "description": "High-energy garage rock filmed in a single continuous take",
+      "duration_sec": 195,
+      "thumbnail_url": "https://picsum.photos/seed/garage1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["garage-rock", "one-take", "live"]
+    },
+    {
+      "id": "v9",
+      "title": "Telescope",
+      "description": "Ethereal shoegaze with slow-motion nature cinematography",
+      "duration_sec": 334,
+      "thumbnail_url": "https://picsum.photos/seed/shoegaze1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["shoegaze", "nature", "slowmo"]
+    },
+    {
+      "id": "v10",
+      "title": "Fuego Nocturno",
+      "description": "Reggaeton banger with rooftop party visuals in Medellín",
+      "duration_sec": 212,
+      "thumbnail_url": "https://picsum.photos/seed/reggaeton1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["reggaeton", "party", "latin"]
+    },
+    {
+      "id": "v11",
+      "title": "Cumbia Eléctrica",
+      "description": "Traditional cumbia meets electronic production, animated video",
+      "duration_sec": 248,
+      "thumbnail_url": "https://picsum.photos/seed/cumbia1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["cumbia", "electronic", "animation"]
+    },
+    {
+      "id": "v12",
+      "title": "Saudade",
+      "description": "Brazilian bossa nova reimagined with modern jazz visuals",
+      "duration_sec": 290,
+      "thumbnail_url": "https://picsum.photos/seed/bossa1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["bossa-nova", "jazz", "brazilian"]
+    }
+  ],
+  "featured": ["v1", "v4", "v10"]
+}
