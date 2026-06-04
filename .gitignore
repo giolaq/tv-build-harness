@@ -3,6 +3,7 @@ dist/
 out/
 *.log
 .env
+.yarn/
 .claude-prompt.txt
 skills/.remote-cache/
 packages/harness/app/
