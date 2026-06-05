@@ -13,6 +13,7 @@ import {
   ContentManifestSchema,
   BrandKitSchema,
   RunConfigSchema,
+  DesignTokensSchema,
 } from "./types.js";
 
 loadEnvFile();
@@ -109,6 +110,7 @@ function loadInputs() {
   const brandPath = join(inputDir, "brand.json");
   const runConfigPath = join(inputDir, "run.json");
   const promptPath = join(inputDir, "prompt.txt");
+  const designPath = join(inputDir, "design.json");
 
   if (!existsSync(contentPath)) {
     console.error(`Missing content.json at ${contentPath}`);
@@ -127,26 +129,31 @@ function loadInputs() {
     ? RunConfigSchema.parse(JSON.parse(readFileSync(runConfigPath, "utf-8")))
     : RunConfigSchema.parse({ platforms: ["androidtv", "appletv", "web"] });
 
+  const design = existsSync(designPath)
+    ? DesignTokensSchema.parse(JSON.parse(readFileSync(designPath, "utf-8")))
+    : DesignTokensSchema.parse({});
+
   const prompt = existsSync(promptPath)
     ? readFileSync(promptPath, "utf-8").trim()
     : `A streaming app called "${content.title}". ${content.description}`;
 
-  return { inputDir, content, brand, config, prompt };
+  return { inputDir, content, brand, config, design, prompt };
 }
 
 async function runHarness() {
-  const { content, brand, config, prompt } = loadInputs();
+  const { content, brand, config, design, prompt } = loadInputs();
 
-  const skillsDir = resolve("skills");
+  const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
 
   const harness = new TVAppHarness(
-    { prompt, content, brand, config, workdir, skillsDir }
+    { prompt, content, brand, config, design, workdir, skillsDir }
   );
 
   console.log(`\n  TV App Harness — Agent SDK mode`);
   console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
   console.log(`  Platforms: ${config.platforms.join(", ")}`);
+  console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);
   console.log(`  Skills dir: ${skillsDir}\n`);
 
   const { state, outDir } = await harness.run();
@@ -163,29 +170,65 @@ async function runHarness() {
 }
 
 async function runWithClaude() {
-  const { inputDir, content, brand, config, prompt } = loadInputs();
+  const { inputDir, content, brand, config, design, prompt } = loadInputs();
 
-  const skillsDir = resolve("skills");
+  const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
 
-  const harness = new ClaudeOrchestrator(
-    { prompt, content, brand, config, workdir, skillsDir }
-  );
+  const useTui = !process.argv.includes("--no-tui");
 
-  console.log(`\n  TV App Harness (Claude CLI mode)`);
-  console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
-  console.log(`  Platforms: ${config.platforms.join(", ")}`);
-  console.log(`  Skills dir: ${skillsDir}\n`);
+  if (useTui) {
+    const { TUI } = await import("./tui.js");
+    const { V1_PHASES } = await import("./types.js");
 
-  const { state, outDir } = await harness.run();
+    const activePhases = V1_PHASES.filter((phase) => {
+      if (process.argv.includes("--generate-only") && ["simulator_build", "vega_build", "visual_smoke_test"].includes(phase)) return false;
+      if (phase === "vega_build") return !config.platforms.includes("firetv-vega");
+      return true;
+    });
 
-  console.log(`\n  Run complete.`);
-  console.log(`  Output: ${outDir}`);
-  console.log(`  Phases:`);
+    const tui = new TUI(
+      brand.name,
+      config.platforms,
+      { template: design.template, navigation_style: design.navigation_style },
+      activePhases
+    );
+    tui.start();
 
-  for (const [phase, result] of state.phaseResults) {
-    const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
-    console.log(`    ${icon} ${phase}: ${result.status} (${result.iterations} iterations)`);
+    const harness = new ClaudeOrchestrator(
+      { prompt, content, brand, config, design, workdir, skillsDir },
+      {
+        onPhaseStart: (phase) => tui.setPhase(phase),
+        onPhaseEnd: (phase, result) => tui.phaseComplete(phase, result),
+        onLog: (msg) => tui.log(msg),
+      }
+    );
+
+    const { state, outDir } = await harness.run();
+    const failed = [...state.phaseResults.values()].some(r => r.status === "failed" && state.phaseResults.keys().next().value === "plan");
+    tui.finish(failed ? "failed" : "done");
+    tui.log(`Output: ${outDir}`);
+  } else {
+    const harness = new ClaudeOrchestrator(
+      { prompt, content, brand, config, design, workdir, skillsDir }
+    );
+
+    console.log(`\n  TV App Harness (Claude CLI mode)`);
+    console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
+    console.log(`  Platforms: ${config.platforms.join(", ")}`);
+    console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);
+    console.log(`  Skills dir: ${skillsDir}\n`);
+
+    const { state, outDir } = await harness.run();
+
+    console.log(`\n  Run complete.`);
+    console.log(`  Output: ${outDir}`);
+    console.log(`  Phases:`);
+
+    for (const [phase, result] of state.phaseResults) {
+      const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
+      console.log(`    ${icon} ${phase}: ${result.status} (${result.iterations} iterations)`);
+    }
   }
 }
 

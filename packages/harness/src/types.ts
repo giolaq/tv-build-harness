@@ -54,22 +54,22 @@ export interface PhaseResult {
 export const RouteSchema = z.object({
   id: z.string(),
   label: z.string(),
-  icon: z.string().optional(),
+  icon: z.string().nullish(),
 });
 
 export const SectionSchema = z.object({
   id: z.string(),
   kind: z.enum(["featured_hero", "rail", "grid", "text"]),
-  data_source: z.string(),
-  title: z.string().optional(),
+  data_source: z.string().nullish(),
+  title: z.string().nullish(),
 });
 
 export const ScreenSchema = z.object({
   id: z.string(),
   route: z.string(),
   layout: z.enum(["hero+rails", "grid", "detail", "player", "settings", "search"]),
-  uses_template_screen: z.union([z.string(), z.boolean()]).optional(),
-  sections: z.array(SectionSchema),
+  uses_template_screen: z.union([z.string(), z.boolean()]).nullish(),
+  sections: z.array(SectionSchema).default([]),
 });
 
 export const ComponentCustomizationSchema = z.object({
@@ -80,36 +80,36 @@ export const ComponentCustomizationSchema = z.object({
 export const ComponentSpecSchema = z.object({
   name: z.string(),
   description: z.string(),
-  props: z.record(z.string()),
+  props: z.record(z.string()).default({}),
 });
 
 export const DataBindingSchema = z.object({
-  manifest_path: z.string(),
-  screen_id: z.string(),
-  section_id: z.string(),
+  manifest_path: z.string().nullish(),
+  screen_id: z.string().nullish(),
+  section_id: z.string().nullish(),
 });
 
 export const AppSpecSchema = z.object({
   app_name: z.string(),
   theme: z.object({
     mode: z.enum(["dark", "light"]),
-    tokens: z.record(z.string()),
+    tokens: z.record(z.string()).default({}),
   }),
   navigation: z.object({
     type: z.enum(["drawer", "tabs", "single"]),
     routes: z.array(RouteSchema),
   }),
-  screens: z.array(ScreenSchema),
-  components_to_customize: z.array(ComponentCustomizationSchema),
-  components_to_add: z.array(ComponentSpecSchema),
-  data_bindings: z.array(DataBindingSchema),
+  screens: z.array(ScreenSchema).default([]),
+  components_to_customize: z.array(ComponentCustomizationSchema).default([]),
+  components_to_add: z.array(ComponentSpecSchema).default([]),
+  data_bindings: z.array(DataBindingSchema).default([]),
   player: z.object({
     lib: z.literal("react-native-video"),
-  }),
+  }).default({ lib: "react-native-video" }),
   auth: z
     .object({
       provider: z.enum(["none", "oauth"]),
-      flow: z.enum(["device_code"]).optional(),
+      flow: z.enum(["device_code"]).nullish(),
     })
     .optional(),
 });
@@ -160,6 +160,36 @@ export const BrandKitSchema = z.object({
 });
 
 export type BrandKit = z.infer<typeof BrandKitSchema>;
+
+// ─── Design Tokens ──────────────────────────────────────────────────────────
+
+export const ScreenTemplateSchema = z.enum([
+  "netflix-style",
+  "grid-first",
+  "spotlight",
+  "minimal",
+  "classic",
+]);
+
+export const DesignTokensSchema = z.object({
+  template: ScreenTemplateSchema.default("netflix-style"),
+  hero_height: z.number().default(500),
+  show_hero: z.boolean().default(true),
+  tile_size: z.enum(["small", "medium", "large"]).default("medium"),
+  tile_ratio: z.enum(["16:9", "4:3", "1:1", "2:3"]).default("16:9"),
+  spacing: z.enum(["compact", "normal", "relaxed"]).default("normal"),
+  corner_radius: z.number().default(8),
+  rails_per_screen: z.number().default(4),
+  font_scale: z.number().default(1.0),
+  show_descriptions: z.boolean().default(true),
+  show_duration: z.boolean().default(true),
+  navigation_style: z.enum(["drawer", "tabs", "hidden"]).default("drawer"),
+  focus_style: z.enum(["border", "glow", "scale", "border+scale"]).default("border+scale"),
+  animation_speed: z.enum(["none", "subtle", "normal", "energetic"]).default("normal"),
+});
+
+export type DesignTokens = z.infer<typeof DesignTokensSchema>;
+export type ScreenTemplate = z.infer<typeof ScreenTemplateSchema>;
 
 // ─── Run Config ──────────────────────────────────────────────────────────────
 

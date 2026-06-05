@@ -1,0 +1,1 @@
+A fitness streaming app with workout videos. Clean, energetic design with top tab navigation — no side drawer. Tabs for Home, Workouts, Programs, and Profile. Home shows featured workout of the day, then category rails. Bold typography, high contrast, motivating feel.

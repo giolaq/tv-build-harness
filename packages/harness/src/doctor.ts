@@ -15,6 +15,7 @@ export async function runDoctor(): Promise<CheckResult[]> {
   results.push(checkCommand("git", "git --version", "Git"));
   results.push(checkEnvVar("ANTHROPIC_API_KEY", "Anthropic API key"));
   results.push(checkCommand("expo", "npx expo --version", "Expo CLI"));
+  results.push(checkPuppeteer());
   results.push(checkXcode());
   results.push(checkAndroidSDK());
   results.push(checkEmulators());
@@ -105,6 +106,15 @@ function checkTvOSSimulator(): CheckResult {
     return { name: "tvOS Runtime", ok: false, detail: "No tvOS runtime installed. Add it in Xcode > Settings > Platforms." };
   } catch {
     return { name: "tvOS Runtime", ok: false, detail: "xcrun simctl not available." };
+  }
+}
+
+function checkPuppeteer(): CheckResult {
+  try {
+    const result = execSync('node -e "require(\'puppeteer\')"', { stdio: "pipe", timeout: 10_000 });
+    return { name: "Puppeteer", ok: true, detail: "Installed (web screenshots enabled)" };
+  } catch {
+    return { name: "Puppeteer", ok: false, detail: "Not found. Install with: npm install -g puppeteer" };
   }
 }
 

@@ -1,0 +1,133 @@
+{
+  "title": "FitPulse",
+  "description": "On-demand workout videos for every fitness level",
+  "categories": [
+    { "id": "hiit", "name": "HIIT & Cardio", "items": ["v1", "v2", "v3"] },
+    { "id": "strength", "name": "Strength Training", "items": ["v4", "v5", "v6"] },
+    { "id": "yoga", "name": "Yoga & Flexibility", "items": ["v7", "v8", "v9"] },
+    { "id": "recovery", "name": "Recovery & Stretching", "items": ["v10", "v11", "v12"] }
+  ],
+  "videos": [
+    {
+      "id": "v1",
+      "title": "30-Min Fat Burn HIIT",
+      "description": "High-intensity intervals with no equipment needed. Burn 400+ calories.",
+      "duration_sec": 1800,
+      "thumbnail_url": "https://picsum.photos/seed/hiit1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["hiit", "no-equipment", "beginner-friendly"]
+    },
+    {
+      "id": "v2",
+      "title": "Tabata Explosion",
+      "description": "20 seconds on, 10 seconds off. 8 rounds of pure intensity.",
+      "duration_sec": 1200,
+      "thumbnail_url": "https://picsum.photos/seed/tabata1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["tabata", "advanced", "cardio"]
+    },
+    {
+      "id": "v3",
+      "title": "Dance Cardio Party",
+      "description": "Fun dance moves that don't feel like exercise. Great for beginners.",
+      "duration_sec": 2400,
+      "thumbnail_url": "https://picsum.photos/seed/dance1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["dance", "fun", "beginner"]
+    },
+    {
+      "id": "v4",
+      "title": "Full Body Dumbbell",
+      "description": "Complete strength workout with a single pair of dumbbells.",
+      "duration_sec": 2700,
+      "thumbnail_url": "https://picsum.photos/seed/dumbbell1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["dumbbells", "full-body", "intermediate"]
+    },
+    {
+      "id": "v5",
+      "title": "Push Day: Chest & Shoulders",
+      "description": "Targeted upper body push workout. Bench, overhead press, flyes.",
+      "duration_sec": 2400,
+      "thumbnail_url": "https://picsum.photos/seed/push1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["chest", "shoulders", "gym"]
+    },
+    {
+      "id": "v6",
+      "title": "Bodyweight Strength",
+      "description": "Build muscle with zero equipment. Progressive calisthenics.",
+      "duration_sec": 1800,
+      "thumbnail_url": "https://picsum.photos/seed/bodyweight1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["calisthenics", "no-equipment", "all-levels"]
+    },
+    {
+      "id": "v7",
+      "title": "Morning Flow Yoga",
+      "description": "Gentle 20-minute flow to start your day with energy and calm.",
+      "duration_sec": 1200,
+      "thumbnail_url": "https://picsum.photos/seed/yoga1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["yoga", "morning", "gentle"]
+    },
+    {
+      "id": "v8",
+      "title": "Power Vinyasa",
+      "description": "Athletic yoga with challenging holds and faster transitions.",
+      "duration_sec": 3600,
+      "thumbnail_url": "https://picsum.photos/seed/vinyasa1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["vinyasa", "power", "advanced"]
+    },
+    {
+      "id": "v9",
+      "title": "Deep Stretch & Restore",
+      "description": "Yin-style long holds for deep flexibility work. Perfect rest day.",
+      "duration_sec": 2700,
+      "thumbnail_url": "https://picsum.photos/seed/yin1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["yin", "flexibility", "rest-day"]
+    },
+    {
+      "id": "v10",
+      "title": "Foam Roller Recovery",
+      "description": "Self-myofascial release for sore muscles. Full body roll-out.",
+      "duration_sec": 900,
+      "thumbnail_url": "https://picsum.photos/seed/foam1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["foam-roller", "recovery", "quick"]
+    },
+    {
+      "id": "v11",
+      "title": "Post-Workout Cool Down",
+      "description": "Essential stretches after any workout. Reduce soreness tomorrow.",
+      "duration_sec": 600,
+      "thumbnail_url": "https://picsum.photos/seed/cooldown1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["stretching", "cool-down", "essential"]
+    },
+    {
+      "id": "v12",
+      "title": "Sleep & Recovery Meditation",
+      "description": "Guided relaxation with breathing exercises for better sleep.",
+      "duration_sec": 1200,
+      "thumbnail_url": "https://picsum.photos/seed/sleep1/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["meditation", "sleep", "breathing"]
+    }
+  ],
+  "featured": ["v1", "v7", "v4"]
+}

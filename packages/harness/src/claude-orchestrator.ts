@@ -6,6 +6,7 @@ import type {
   AppSpec,
   BrandKit,
   ContentManifest,
+  DesignTokens,
   Phase,
   PhaseResult,
   RunConfig,
@@ -21,6 +22,7 @@ interface HarnessInput {
   content: ContentManifest;
   brand: BrandKit;
   config: RunConfig;
+  design: DesignTokens;
   workdir: string;
   skillsDir: string;
 }
@@ -167,33 +169,81 @@ Fix any TypeScript errors.
   navigation_update: (ctx) => {
     const spec = ctx.spec;
     if (!spec) return "No AppSpec available. Skip this phase.";
+    const navType = spec.navigation.type;
+    const navStyle = ctx.input.design.navigation_style;
 
     const routesList = spec.navigation.routes.map(r =>
       `- id="${r.id}", label="${r.label}"${r.icon ? `, icon="${r.icon}"` : ""}`
     ).join("\n");
 
+    const typeInstructions: Record<string, string> = {
+      drawer: `
+The template already uses a drawer navigator. Keep it. Update the drawer items to match these routes.
+Edit the DrawerNavigator file to:
+- Map each route to its screen component
+- Set the correct labels and icons
+- Remove any routes not in the list above`,
+
+      tabs: `
+The template uses a drawer navigator — you MUST REPLACE it with a top tab navigator.
+
+Steps to switch from drawer to tabs:
+1. Check if @react-navigation/bottom-tabs or @react-navigation/material-top-tabs is installed.
+   If not: run "yarn workspace @multi-tv/shared-ui add @react-navigation/bottom-tabs" (or add to the expo-multi-tv workspace if that's where nav deps live)
+2. Find the DrawerNavigator file (likely DrawerNavigator.tsx or similar in packages/shared-ui/src/navigation/)
+3. REPLACE the entire drawer navigator with a tab navigator. Use createBottomTabNavigator() or createMaterialTopTabNavigator() for a top bar.
+4. For a TOP tab bar specifically, use createMaterialTopTabNavigator with tabBarPosition: 'top' and style it:
+   - Background: match the app's background color
+   - Active indicator: use the accent/primary color
+   - Labels: visible, using the theme text color
+   - Tab bar should be at the TOP of the screen, below any status bar
+5. Update the parent navigator (AppNavigator/RootNavigator) to use your new tab navigator instead of the drawer
+6. Remove the drawer-related imports and the CustomDrawerContent component reference
+7. Remove any menu toggle buttons or hamburger icons from screen headers`,
+
+      hidden: `
+The template uses a drawer navigator — you MUST REMOVE visible navigation chrome.
+
+Steps for hidden navigation:
+1. Find the DrawerNavigator file
+2. Replace it with a simple Stack navigator (no visible tabs or drawer)
+3. The user navigates between screens via content interaction only (tapping tiles navigates to detail/player)
+4. Keep a root stack with all screens registered, but no visible navigation bar
+5. Remove drawer toggle buttons, hamburger icons, and the CustomDrawerContent component
+6. The home screen is the entry point — other screens are reached by selecting content items`,
+    };
+
+    const resolvedType = navStyle === "hidden" ? "hidden" : navType;
+    const instructions = typeInstructions[resolvedType] ?? typeInstructions["drawer"];
+
     return `
 Update the app navigation to match the AppSpec.
 
-Navigation type: ${spec.navigation.type}
+Navigation type requested: ${resolvedType}
 Routes:
 ${routesList}
 
-STEP 1: Find the navigation configuration.
-Run: find ${ctx.appDir}/packages/shared-ui/src -name "*.tsx" -o -name "*.ts" | grep -i -E "(nav|drawer|route|stack)" | head -10
-Read the navigation files.
+STEP 1: Find the current navigation files.
+Run: find ${ctx.appDir}/packages/shared-ui/src -name "*.tsx" -o -name "*.ts" | grep -i -E "(nav|drawer|route|stack|tab)" | head -15
+Read the main navigator files to understand the current structure.
 
-STEP 2: Update the route table.
-The navigation must have exactly these routes in this order. Add missing routes, remove routes not in the list, and reorder to match.
+STEP 2: Apply the navigation type.
+${instructions}
 
-Each route should point to the corresponding screen component. Match route IDs to screen IDs from the AppSpec.
+STEP 3: Wire the routes.
+Each route must point to an EXISTING screen component. First check what screens exist:
+Run: ls ${ctx.appDir}/packages/shared-ui/src/screens/
+Only import screens that exist in that directory. Do NOT import non-existent screens.
 
-STEP 3: Update drawer labels and icons.
-Set the display labels and icons to match the AppSpec route definitions.
+Route → Screen mapping (use the closest match):
+${routesList}
 
-STEP 4: Verify navigation renders.
+STEP 4: Verify.
 Run: cd "${ctx.appDir}" && npx tsc --noEmit 2>&1 | head -20
-Fix any TypeScript errors (missing screen imports, incorrect types, etc).
+Fix any TypeScript errors. Common issues after nav switch:
+- Missing @react-navigation/bottom-tabs or material-top-tabs package
+- Old drawer imports left behind
+- Screen component names don't match file names
 `;
   },
 
@@ -218,63 +268,194 @@ grep -r "Screen" ${ctx.appDir}/packages/shared-ui/src/navigation/ --include="*.t
 Report: how many errors found, how many fixed, any remaining.
 `,
 
-  simulator_build: (ctx) => `
-Build the app for these platforms: ${ctx.input.config.platforms.join(", ")}
+  simulator_build: (ctx) => {
+    const platforms = ctx.input.config.platforms;
+    const wantsWeb = platforms.includes("web") || platforms.includes("appletv") || platforms.includes("androidtv");
+    const wantsAndroid = platforms.includes("androidtv") || platforms.includes("firetv-fos");
+    const wantsIos = platforms.includes("appletv");
 
-Do these steps in order. If any step fails, report the error and continue to the next platform.
+    return `
+Build the app. Focus on web first (fastest feedback loop), then native if requested.
 
-1. First verify the project is healthy:
-   Run: cd ${ctx.appDir} && yarn install && cd apps/expo-multi-tv && npx tsc --noEmit 2>&1 | tail -10
-   If there are type errors, fix them before proceeding.
+Platforms requested: ${platforms.join(", ")}
 
-2. For web (always attempt first — simplest):
-   Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo export --platform web --output-dir ${ctx.outDir}/web-build
-   If expo export fails, try: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo start --web --port 8081 &
-   Just verify the command starts without error, then kill the background process.
+STEP 1: Verify the project compiles.
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && npx tsc --noEmit 2>&1 | tail -10
+If there are type errors, fix them before proceeding.
 
-3. For androidtv (only if ANDROID_HOME is set):
-   First check: echo $ANDROID_HOME — if empty, skip with "Android SDK not configured, skipping androidtv"
-   Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform android --no-install
-
-4. For appletv (only if xcodebuild is available):
-   First check: which xcodebuild — if not found, skip with "Xcode not available, skipping appletv"
-   Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform ios --no-install
-
-Report a summary: which platforms succeeded, which were skipped, which failed.
-At minimum, the web build should succeed (no native dependencies required).
-`,
+STEP 2: Web build (always do this — fastest verification).
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo start --web --port 19006 &
+Wait: sleep 5
+Verify: curl -s http://localhost:19006 | head -5
+If HTML is returned, web build works. Kill it: kill $(lsof -ti:19006) 2>/dev/null || true
+${wantsAndroid ? `
+STEP 3: Android TV prebuild.
+First check: echo $ANDROID_HOME — if empty, skip with "Android SDK not configured"
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform android --no-install
+` : ""}${wantsIos ? `
+STEP ${wantsAndroid ? "4" : "3"}: Apple TV prebuild.
+First check: which xcodebuild — if not found, skip with "Xcode not available"
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform ios --no-install
+` : ""}
+Report: which platforms succeeded, which were skipped, which failed.
+`;
+  },
 
   vega_build: (ctx) => `
 Build the Vega OS variant:
 Run: cd ${ctx.appDir}/apps/vega && npx kepler build
 `,
 
-  visual_smoke_test: (ctx) => `
-Verify the build outputs from the previous phase exist and report what was produced.
+  visual_smoke_test: (ctx) => {
+    const screenshotDir = `${ctx.outDir}/screenshots`;
+    const routes = ctx.spec?.navigation.routes ?? [];
+    const routeNames = routes.map(r => r.id).join(", ");
 
-1. Check if ${ctx.outDir}/web-build/ exists. If yes, list its contents.
-2. Check if ${ctx.appDir}/apps/expo-multi-tv/android/ exists (prebuild output). If yes, confirm android prebuild succeeded.
-3. Check if ${ctx.appDir}/apps/expo-multi-tv/ios/ exists (prebuild output). If yes, confirm ios prebuild succeeded.
+    return `
+Test the web version of the app: start it, screenshot every screen, test navigation and focus.
 
-If any simulators/emulators are running:
-- Android TV: adb exec-out screencap -p > ${ctx.outDir}/screenshots/androidtv-home.png
-- Apple TV: xcrun simctl io booted screenshot ${ctx.outDir}/screenshots/appletv-home.png
+STEP 1: Start the Expo web dev server.
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo start --web --port 19006 &
+Run: sleep 8
 
-If no simulators are running, that is OK. Just verify the build artifacts exist and report the summary.
+Verify: curl -s http://localhost:19006 | head -5
+If it fails, check the process output for errors and try to fix them.
 
-Write a brief build-report.txt to ${ctx.outDir}/build-report.txt summarizing: platforms attempted, succeeded, skipped, failed.
-`,
+STEP 2: Screenshot every screen.
+Write and run this puppeteer script (save as ${ctx.outDir}/test-runner.js then run it):
+
+const puppeteer = require('puppeteer');
+
+(async () => {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--window-size=1920,1080']
+  });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1920, height: 1080 });
+
+  // Helper: screenshot with name
+  async function screenshot(name) {
+    await new Promise(r => setTimeout(r, 2000));
+    await page.screenshot({ path: '${screenshotDir}/' + name + '.png' });
+    console.log('Screenshot: ' + name);
+  }
+
+  // Helper: press key
+  async function pressKey(key, times = 1) {
+    for (let i = 0; i < times; i++) {
+      await page.keyboard.press(key);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+
+  try {
+    // 1. Home screen
+    await page.goto('http://localhost:19006', { waitUntil: 'networkidle0', timeout: 30000 });
+    await screenshot('web-01-home');
+
+    // 2. Test focus navigation with arrow keys (D-pad simulation)
+    await pressKey('ArrowRight', 3);
+    await screenshot('web-02-home-focus-moved');
+
+    await pressKey('ArrowDown', 2);
+    await screenshot('web-03-home-scrolled');
+
+    // 3. Navigate to other screens via keyboard
+    // Try opening drawer/menu with ArrowLeft or Tab
+    await pressKey('ArrowLeft', 5);
+    await screenshot('web-04-navigation-open');
+
+    // Move down through nav items and select
+    await pressKey('ArrowDown', 1);
+    await pressKey('Enter');
+    await screenshot('web-05-second-screen');
+
+    await pressKey('ArrowDown', 1);
+    await pressKey('Enter');
+    await screenshot('web-06-third-screen');
+
+    // 4. Go back to home, select a content item
+    await pressKey('ArrowLeft', 5);
+    await pressKey('ArrowUp', 3);
+    await pressKey('Enter');
+    await new Promise(r => setTimeout(r, 1000));
+    await screenshot('web-07-home-returned');
+
+    // Select first content tile
+    await pressKey('ArrowRight', 1);
+    await pressKey('ArrowDown', 1);
+    await pressKey('Enter');
+    await screenshot('web-08-detail-screen');
+
+    // 5. Check for errors in console
+    const consoleErrors = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+
+    console.log('\\nTest Results:');
+    console.log('Screenshots captured: 8');
+    console.log('Console errors: ' + consoleErrors.length);
+    if (consoleErrors.length > 0) {
+      console.log('Errors:');
+      consoleErrors.slice(0, 5).forEach(e => console.log('  - ' + e));
+    }
+  } catch(e) {
+    console.log('Test error: ' + e.message);
+    await screenshot('web-error-state');
+  }
+
+  await browser.close();
+})();
+
+If puppeteer is not available, do a simpler test:
+- curl http://localhost:19006 and verify HTML contains the app name "${ctx.spec?.app_name ?? "App"}"
+- curl different hash routes if the app uses hash routing (#/categories, #/settings)
+
+STEP 3: Verify focus management.
+Check the source code for these focus issues:
+- grep -r "Pressable" ${ctx.appDir}/packages/shared-ui/src/screens/ --include="*.tsx" | wc -l → should be > 0
+- grep -r "onFocus\\|focused" ${ctx.appDir}/packages/shared-ui/src/screens/ --include="*.tsx" | wc -l → should be > 0
+- grep -r "TVFocusGuide\\|SpatialNavigation\\|react-tv-space-navigation" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" | wc -l → should be > 0
+
+STEP 4: Verify all routes are wired.
+Expected routes: ${routeNames}
+Check that each screen component is imported in the navigation:
+grep -r "Screen" ${ctx.appDir}/packages/shared-ui/src/navigation/ --include="*.tsx" --include="*.ts"
+
+STEP 5: Kill the dev server.
+Run: kill $(lsof -ti:19006) 2>/dev/null || true
+
+STEP 6: Write the test report.
+Write ${ctx.outDir}/build-report.txt with:
+- Web server: started / failed
+- Screenshots captured: count
+- Focus navigation: D-pad works / partial / no focus handlers found
+- Routes wired: all / missing (list which)
+- Console errors: count
+- Overall: PASS / PARTIAL / FAIL
+`;
+  },
 };
+
+export interface HarnessEvents {
+  onPhaseStart?: (phase: Phase) => void;
+  onPhaseEnd?: (phase: Phase, result: PhaseResult) => void;
+  onLog?: (message: string) => void;
+}
 
 export class ClaudeOrchestrator {
   private state: SessionState;
   private skills: SkillLibrary;
   private log: RunLog;
   private input: HarnessInput;
+  private events: HarnessEvents;
 
-  constructor(input: HarnessInput) {
+  constructor(input: HarnessInput, events: HarnessEvents = {}) {
     this.skills = new SkillLibrary(input.skillsDir);
     this.input = input;
+    this.events = events;
 
     const runId = randomUUID().slice(0, 8);
     const outDir = join(input.workdir, "out", runId);
@@ -304,26 +485,33 @@ export class ClaudeOrchestrator {
     for (const phase of phases) {
       this.state.currentPhase = phase;
       this.log.phaseStart(phase, this.state.totalIterations);
+      this.events.onPhaseStart?.(phase);
 
-      console.log(`\n  [${"=".repeat(40)}]`);
-      console.log(`  Phase: ${phase}`);
-      console.log(`  [${"=".repeat(40)}]\n`);
+      if (!this.events.onLog) {
+        console.log(`\n  [${"=".repeat(40)}]`);
+        console.log(`  Phase: ${phase}`);
+        console.log(`  [${"=".repeat(40)}]\n`);
+      }
 
       let result = await this.executePhaseWithRetry(phase);
 
       this.state.phaseResults.set(phase, result);
       this.log.phaseEnd(phase, this.state.totalIterations, result.status);
+      this.events.onPhaseEnd?.(phase, result);
 
       if (result.status === "failed") {
-        console.log(`  Phase ${phase} FAILED: ${result.error}`);
+        if (!this.events.onLog) console.log(`  Phase ${phase} FAILED: ${result.error}`);
+        this.events.onLog?.(`Phase ${phase} FAILED: ${result.error}`);
         if (phase === "plan") {
-          console.log(`  Aborting: cannot continue without a valid AppSpec.`);
+          if (!this.events.onLog) console.log(`  Aborting: cannot continue without a valid AppSpec.`);
           break;
         }
       } else if (result.status === "degraded") {
-        console.log(`  Phase ${phase} DEGRADED: ${result.error}`);
+        if (!this.events.onLog) console.log(`  Phase ${phase} DEGRADED: ${result.error}`);
+        this.events.onLog?.(`Phase ${phase} DEGRADED: ${result.error}`);
       } else {
-        console.log(`  Phase ${phase}: ${result.status}`);
+        if (!this.events.onLog) console.log(`  Phase ${phase}: ${result.status}`);
+        this.events.onLog?.(`Phase ${phase}: ${result.status}`);
         this.commitAfterPhase(phase);
       }
     }
@@ -400,6 +588,12 @@ export class ClaudeOrchestrator {
       instructions,
     ].join("\n");
 
+    // Log prompt for debugging
+    writeFileSync(
+      join(this.state.workdir, `prompt-${phase}.md`),
+      `# Phase: ${phase}\n\n## Full Prompt (${fullPrompt.length} chars)\n\n${fullPrompt}\n`
+    );
+
     try {
       const cwd = phase === "clone_template" ? this.state.workdir : join(this.state.workdir, "app");
       mkdirSync(cwd, { recursive: true });
@@ -408,6 +602,10 @@ export class ClaudeOrchestrator {
       const timeoutMs = buildPhases.includes(phase) ? 900_000 : 600_000;
 
       const output = this.invokeClaude(fullPrompt, cwd, timeoutMs);
+
+      // Log full response
+      writeFileSync(join(this.state.workdir, `response-${phase}.txt`), output);
+
       this.log.log({
         phase,
         iteration: this.state.totalIterations,
@@ -449,8 +647,17 @@ Content manifest summary: ${this.input.content.categories.length} categories, ${
 
 Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color}, accent=${this.input.brand.accent_color}, bg=${this.input.brand.background_color}`;
 
+    // Log plan prompt
+    writeFileSync(
+      join(this.state.workdir, "prompt-plan.md"),
+      `# Phase: plan\n\n## Prompt (${planPrompt.length} chars)\n\n${planPrompt}\n`
+    );
+
     try {
       const output = this.invokeClaude(planPrompt, this.state.workdir);
+
+      // Log raw response
+      writeFileSync(join(this.state.workdir, "plan-response.txt"), output);
 
       const jsonMatch = output.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
@@ -482,12 +689,35 @@ Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color
       "## App Spec",
       JSON.stringify(this.state.spec, null, 2),
       "",
+      "## Design System",
+      this.buildDesignContext(),
+      "",
       "## Skills (domain knowledge for this phase)",
       meta,
       ...phaseSkills,
     ];
 
     return parts.join("\n");
+  }
+
+  private buildDesignContext(): string {
+    const d = this.input.design;
+    const templateDescriptions: Record<string, string> = {
+      "netflix-style": "Large hero banner at top, horizontal content rails below. Immersive, content-forward.",
+      "grid-first": "No hero banner. Full-screen grid of tiles. Content density is the priority.",
+      "spotlight": "Single focused item takes 60% of screen. Minimal surrounding UI. Cinematic feel.",
+      "minimal": "Clean, lots of whitespace. Small tiles, subtle animations. Typography-driven.",
+      "classic": "Standard TV app layout. Left-side navigation, content area on right.",
+    };
+
+    return [
+      `Template: "${d.template}" — ${templateDescriptions[d.template] ?? "standard layout"}`,
+      `Hero: ${d.show_hero ? `visible, ${d.hero_height}px` : "hidden"}`,
+      `Tiles: ${d.tile_size}, ${d.tile_ratio}, ${d.corner_radius}px radius`,
+      `Spacing: ${d.spacing} | Rails: ${d.rails_per_screen} | Font scale: ${d.font_scale}x`,
+      `Navigation: ${d.navigation_style} | Focus: ${d.focus_style} | Animation: ${d.animation_speed}`,
+      `Show descriptions: ${d.show_descriptions} | Show duration: ${d.show_duration}`,
+    ].join("\n");
   }
 
   private verifyPhaseOutput(phase: Phase): { ok: boolean; error?: string } {

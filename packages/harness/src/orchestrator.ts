@@ -1,13 +1,14 @@
 import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import type {
   AppSpec,
   BrandKit,
   ContentManifest,
+  DesignTokens,
   Phase,
   PhaseResult,
   RunConfig,
@@ -23,6 +24,7 @@ interface HarnessInput {
   content: ContentManifest;
   brand: BrandKit;
   config: RunConfig;
+  design: DesignTokens;
   workdir: string;
   skillsDir: string;
 }
@@ -118,6 +120,10 @@ export class TVAppHarness {
       return this.executePlanPhase();
     }
 
+    if (phase === "clone_template") {
+      return this.executeClonePhase();
+    }
+
     const appDir = join(this.state.workdir, "app");
     mkdirSync(appDir, { recursive: true });
 
@@ -126,12 +132,16 @@ export class TVAppHarness {
 
     const mcpServer = this.createToolServer(appDir);
 
+    // Log prompts to file for debugging
+    const promptLogPath = join(this.state.workdir, `prompt-${phase}.md`);
+    writeFileSync(promptLogPath, `# Phase: ${phase}\n\n## System Prompt\n\n${systemPrompt}\n\n## User Message\n\n${userMessage}\n`);
+
     try {
       const q = query({
         prompt: userMessage,
         options: {
-          model: "claude-sonnet-4-6-20250514",
-          maxTurns: 30,
+          model: "claude-sonnet-4-6",
+          maxTurns: this.getMaxTurns(phase),
           systemPrompt: systemPrompt,
           cwd: appDir,
           mcpServers: { "tv-harness": mcpServer },
@@ -153,19 +163,56 @@ export class TVAppHarness {
           ],
           permissionMode: "bypassPermissions",
           persistSession: false,
+          env: {
+            ...process.env,
+            CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+          },
         },
       });
 
+      const verbose = process.argv.includes("--verbose");
+      const transcriptPath = join(this.state.workdir, `transcript-${phase}.jsonl`);
+
       let turns = 0;
       for await (const message of q) {
+        if (verbose || process.argv.includes("--log-all")) {
+          appendFileSync(transcriptPath, JSON.stringify({ type: message.type, ...this.summarizeMessage(message) }) + "\n");
+        }
+
         if (message.type === "assistant") {
           turns++;
           const usage = message.message.usage;
           this.state.tokensUsed += usage.input_tokens + usage.output_tokens;
 
+          if (verbose) {
+            console.log(`    [turn ${turns}] tokens: in=${usage.input_tokens} out=${usage.output_tokens}`);
+          }
+
           for (const block of message.message.content) {
+            if (block.type === "text") {
+              if (verbose) {
+                console.log(`    [text] ${block.text.slice(0, 150)}`);
+              }
+              this.log.log({ phase, iteration: turns, event: "model_turn", message: block.text.slice(0, 500) });
+            }
             if (block.type === "tool_use") {
+              if (verbose) {
+                console.log(`    [tool] ${block.name}(${JSON.stringify(block.input).slice(0, 100)})`);
+              }
               this.log.toolCall(phase, turns, block.name, block.input);
+            }
+          }
+        }
+
+        if (message.type === "user") {
+          if (verbose) {
+            const content = (message as unknown as { message?: { content?: unknown[] } }).message?.content;
+            if (content) {
+              for (const block of content as { type: string; content?: string }[]) {
+                if (block.type === "tool_result") {
+                  console.log(`    [result] ${(block.content ?? "").toString().slice(0, 100)}`);
+                }
+              }
             }
           }
         }
@@ -173,9 +220,19 @@ export class TVAppHarness {
         if (message.type === "result") {
           if (message.subtype === "success") {
             this.phaseCosts.set(phase, message.total_cost_usd);
+            if (verbose) {
+              console.log(`    [done] ${message.num_turns} turns, $${message.total_cost_usd.toFixed(4)}`);
+            }
             return { phase, status: "success", iterations: message.num_turns };
           } else {
-            const errorMsg = (message as unknown as { result?: string }).result ?? `Phase failed: ${message.subtype}`;
+            const resultMsg = message as unknown as { result?: string; subtype: string; total_cost_usd?: number };
+            if (resultMsg.total_cost_usd) {
+              this.phaseCosts.set(phase, resultMsg.total_cost_usd);
+            }
+            if (resultMsg.subtype.includes("max_turns")) {
+              return { phase, status: "degraded", iterations: turns, error: "Hit turn limit — partial work done" };
+            }
+            const errorMsg = resultMsg.result ?? `Phase failed: ${resultMsg.subtype}`;
             return { phase, status: "failed", iterations: turns, error: errorMsg.slice(0, 200) };
           }
         }
@@ -189,10 +246,135 @@ export class TVAppHarness {
     }
   }
 
-  private async executePlanPhase(): Promise<PhaseResult> {
-    const systemPrompt = `You are a TV app planner. Given a user brief, content manifest, and brand kit, produce an AppSpec JSON object. Output ONLY valid JSON matching the AppSpec schema. Do not include markdown fencing or explanation.`;
+  private buildNavigationPrompt(appDir: string): string {
+    const spec = this.state.spec;
+    if (!spec) return "No AppSpec. Skip.";
 
-    const userMessage = `Brief: ${this.input.prompt}\n\nContent manifest: ${JSON.stringify(this.input.content)}\n\nBrand kit: ${JSON.stringify(this.input.brand)}\n\nProduce an AppSpec JSON object matching this schema:
+    const navType = spec.navigation.type;
+    const navStyle = this.input.design.navigation_style;
+    const resolvedType = navStyle === "hidden" ? "hidden" : navType;
+
+    const routesList = spec.navigation.routes.map(r =>
+      `- id="${r.id}", label="${r.label}"${r.icon ? `, icon="${r.icon}"` : ""}`
+    ).join("\n");
+
+    let typeInstruction = "";
+    if (resolvedType === "tabs") {
+      typeInstruction = `The template uses a drawer — REPLACE it with a top tab navigator. Install @react-navigation/material-top-tabs if needed (yarn workspace add). Create a tab navigator with tabBarPosition:'top', remove drawer imports and CustomDrawerContent.`;
+    } else if (resolvedType === "hidden") {
+      typeInstruction = `REMOVE visible navigation. Replace the drawer with a plain Stack navigator. No tabs, no drawer — users navigate by selecting content. Remove hamburger icons and drawer toggles.`;
+    } else {
+      typeInstruction = `Keep the drawer navigator. Update its items to match the routes below.`;
+    }
+
+    return `Update navigation at ${appDir}/packages/shared-ui/src/navigation/.
+
+Navigation type: ${resolvedType}
+${typeInstruction}
+
+Routes:
+${routesList}
+
+IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/shared-ui/src/screens/ to check. Do NOT import non-existent screens. After edits, run: npx tsc --noEmit to confirm it compiles.`;
+  }
+
+  private buildDesignContext(): string {
+    const d = this.input.design;
+    const templateDescriptions: Record<string, string> = {
+      "netflix-style": "Large hero banner at top, horizontal content rails below. Immersive, content-forward. Hero auto-advances through featured items.",
+      "grid-first": "No hero banner. Full-screen grid of tiles. Content density is the priority. Good for large catalogs.",
+      "spotlight": "Single focused item takes 60% of screen. Minimal surrounding UI. One item at a time, cinematic feel.",
+      "minimal": "Clean, lots of whitespace. Small tiles, subtle animations. Typography-driven hierarchy.",
+      "classic": "Standard TV app layout. Left-side navigation, content area on right. Familiar and predictable.",
+    };
+
+    return [
+      `Template baseline: "${d.template}" — ${templateDescriptions[d.template] ?? "standard layout"}`,
+      ``,
+      `Layout tokens:`,
+      `- Hero: ${d.show_hero ? `visible, ${d.hero_height}px tall` : "hidden (no hero banner)"}`,
+      `- Tiles: ${d.tile_size} size, ${d.tile_ratio} aspect ratio, ${d.corner_radius}px corner radius`,
+      `- Spacing: ${d.spacing} (${d.spacing === "compact" ? "8-12px gaps" : d.spacing === "relaxed" ? "24-32px gaps" : "16-20px gaps"})`,
+      `- Rails per screen: ${d.rails_per_screen}`,
+      `- Font scale: ${d.font_scale}x (${d.font_scale > 1.1 ? "larger than default" : d.font_scale < 0.9 ? "smaller than default" : "standard"})`,
+      `- Show descriptions on tiles: ${d.show_descriptions}`,
+      `- Show duration badges: ${d.show_duration}`,
+      ``,
+      `Interaction:`,
+      `- Navigation style: ${d.navigation_style}`,
+      `- Focus style: ${d.focus_style}`,
+      `- Animation speed: ${d.animation_speed}`,
+    ].join("\n");
+  }
+
+  private summarizeMessage(message: unknown): Record<string, unknown> {
+    const msg = message as Record<string, unknown>;
+    if (msg.type === "assistant") {
+      const assistant = msg as { message?: { content?: unknown[]; usage?: unknown } };
+      return {
+        content: assistant.message?.content,
+        usage: assistant.message?.usage,
+      };
+    }
+    if (msg.type === "result") {
+      const result = msg as { subtype?: string; result?: string; num_turns?: number; total_cost_usd?: number; usage?: unknown };
+      return {
+        subtype: result.subtype,
+        result: result.result?.slice(0, 500),
+        num_turns: result.num_turns,
+        total_cost_usd: result.total_cost_usd,
+        usage: result.usage,
+      };
+    }
+    return { raw: JSON.stringify(msg).slice(0, 300) };
+  }
+
+  private getMaxTurns(phase: Phase): number {
+    const limits: Partial<Record<Phase, number>> = {
+      metadata_branding: 20,
+      manifest_wiring: 25,
+      screen_customization: 20,
+      navigation_update: 15,
+      static_checks: 10,
+      simulator_build: 10,
+      visual_smoke_test: 5,
+    };
+    return limits[phase] ?? 15;
+  }
+
+  private executeClonePhase(): PhaseResult {
+    const appDir = join(this.state.workdir, "app");
+
+    if (existsSync(join(appDir, "package.json"))) {
+      return { phase: "clone_template", status: "success", iterations: 0 };
+    }
+
+    try {
+      console.log("  Cloning template...");
+      execSync(
+        `git clone --depth 1 https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git "${appDir}"`,
+        { stdio: "pipe", timeout: 60_000 }
+      );
+      execSync(`rm -rf "${join(appDir, ".git")}"`, { stdio: "pipe" });
+      execSync("git init && git add -A && git commit -m \"initial template\"", {
+        cwd: appDir, stdio: "pipe",
+      });
+      console.log("  Installing dependencies...");
+      execSync("yarn install", { cwd: appDir, stdio: "pipe", timeout: 180_000 });
+      console.log("  Template ready.");
+      return { phase: "clone_template", status: "success", iterations: 0 };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { phase: "clone_template", status: "failed", iterations: 0, error: message.slice(0, 200) };
+    }
+  }
+
+  private async executePlanPhase(): Promise<PhaseResult> {
+    const systemPrompt = `You are a TV app planner. Given a user brief, content manifest, brand kit, and design tokens, produce an AppSpec JSON object. Output ONLY valid JSON matching the AppSpec schema. Do not include markdown fencing or explanation.`;
+
+    const designContext = this.buildDesignContext();
+
+    const userMessage = `Brief: ${this.input.prompt}\n\nContent manifest: ${JSON.stringify(this.input.content)}\n\nBrand kit: ${JSON.stringify(this.input.brand)}\n\nDesign tokens:\n${designContext}\n\nProduce an AppSpec JSON object matching this schema:
 - app_name: string
 - theme: { mode: "dark"|"light", tokens: Record<string, string> }
 - navigation: { type: "drawer"|"tabs"|"single", routes: [{id, label, icon?}] }
@@ -203,28 +385,48 @@ export class TVAppHarness {
 - player: { lib: "react-native-video" }
 - auth?: { provider: "none"|"oauth", flow?: "device_code" }`;
 
+    // Log plan prompt
+    const promptLogPath = join(this.state.workdir, "prompt-plan.md");
+    writeFileSync(promptLogPath, `# Phase: plan\n\n## System Prompt\n\n${systemPrompt}\n\n## User Message\n\n${userMessage}\n`);
+
     try {
       const q = query({
         prompt: userMessage,
         options: {
-          model: "claude-opus-4-7-20250501",
+          model: "claude-opus-4-6",
           maxTurns: 1,
           systemPrompt: systemPrompt,
           cwd: this.state.workdir,
           tools: [],
           permissionMode: "bypassPermissions",
           persistSession: false,
+          env: {
+            ...process.env,
+            CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+          },
         },
       });
 
+      const verbose = process.argv.includes("--verbose");
+      const transcriptPath = join(this.state.workdir, "transcript-plan.jsonl");
+
       let resultText = "";
       for await (const message of q) {
+        if (verbose || process.argv.includes("--log-all")) {
+          appendFileSync(transcriptPath, JSON.stringify({ type: message.type, ...this.summarizeMessage(message) }) + "\n");
+        }
         if (message.type === "result" && message.subtype === "success") {
           resultText = message.result;
           this.state.tokensUsed += message.usage.input_tokens + message.usage.output_tokens;
           this.phaseCosts.set("plan", message.total_cost_usd);
+          if (verbose) {
+            console.log(`    [done] $${message.total_cost_usd.toFixed(4)}, tokens: in=${message.usage.input_tokens} out=${message.usage.output_tokens}`);
+          }
         }
       }
+
+      // Log the raw response
+      writeFileSync(join(this.state.workdir, "plan-response.txt"), resultText);
 
       const jsonMatch = resultText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
@@ -464,6 +666,9 @@ export class TVAppHarness {
       "## App Spec",
       JSON.stringify(this.state.spec, null, 2),
       "",
+      "## Design System",
+      this.buildDesignContext(),
+      "",
       "## Skills (domain knowledge)",
       metaSkill,
       ...phaseSkills,
@@ -477,9 +682,18 @@ export class TVAppHarness {
     const messages: Record<string, string> = {
       clone_template: `Clone the react-native-multi-tv-app-sample template into "${appDir}" and install dependencies. App name: "${this.state.spec?.app_name}".`,
       metadata_branding: `Apply branding to the app at ${appDir}. Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color}, accent=${this.input.brand.accent_color}, bg=${this.input.brand.background_color}, font=${this.input.brand.font_family}. Find and edit the theme token files in packages/shared-ui/. Update app.json with the app name.`,
-      manifest_wiring: `Wire this content manifest into the app at ${appDir}. Inject it, create hooks, and update screens to use the new data:\n${JSON.stringify(this.input.content, null, 2)}`,
-      screen_customization: `Customize screens at ${appDir} per the AppSpec. Reuse existing template screens where possible. Create new ones only when needed.`,
-      navigation_update: `Update navigation at ${appDir} to match AppSpec routes: ${JSON.stringify(this.state.spec?.navigation)}`,
+      manifest_wiring: `Wire this content manifest into the app at ${appDir}.
+
+You MUST do ALL of these steps:
+1. Write the content JSON to packages/shared-ui/src/data/content.json
+2. Create data hooks in packages/shared-ui/src/data/useContent.ts (useFeatured, useCategories, useVideosByCategory, useVideoById, useVideos)
+3. CRITICAL: Find the existing screen files (especially HomeScreen.tsx) and REPLACE their old data imports. The template uses "fetchMoviesData" or "moviesData" — you must replace these with your new useContent hooks. grep for "moviesData|fetchMovies|sampleData|mockData" in the screens directory and update every file that uses old data.
+4. Update the screen rendering to use the new data shape (Video type with: id, title, description, thumbnail_url, stream_url, stream_type, duration_sec, tags)
+
+Content manifest:
+${JSON.stringify(this.input.content, null, 2)}`,
+      screen_customization: `Customize screens at ${appDir}/packages/shared-ui/src/screens/ per the AppSpec. IMPORTANT: Only rename or modify EXISTING screen files. Do NOT import screens that don't exist. First run: ls packages/shared-ui/src/screens/ to see what's available. After edits, run: npx tsc --noEmit to verify no broken imports.`,
+      navigation_update: this.buildNavigationPrompt(appDir),
       static_checks: `Run type checking at ${appDir}: npx tsc --noEmit. Fix any errors.`,
       simulator_build: `Build the app at ${appDir} for platforms: ${this.state.config.platforms.join(", ")}. Use expo prebuild for iOS/Android.`,
       vega_build: `Build the Vega OS variant at ${appDir}/apps/vega.`,
