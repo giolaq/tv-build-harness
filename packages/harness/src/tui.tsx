@@ -8,13 +8,14 @@ export interface TUIState {
   platforms: string[];
   design: { template: string; navigation_style: string };
   phases: Phase[];
-  currentPhase: Phase | null;
+  currentPhases: Set<Phase>;
   phaseResults: Map<Phase, PhaseResult>;
   phaseCosts: Map<Phase, number>;
   totalTokens: number;
   tokenBudget: number;
   totalCost: number;
   elapsed: number;
+  animTick: number;
   logLines: string[];
   status: "running" | "done" | "failed";
 }
@@ -31,29 +32,19 @@ function PhaseIcon({ status }: { status: string }) {
   return <Text color="gray">○</Text>;
 }
 
-function WaveText({ text, color }: { text: string; color?: string }) {
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTick((t) => (t + 1) % (text.length * 2));
-    }, 80);
-    return () => clearInterval(interval);
-  }, [text.length]);
+function WaveText({ text, tick }: { text: string; tick: number }) {
+  const wave = tick % (text.length * 2);
+  const pos = wave < text.length ? wave : text.length * 2 - 1 - wave;
 
   const chars = text.split("").map((char, i) => {
-    const wave = tick % (text.length * 2);
-    const pos = wave < text.length ? wave : text.length * 2 - 1 - wave;
     const distance = Math.abs(i - pos);
-    const isHighlight = distance === 0;
-    const isNear = distance === 1;
 
-    if (isHighlight) {
+    if (distance === 0) {
       return <Text key={i} bold color="cyan">{char.toUpperCase()}</Text>;
-    } else if (isNear) {
-      return <Text key={i} color={color ?? "white"}>{char}</Text>;
+    } else if (distance === 1) {
+      return <Text key={i} bold color="white">{char}</Text>;
     } else {
-      return <Text key={i} color="white" dimColor>{char}</Text>;
+      return <Text key={i} color="gray">{char}</Text>;
     }
   });
 
@@ -88,7 +79,7 @@ function PhaseList({ state }: DashboardProps) {
     <Box flexDirection="column">
       {state.phases.map((phase) => {
         const result = state.phaseResults.get(phase);
-        const isCurrent = phase === state.currentPhase;
+        const isCurrent = state.currentPhases.has(phase);
         const status = isCurrent ? "running" : result?.status ?? "pending";
         const cost = state.phaseCosts.get(phase);
 
@@ -99,7 +90,7 @@ function PhaseList({ state }: DashboardProps) {
             </Box>
             <Box width={24}>
               {isCurrent ? (
-                <WaveText text={phase} />
+                <WaveText text={phase} tick={state.animTick} />
               ) : (
                 <Text color={status === "pending" ? "gray" : undefined}>
                   {phase}
@@ -208,6 +199,7 @@ export class TUI {
   private state: TUIState;
   private rerender: ((element: React.ReactElement) => void) | null = null;
   private timer: NodeJS.Timer | null = null;
+  private animTimer: NodeJS.Timer | null = null;
   private startTime: number;
 
   constructor(appName: string, platforms: string[], design: { template: string; navigation_style: string }, phases: Phase[]) {
@@ -217,13 +209,14 @@ export class TUI {
       platforms,
       design,
       phases,
-      currentPhase: null,
+      currentPhases: new Set(),
       phaseResults: new Map(),
       phaseCosts: new Map(),
       totalTokens: 0,
       tokenBudget: 500_000,
       totalCost: 0,
       elapsed: 0,
+      animTick: 0,
       logLines: [],
       status: "running",
     };
@@ -237,10 +230,17 @@ export class TUI {
       this.state.elapsed = Math.floor((Date.now() - this.startTime) / 1000);
       this.update();
     }, 1000);
+
+    this.animTimer = setInterval(() => {
+      this.state.animTick++;
+      if (this.state.currentPhases.size > 0) {
+        this.update();
+      }
+    }, 100);
   }
 
   setPhase(phase: Phase): void {
-    this.state.currentPhase = phase;
+    this.state.currentPhases.add(phase);
     this.log(`Starting phase: ${phase}`);
     this.update();
   }
@@ -251,7 +251,7 @@ export class TUI {
       this.state.phaseCosts.set(phase, cost);
       this.state.totalCost += cost;
     }
-    this.state.currentPhase = null;
+    this.state.currentPhases.delete(phase);
     this.log(`${result.status === "success" ? "✓" : "✗"} ${phase}: ${result.status}${cost ? ` ($${cost.toFixed(3)})` : ""}`);
     this.update();
   }
@@ -271,10 +271,14 @@ export class TUI {
 
   finish(status: "done" | "failed"): void {
     this.state.status = status;
-    this.state.currentPhase = null;
+    this.state.currentPhases.clear();
     if (this.timer) {
       clearInterval(this.timer as unknown as number);
       this.timer = null;
+    }
+    if (this.animTimer) {
+      clearInterval(this.animTimer as unknown as number);
+      this.animTimer = null;
     }
     this.update();
   }

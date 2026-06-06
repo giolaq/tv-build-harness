@@ -199,7 +199,8 @@ async function runWithClaude() {
       { prompt, content, brand, config, design, workdir, skillsDir },
       {
         onPhaseStart: (phase) => tui.setPhase(phase),
-        onPhaseEnd: (phase, result) => tui.phaseComplete(phase, result),
+        onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
+        onTokens: (tokens) => tui.addTokens(tokens),
         onLog: (msg) => tui.log(msg),
       }
     );

@@ -13,12 +13,30 @@ export const PHASES = [
   "static_checks",
   "simulator_build",
   "vega_build",
+  "visual_correctness",
   "visual_smoke_test",
   "eas_build",
   "package",
 ] as const;
 
 export type Phase = (typeof PHASES)[number];
+
+export const PHASE_DEPS: Record<Phase, Phase[]> = {
+  plan: [],
+  clone_template: ["plan"],
+  metadata_branding: ["clone_template"],
+  manifest_wiring: ["clone_template"],
+  screen_customization: ["metadata_branding", "manifest_wiring"],
+  navigation_update: ["screen_customization"],
+  prebuild: ["navigation_update"],
+  static_checks: ["navigation_update"],
+  simulator_build: ["static_checks"],
+  vega_build: ["static_checks"],
+  visual_correctness: ["simulator_build"],
+  visual_smoke_test: ["visual_correctness"],
+  eas_build: ["static_checks"],
+  package: ["simulator_build", "vega_build"],
+};
 
 export const V1_PHASES: Phase[] = [
   "plan",
@@ -30,6 +48,7 @@ export const V1_PHASES: Phase[] = [
   "static_checks",
   "simulator_build",
   "vega_build",
+  "visual_correctness",
   "visual_smoke_test",
 ];
 

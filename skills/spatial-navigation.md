@@ -106,6 +106,31 @@ When you need a custom handler:
 
 **Web:** the library uses keyboard arrow keys. Mouse focus is disabled by default. If web is a target, verify arrow-key navigation in a browser before assuming parity.
 
+## The #1 Generated-App Bug: Double-Step Focus
+
+**Symptom:** Every direction key press moves focus 2 positions instead of 1.
+
+**Cause:** Duplicate event processing. The spatial-navigation library already handles ALL D-pad/arrow-key events internally. If you ALSO add:
+- `onKeyDown` handlers on components
+- `document.addEventListener('keydown', ...)` anywhere
+- `onFocus` handlers that call navigation/focus methods
+- `useEffect` hooks that respond to focus changes by moving focus again
+
+...then both the library AND your custom code process the same keypress, and focus moves twice.
+
+**The rule:** react-tv-space-navigation is the SOLE owner of D-pad events. You NEVER need to:
+- Listen for arrow keys yourself
+- Manually move focus in response to key events
+- Add `onFocus` callbacks that trigger navigation
+
+**What you CAN add:**
+- `onSelect` / `onPress` → fires on Enter/Select button (the library calls it)
+- `onLongPress` → fires on long-press
+- Visual styling via `isFocused` render prop
+- `onBlur` for cleanup (but NOT for moving focus elsewhere)
+
+**How to verify:** `grep -rn "onKeyDown\|addEventListener.*key\|onFocus.*navigate\|onFocus.*setFocus" src/` should return zero results in screen/component code. Only the `remote-control/` platform handlers should touch key events.
+
 ## Anti-patterns
 
 - **Nesting `<SpatialNavigationRoot>`.** Only the outermost wins. Inner roots silently break their subtree.
@@ -113,3 +138,4 @@ When you need a custom handler:
 - **`useEffect` that grabs focus on mount without checking if another element is already focused.** Steals focus on every render.
 - **Trying to use `tabIndex`.** That's web. The library uses its own focus model.
 - **Custom `setFocus(ref)` calls in render.** Always do this in event handlers or effects, never inline.
+- **Adding onKeyDown or keyboard event listeners for D-pad.** The library already handles this. Adding your own causes double-step focus movement.

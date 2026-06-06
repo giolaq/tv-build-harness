@@ -1,4 +1,4 @@
-import { execSync, spawnSync } from "node:child_process";
+import { execSync, spawn as spawnAsync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +12,7 @@ import type {
   RunConfig,
   SessionState,
 } from "./types.js";
-import { V1_PHASES, AppSpecSchema } from "./types.js";
+import { V1_PHASES, PHASE_DEPS, AppSpecSchema } from "./types.js";
 import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
 import { generateScreenshotReport } from "./screenshot-report.js";
@@ -155,7 +155,18 @@ For each AppSpec screen:
 STEP 3: Create any genuinely new screens.
 For new screens, create them at ${ctx.appDir}/packages/shared-ui/src/screens/<ScreenName>Screen.tsx.
 Use existing components from ${ctx.appDir}/packages/shared-ui/src/components/ — read what's available first.
-Ensure all interactive elements use Pressable with focus handlers for D-pad navigation.
+All interactive elements must use the template's existing Pressable or Tile components (which already wrap SpatialNavigationFocusableView internally).
+
+⚠️ DO NOT add custom onFocus, onKeyDown, or keyboard event listeners for D-pad navigation.
+The react-tv-space-navigation library handles ALL arrow key → focus movement automatically.
+Adding custom handlers causes DOUBLE-STEP focus (each keypress moves 2 positions instead of 1).
+
+Only add:
+- onPress / onSelect → for selection actions (the library calls these on Enter/Select)
+- onLongPress → for long-press actions
+- Visual styling via the isFocused render prop (already built into template's Tile/Card)
+
+DO NOT add: onKeyDown, addEventListener('keydown'), manual focus management with useEffect, or any code that calls setFocus/moveFocus in response to arrow keys.
 
 STEP 4: Export all screens from the screens index.
 Check ${ctx.appDir}/packages/shared-ui/src/screens/index.ts (or similar barrel file) and add exports for any new screens.
@@ -182,7 +193,8 @@ The template already uses a drawer navigator. Keep it. Update the drawer items t
 Edit the DrawerNavigator file to:
 - Map each route to its screen component
 - Set the correct labels and icons
-- Remove any routes not in the list above`,
+- Remove any routes not in the list above
+- KEEP any existing focus trapping logic (SpatialNavigationNode with captureFocus) in the drawer content`,
 
       tabs: `
 The template uses a drawer navigator — you MUST REPLACE it with a top tab navigator.
@@ -191,7 +203,7 @@ Steps to switch from drawer to tabs:
 1. Check if @react-navigation/bottom-tabs or @react-navigation/material-top-tabs is installed.
    If not: run "yarn workspace @multi-tv/shared-ui add @react-navigation/bottom-tabs" (or add to the expo-multi-tv workspace if that's where nav deps live)
 2. Find the DrawerNavigator file (likely DrawerNavigator.tsx or similar in packages/shared-ui/src/navigation/)
-3. REPLACE the entire drawer navigator with a tab navigator. Use createBottomTabNavigator() or createMaterialTopTabNavigator() for a top bar.
+3. REPLACE the drawer navigator with a tab navigator. Use createBottomTabNavigator() or createMaterialTopTabNavigator() for a top bar.
 4. For a TOP tab bar specifically, use createMaterialTopTabNavigator with tabBarPosition: 'top' and style it:
    - Background: match the app's background color
    - Active indicator: use the accent/primary color
@@ -223,14 +235,67 @@ Navigation type requested: ${resolvedType}
 Routes:
 ${routesList}
 
-STEP 1: Find the current navigation files.
+⚠️ CRITICAL: SPATIAL NAVIGATION MUST BE PRESERVED ⚠️
+
+This template uses "react-tv-space-navigation" for D-pad/remote control focus management.
+It does NOT use browser tabIndex or native TVFocusGuide — it has its own virtual focus tree.
+If you break the spatial navigation setup, the app will render but the remote/keyboard will NOT work.
+
+Rules you MUST follow:
+1. DO NOT remove or interfere with <SpatialNavigationRoot> in any screen component
+2. DO NOT remove the spatial navigation provider/configuration from the app root (check App.tsx or the root navigator for SpatialNavigationDeviceTypeProvider or similar setup)
+3. DO NOT use tabIndex for focusable elements — use the template's existing Tile/Pressable components which wrap SpatialNavigationFocusableView
+4. DO NOT nest multiple <SpatialNavigationRoot> — exactly one per screen
+5. The navigation container itself must remain keyboard-accessible — tab bars/drawers need their items to be SpatialNavigationFocusableView nodes so the remote can reach them
+6. KEEP the remote-control/ directory and its platform handlers UNTOUCHED
+
+STEP 1: Understand the current spatial navigation setup.
+Run: grep -rn "SpatialNavigation\\|react-tv-space-navigation\\|SpatialNavigationRoot\\|SpatialNavigationNode" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
+Run: grep -rn "SpatialNavigation" ${ctx.appDir}/apps/expo-multi-tv/App.tsx 2>/dev/null || grep -rn "SpatialNavigation" ${ctx.appDir}/apps/expo-multi-tv/src/ --include="*.tsx" 2>/dev/null | head -10
+Run: cat ${ctx.appDir}/packages/shared-ui/src/remote-control/ 2>/dev/null && ls ${ctx.appDir}/packages/shared-ui/src/remote-control/ 2>/dev/null
+
+Note what you find. You must preserve ALL of this.
+
+STEP 2: Find the current navigation files.
 Run: find ${ctx.appDir}/packages/shared-ui/src -name "*.tsx" -o -name "*.ts" | grep -i -E "(nav|drawer|route|stack|tab)" | head -15
 Read the main navigator files to understand the current structure.
 
-STEP 2: Apply the navigation type.
+STEP 3: Apply the navigation type.
 ${instructions}
 
-STEP 3: Wire the routes.
+STEP 4: Make the new navigation focusable with spatial navigation.
+After changing the navigator type, you MUST ensure the navigation UI itself works with the remote:
+
+For TABS:
+- Each tab item must be focusable. Wrap the tab bar in a SpatialNavigationNode with orientation="horizontal".
+- Use a custom tabBar component that renders each tab as a SpatialNavigationFocusableView.
+- When a tab is focused, highlight it visually. When pressed (Enter/Select), switch to that tab.
+- Example pattern:
+  tabBar: (props) => (
+    <SpatialNavigationNode orientation="horizontal">
+      {props.state.routes.map((route, i) => (
+        <SpatialNavigationFocusableView key={route.key} onSelect={() => props.navigation.navigate(route.name)}>
+          {({isFocused}) => (
+            <Text style={[styles.tab, isFocused && styles.tabFocused]}>{route.name}</Text>
+          )}
+        </SpatialNavigationFocusableView>
+      ))}
+    </SpatialNavigationNode>
+  )
+
+⚠️ DO NOT add onKeyDown, addEventListener('keydown'), or any manual arrow-key handling anywhere.
+The spatial-navigation library is the SOLE owner of D-pad/arrow-key events.
+If you add a parallel listener, every keypress will move focus TWICE (double-step bug).
+The SpatialNavigationFocusableView's onSelect prop is the ONLY handler you need — it fires on Enter/Select.
+
+For DRAWER:
+- The drawer content items must be SpatialNavigationFocusableView nodes.
+- The drawer itself should be wrapped in SpatialNavigationNode with captureFocus when open.
+
+For HIDDEN:
+- No navigation UI to worry about. Just ensure each screen still has its SpatialNavigationRoot.
+
+STEP 5: Wire the routes.
 Each route must point to an EXISTING screen component. First check what screens exist:
 Run: ls ${ctx.appDir}/packages/shared-ui/src/screens/
 Only import screens that exist in that directory. Do NOT import non-existent screens.
@@ -238,12 +303,21 @@ Only import screens that exist in that directory. Do NOT import non-existent scr
 Route → Screen mapping (use the closest match):
 ${routesList}
 
-STEP 4: Verify.
+STEP 6: Verify navigation + focus integration.
 Run: cd "${ctx.appDir}" && npx tsc --noEmit 2>&1 | head -20
-Fix any TypeScript errors. Common issues after nav switch:
-- Missing @react-navigation/bottom-tabs or material-top-tabs package
-- Old drawer imports left behind
-- Screen component names don't match file names
+Fix any TypeScript errors.
+
+Then verify spatial navigation is intact:
+Run: grep -rn "SpatialNavigationRoot" ${ctx.appDir}/packages/shared-ui/src/screens/ --include="*.tsx" | wc -l
+This count must be ≥ the number of screens. If any screen is missing its SpatialNavigationRoot, add it.
+
+Run: grep -rn "SpatialNavigationFocusableView\\|SpatialNavigationNode" ${ctx.appDir}/packages/shared-ui/src/navigation/ --include="*.tsx"
+If the navigation UI has zero spatial navigation nodes, the remote CANNOT reach it. Fix this.
+
+STEP 7: Verify keyboard/back navigation.
+Check that React Navigation's back handling is still wired:
+Run: grep -rn "BackHandler\\|goBack\\|headerBackVisible\\|backBehavior" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -10
+For web, React Navigation handles Backspace by default if the navigation container is properly set up. Ensure you haven't removed the NavigationContainer wrapper.
 `;
   },
 
@@ -305,6 +379,388 @@ Report: which platforms succeeded, which were skipped, which failed.
 Build the Vega OS variant:
 Run: cd ${ctx.appDir}/apps/vega && npx kepler build
 `,
+
+  visual_correctness: (ctx) => {
+    const brand = ctx.input.brand;
+    const design = ctx.input.design;
+    const screenshotDir = `${ctx.outDir}/screenshots`;
+    const routes = ctx.spec?.navigation.routes ?? [];
+    const routeCount = routes.length;
+
+    return `
+You are a visual QA engineer for TV applications. Your job is to render the app, screenshot every screen and state, then analyze the screenshots pixel-by-pixel for layout defects.
+
+TV apps are viewed from 10 feet away on large screens (1920x1080). Visual defects that might be acceptable on mobile are UNACCEPTABLE here — every pixel matters at that scale.
+
+## STEP 1: Start the app
+
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo start --web --port 19007 &
+Run: sleep 10
+Verify: curl -s http://localhost:19007 | head -5
+
+If it fails, check for port conflicts and try again. The app MUST be running before you continue.
+
+## STEP 2: Capture comprehensive screenshots
+
+Write and run this puppeteer script (save as ${ctx.outDir}/visual-check.cjs then run with node):
+
+const puppeteer = require('puppeteer');
+const path = require('path');
+
+(async () => {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--window-size=1920,1080']
+  });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1920, height: 1080 });
+
+  const ssDir = '${screenshotDir}';
+  let shotIndex = 0;
+
+  async function screenshot(name) {
+    await new Promise(r => setTimeout(r, 1500));
+    const file = path.join(ssDir, \`vc-\${String(++shotIndex).padStart(2,'0')}-\${name}.png\`);
+    await page.screenshot({ path: file, fullPage: false });
+    console.log('Captured: ' + name);
+    return file;
+  }
+
+  async function pressKey(key, times = 1) {
+    for (let i = 0; i < times; i++) {
+      await page.keyboard.press(key);
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+
+  // Focus a specific Pressable/card element by index within the viewport
+  async function focusNth(selector, n) {
+    await page.evaluate((sel, idx) => {
+      const els = document.querySelectorAll(sel);
+      if (els[idx]) {
+        els[idx].focus();
+        els[idx].dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+        // Also dispatch keyboard event so spatial nav libraries react
+        els[idx].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        els[idx].dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+      }
+    }, selector, n);
+    await new Promise(r => setTimeout(r, 600));
+  }
+
+  // Get all focusable elements to understand the app's focus tree
+  async function getFocusableCount() {
+    return page.evaluate(() => {
+      const focusable = document.querySelectorAll('[tabindex], [data-focusable="true"], [role="button"], a, button');
+      return focusable.length;
+    });
+  }
+
+  try {
+    // Home screen — default state
+    await page.goto('http://localhost:19007', { waitUntil: 'networkidle0', timeout: 30000 });
+    await screenshot('home-default');
+
+    // IMPORTANT: Click the page body to give the webview focus, otherwise key events are ignored
+    await page.click('body');
+    await new Promise(r => setTimeout(r, 300));
+
+    // Detect the app's focusable elements
+    const focusableCount = await getFocusableCount();
+    console.log('Focusable elements found: ' + focusableCount);
+
+    // Determine the card/tile selector used by the app
+    const cardSelector = await page.evaluate(() => {
+      // Try common selectors used by RN Web and spatial-nav libraries
+      const candidates = [
+        '[data-focusable="true"]',
+        '[role="button"]',
+        '[tabindex="0"]',
+        '.focusable',
+        '[data-testid*="card"]',
+        '[data-testid*="tile"]',
+      ];
+      for (const sel of candidates) {
+        if (document.querySelectorAll(sel).length > 2) return sel;
+      }
+      // Fallback: any element with tabindex
+      return '[tabindex]';
+    });
+    console.log('Card selector: ' + cardSelector);
+
+    // === FOCUS TESTING: Use BOTH keyboard nav AND direct element focus ===
+
+    // Method 1: Keyboard navigation (Tab / Arrow keys)
+    // Tab first to enter the focusable tree
+    await page.keyboard.press('Tab');
+    await new Promise(r => setTimeout(r, 500));
+    await screenshot('home-tab-first-focus');
+
+    await pressKey('ArrowRight', 1);
+    await screenshot('home-arrow-right-1');
+
+    await pressKey('ArrowRight', 1);
+    await screenshot('home-arrow-right-2');
+
+    await pressKey('ArrowDown', 1);
+    await screenshot('home-arrow-down-1');
+
+    // Method 2: Direct element focus (guarantees we see the scale effect)
+    // Focus the FIRST card — critical for left/top clipping detection
+    await focusNth(cardSelector, 0);
+    await screenshot('home-first-card-focused');
+
+    // Focus the SECOND card
+    await focusNth(cardSelector, 1);
+    await screenshot('home-second-card-focused');
+
+    // Focus a card further in the row
+    await focusNth(cardSelector, 3);
+    await screenshot('home-mid-row-focused');
+
+    // Focus a card in the second row (if rails exist)
+    // Estimate: if there are 5+ items per row, item 6+ is row 2
+    const secondRowIndex = await page.evaluate((sel) => {
+      const cards = document.querySelectorAll(sel);
+      if (cards.length < 4) return -1;
+      const firstTop = cards[0].getBoundingClientRect().top;
+      for (let i = 1; i < cards.length; i++) {
+        if (cards[i].getBoundingClientRect().top > firstTop + 50) return i;
+      }
+      return Math.min(5, cards.length - 1);
+    }, cardSelector);
+
+    if (secondRowIndex > 0) {
+      await focusNth(cardSelector, secondRowIndex);
+      await screenshot('home-second-row-focused');
+    }
+
+    // Scroll down by focusing elements lower on the page
+    const lastIndex = Math.min(await page.evaluate((sel) => document.querySelectorAll(sel).length - 1, cardSelector), 15);
+    if (lastIndex > 6) {
+      await focusNth(cardSelector, lastIndex);
+      await screenshot('home-scroll-far-focused');
+    }
+
+    // === NAVIGATION TESTING ===
+    // Try to open navigation (drawer/tab click or keyboard shortcut)
+    const navOpened = await page.evaluate(() => {
+      // Look for drawer toggle, hamburger menu, or nav links
+      const toggle = document.querySelector('[data-testid*="menu"], [data-testid*="drawer"], [aria-label*="menu"], [aria-label*="Menu"]');
+      if (toggle) { toggle.click(); return true; }
+      // Try clicking a nav tab if tabs exist
+      const tab = document.querySelector('[role="tab"], [role="tablist"] > *');
+      if (tab) { tab.click(); return true; }
+      return false;
+    });
+    await new Promise(r => setTimeout(r, 1000));
+    if (navOpened) await screenshot('nav-open');
+
+    // Visit other screens by clicking nav items directly
+    const navItems = await page.evaluate(() => {
+      const items = document.querySelectorAll('[role="tab"], [role="menuitem"], [data-testid*="nav"], a[href]');
+      return items.length;
+    });
+
+    for (let i = 0; i < Math.min(navItems, ${Math.min(routeCount, 4)}); i++) {
+      await page.evaluate((idx) => {
+        const items = document.querySelectorAll('[role="tab"], [role="menuitem"], [data-testid*="nav"], a[href]');
+        if (items[idx]) items[idx].click();
+      }, i);
+      await new Promise(r => setTimeout(r, 1500));
+      await screenshot('screen-' + (i + 1));
+
+      // Focus a card on this screen too
+      await focusNth(cardSelector, 0);
+      await screenshot('screen-' + (i + 1) + '-card-focused');
+
+      // Go back (Backspace = TV back button in web)
+      await page.keyboard.press('Backspace');
+      await new Promise(r => setTimeout(r, 800));
+    }
+
+    // === DETAIL VIEW ===
+    // Go back to home (Backspace = TV back button in web)
+    await page.keyboard.press('Backspace');
+    await new Promise(r => setTimeout(r, 1000));
+    await page.evaluate((sel) => {
+      const cards = document.querySelectorAll(sel);
+      if (cards[0]) cards[0].click();
+    }, cardSelector);
+    await new Promise(r => setTimeout(r, 1500));
+    await screenshot('detail-view');
+
+    // Go back from detail
+    await page.keyboard.press('Backspace');
+    await new Promise(r => setTimeout(r, 1000));
+    await screenshot('home-after-back');
+
+    // === RESPONSIVE CHECK (720p) ===
+    await page.setViewport({ width: 1280, height: 720 });
+    await page.goto('http://localhost:19007', { waitUntil: 'networkidle0', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 1500));
+    await screenshot('home-720p');
+    await focusNth(cardSelector, 0);
+    await screenshot('home-720p-first-focused');
+
+    console.log('\\nTotal screenshots: ' + shotIndex);
+    console.log('Focusable elements: ' + focusableCount);
+    console.log('Card selector used: ' + cardSelector);
+  } catch(e) {
+    console.error('Error: ' + e.message);
+    await screenshot('error-state');
+  }
+
+  await browser.close();
+})();
+
+Run: cd ${ctx.outDir} && node visual-check.cjs 2>&1
+
+If puppeteer is not available:
+Run: npm install --prefix ${ctx.outDir} puppeteer 2>&1 | tail -5
+Then re-run the script.
+
+## STEP 2.5: Pre-scan code for focus-scale clipping (COMMON TV BUG)
+
+Before analyzing screenshots, proactively find and fix the most common TV layout bug: focused cards being clipped by their parent container when they scale up.
+
+Run: grep -rn "overflow.*hidden\\|overflow.*scroll" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
+Run: grep -rn "transform.*scale\\|scaleX\\|scaleY\\|focused.*scale" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
+Run: grep -rn "FlatList\\|ScrollView\\|horizontal" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
+
+For EVERY horizontal list/rail/row that contains focusable cards with scale animations:
+1. Read the component file
+2. Check if the container (FlatList, ScrollView, or wrapping View) has overflow:hidden — if so, change to overflow:'visible'
+3. Check if the container has sufficient padding to accommodate the scale. If a card scales to 1.05x-1.1x, the container needs padding equal to: (card_height * (scale - 1)) / 2 on top/bottom, and (card_width * (scale - 1)) / 2 on left (for first item) and right (for last item).
+4. Apply these fixes:
+   - Set overflow: 'visible' on the FlatList/ScrollView contentContainerStyle AND its parent View
+   - Add paddingTop and paddingBottom to the content container: at minimum 8-12px, or half the scale growth
+   - Add paddingLeft to the content container (so the first card isn't clipped when focused)
+   - If using FlatList, also set style={{ overflow: 'visible' }} on the FlatList itself
+   - Ensure any parent View wrapping the rail also has overflow: 'visible'
+
+Example fix pattern:
+BEFORE:
+  <View style={{ marginVertical: 8 }}>
+    <FlatList horizontal data={items} renderItem={...} />
+  </View>
+
+AFTER:
+  <View style={{ marginVertical: 8, overflow: 'visible' }}>
+    <FlatList
+      horizontal
+      data={items}
+      style={{ overflow: 'visible' }}
+      contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, overflow: 'visible' }}
+      renderItem={...}
+    />
+  </View>
+
+Apply this fix to ALL horizontal lists and grids that contain focusable/scalable items. Do NOT skip any.
+
+## STEP 3: Analyze every screenshot
+
+Read EACH screenshot file captured above. For every image, check for ALL of the following defects:
+
+### Layout Defects
+- **Overlapping elements**: Any text, image, or component that overlaps another
+- **Clipped/truncated content**: Text cut off mid-word, images cropped unexpectedly, tiles partially hidden
+- **Focus-scale clipping**: When a card/tile is focused and scales up (transform: scale), its edges get CUT OFF by the parent container. This is a CRITICAL and COMMON defect in TV apps. Look for:
+  - Top of focused card cropped (parent has overflow:hidden or no top padding)
+  - Left edge of FIRST card in a row cropped (container has no left padding to accommodate scale)
+  - Right edge of LAST card in a row cropped (same issue, right side)
+  - Bottom of focused card cropped by the row below
+- **Overflow**: Content spilling outside its container boundaries
+- **Misalignment**: Elements that should be aligned (grid items, list items, headings) but are visually offset
+- **Uneven spacing**: Inconsistent gaps between repeated elements (tiles in a rail, items in a grid)
+- **Empty/blank regions**: Large areas of dead space that shouldn't be there, or screens that render nothing
+
+### TV-Specific Defects (10ft UI)
+- **Unsafe area violation**: Content rendered in the outer 5% margin (TV overscan area) — all content must be within the safe zone
+- **Text too small**: Any text under ~24px equivalent (body) or ~18px (labels) — unreadable at 10ft
+- **Low contrast**: Text or icons that don't have sufficient contrast against their background (especially on dark themes)
+- **Missing focus indicator**: When an element is focused, there should be a visible highlight/ring/scale change
+- **Focus indicator too subtle**: Focus states that exist but would be invisible from 10ft away
+
+### Brand Correctness
+- **Wrong colors**: UI not using brand primary (${brand.primary_color}), accent (${brand.accent_color}), or background (${brand.background_color})
+- **Template default colors still visible**: Generic/default theme colors that weren't replaced
+- **Inconsistent theme**: Some parts of the UI using brand colors, others still on defaults
+
+### Component Issues
+- **Broken images**: Image placeholders showing, broken image icons, or blank image areas
+- **Stacking errors**: Z-index issues where backgrounds cover foreground content, or modals hidden behind other elements
+- **Scroll artifacts**: Ghost elements, duplicated rows, or visual tearing in scroll areas
+- **Navigation chrome issues**: Nav bar overlapping content, tabs/drawer covering screen elements
+
+## STEP 4: Attempt fixes for CRITICAL defects found in screenshots
+
+If you find critical defects (overlapping, clipping, overscan violations), attempt to fix them:
+
+For each critical defect:
+1. Identify which component/screen file causes the issue
+2. Read the file
+3. Fix the layout issue:
+   - **Focus-scale clipping** → overflow:'visible' + padding on container (see Step 2.5 pattern)
+   - **Overlap** → fix z-index, adjust margins, or fix flex layout
+   - **Overscan** → add safe-area padding (min 48px on all edges for TV)
+   - **Misalignment** → fix flex properties (alignItems, justifyContent)
+   - **Text clipping** → numberOfLines prop, or increase container height
+4. Save the file
+
+After ALL fixes, re-capture screenshots and re-analyze:
+Run: cd ${ctx.outDir} && node visual-check.cjs 2>&1
+
+Read the new screenshots. For each previously-broken screen, confirm the fix worked. If a defect persists after one fix attempt, note it as "unresolved" in the report — do not loop more than twice.
+
+## STEP 5: Kill the dev server
+
+Run: kill $(lsof -ti:19007) 2>/dev/null || true
+
+## STEP 6: Write the visual correctness report
+
+Write ${ctx.outDir}/visual-correctness-report.txt with this exact structure:
+
+# Visual Correctness Report
+
+## Summary
+- Screenshots analyzed: <count>
+- Critical defects: <count> (overlaps, clipping, overscan)
+- Major defects: <count> (missing focus, low contrast, misalignment)
+- Minor defects: <count> (spacing inconsistency, small visual glitches)
+- Fixes applied: <count>
+- Fixes verified: <count>
+
+## Defects Found
+
+### Critical
+<list each with: screenshot name, description, location in UI, fix applied (yes/no)>
+
+### Major
+<list each>
+
+### Minor
+<list each>
+
+## Screen-by-Screen Results
+<for each screenshot: PASS/FAIL + issues found>
+
+## Design Spec Compliance
+- Brand colors applied: YES/NO
+- Navigation style (${design.navigation_style}): CORRECT/INCORRECT
+- Template (${design.template}): MATCHES/MISMATCH
+- Hero visible: ${design.show_hero ? "EXPECTED" : "SHOULD BE HIDDEN"}
+- Tile size (${design.tile_size}): CORRECT/INCORRECT
+- TV safe area respected: YES/NO
+- Focus indicators visible: YES/NO
+
+## Overall Verdict: PASS / PARTIAL / FAIL
+
+A PASS means zero critical defects and ≤2 minor defects.
+A PARTIAL means no critical defects remain after fixes, but major defects exist.
+A FAIL means critical defects could not be fixed.
+`;
+  },
 
   visual_smoke_test: (ctx) => {
     const screenshotDir = `${ctx.outDir}/screenshots`;
@@ -441,7 +897,8 @@ Write ${ctx.outDir}/build-report.txt with:
 
 export interface HarnessEvents {
   onPhaseStart?: (phase: Phase) => void;
-  onPhaseEnd?: (phase: Phase, result: PhaseResult) => void;
+  onPhaseEnd?: (phase: Phase, result: PhaseResult, cost?: number) => void;
+  onTokens?: (tokens: number) => void;
   onLog?: (message: string) => void;
 }
 
@@ -451,6 +908,7 @@ export class ClaudeOrchestrator {
   private log: RunLog;
   private input: HarnessInput;
   private events: HarnessEvents;
+  private lastPhaseCost: number = 0;
 
   constructor(input: HarnessInput, events: HarnessEvents = {}) {
     this.skills = new SkillLibrary(input.skillsDir);
@@ -481,27 +939,57 @@ export class ClaudeOrchestrator {
 
   async run(): Promise<{ state: SessionState; outDir: string }> {
     const phases = this.getActivePhases();
+    const completed = new Set<Phase>();
+    const failed = new Set<Phase>();
+    const running = new Map<Phase, Promise<{ phase: Phase; result: PhaseResult }>>();
 
-    for (const phase of phases) {
-      this.state.currentPhase = phase;
-      this.log.phaseStart(phase, this.state.totalIterations);
-      this.events.onPhaseStart?.(phase);
+    while (completed.size + failed.size < phases.length) {
+      const ready = phases.filter(p =>
+        !completed.has(p) && !failed.has(p) && !running.has(p) &&
+        PHASE_DEPS[p].every(dep => completed.has(dep) || !phases.includes(dep))
+      );
 
-      if (!this.events.onLog) {
-        console.log(`\n  [${"=".repeat(40)}]`);
-        console.log(`  Phase: ${phase}`);
-        console.log(`  [${"=".repeat(40)}]\n`);
+      for (const phase of ready) {
+        this.state.currentPhase = phase;
+        this.log.phaseStart(phase, this.state.totalIterations);
+        this.events.onPhaseStart?.(phase);
+
+        if (!this.events.onLog) {
+          console.log(`\n  [${"=".repeat(40)}]`);
+          console.log(`  Phase: ${phase}`);
+          console.log(`  [${"=".repeat(40)}]\n`);
+        }
+
+        running.set(phase, this.executePhaseWithRetry(phase).then(result => ({ phase, result })));
       }
 
-      let result = await this.executePhaseWithRetry(phase);
+      if (running.size === 0) {
+        // Remaining phases are blocked by failed dependencies
+        for (const p of phases) {
+          if (!completed.has(p) && !failed.has(p)) {
+            failed.add(p);
+            const blockedResult: PhaseResult = { phase: p, status: "failed", iterations: 0, error: "Blocked by failed dependency" };
+            this.state.phaseResults.set(p, blockedResult);
+            this.events.onPhaseEnd?.(p, blockedResult, 0);
+          }
+        }
+        break;
+      }
 
+      const settled = await Promise.race(running.values());
+      running.delete(settled.phase);
+
+      const { phase, result } = settled;
       this.state.phaseResults.set(phase, result);
       this.log.phaseEnd(phase, this.state.totalIterations, result.status);
-      this.events.onPhaseEnd?.(phase, result);
+      const phaseCost = this.lastPhaseCost;
+      this.lastPhaseCost = 0;
+      this.events.onPhaseEnd?.(phase, result, phaseCost);
 
       if (result.status === "failed") {
         if (!this.events.onLog) console.log(`  Phase ${phase} FAILED: ${result.error}`);
         this.events.onLog?.(`Phase ${phase} FAILED: ${result.error}`);
+        failed.add(phase);
         if (phase === "plan") {
           if (!this.events.onLog) console.log(`  Aborting: cannot continue without a valid AppSpec.`);
           break;
@@ -509,9 +997,11 @@ export class ClaudeOrchestrator {
       } else if (result.status === "degraded") {
         if (!this.events.onLog) console.log(`  Phase ${phase} DEGRADED: ${result.error}`);
         this.events.onLog?.(`Phase ${phase} DEGRADED: ${result.error}`);
+        completed.add(phase);
       } else {
         if (!this.events.onLog) console.log(`  Phase ${phase}: ${result.status}`);
         this.events.onLog?.(`Phase ${phase}: ${result.status}`);
+        completed.add(phase);
         this.commitAfterPhase(phase);
       }
     }
@@ -524,7 +1014,7 @@ export class ClaudeOrchestrator {
     const { platforms } = this.state.config;
 
     const generateOnly = process.argv.includes("--generate-only");
-    const buildPhases: Phase[] = ["simulator_build", "vega_build", "visual_smoke_test"];
+    const buildPhases: Phase[] = ["simulator_build", "vega_build", "visual_correctness", "visual_smoke_test"];
 
     return V1_PHASES.filter((phase) => {
       if (generateOnly && buildPhases.includes(phase)) return false;
@@ -601,7 +1091,7 @@ export class ClaudeOrchestrator {
       const buildPhases: Phase[] = ["simulator_build", "vega_build"];
       const timeoutMs = buildPhases.includes(phase) ? 900_000 : 600_000;
 
-      const output = this.invokeClaude(fullPrompt, cwd, timeoutMs);
+      const output = await this.invokeClaude(fullPrompt, cwd, timeoutMs);
 
       // Log full response
       writeFileSync(join(this.state.workdir, `response-${phase}.txt`), output);
@@ -627,7 +1117,10 @@ export class ClaudeOrchestrator {
     }
   }
 
-  private executePlanPhase(): PhaseResult {
+  private async executePlanPhase(): Promise<PhaseResult> {
+    const navStyle = this.input.design.navigation_style;
+    const navTypeConstraint = navStyle === "hidden" ? "single" : navStyle === "tabs" ? "tabs" : "drawer";
+
     const planPrompt = `You are a TV app planner. Given a user brief, content manifest, and brand kit, produce an AppSpec JSON object.
 
 Output ONLY valid JSON (no markdown fencing, no explanation). The JSON must match this schema:
@@ -641,11 +1134,15 @@ Output ONLY valid JSON (no markdown fencing, no explanation). The JSON must matc
 - player: { lib: "react-native-video" }
 - auth?: { provider: "none"|"oauth", flow?: "device_code" }
 
+IMPORTANT: The navigation.type MUST be "${navTypeConstraint}" — this is a hard constraint from the design system, do not override it.
+
 Brief: ${this.input.prompt}
 
 Content manifest summary: ${this.input.content.categories.length} categories, ${this.input.content.videos.length} videos, ${this.input.content.featured.length} featured
 
-Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color}, accent=${this.input.brand.accent_color}, bg=${this.input.brand.background_color}`;
+Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color}, accent=${this.input.brand.accent_color}, bg=${this.input.brand.background_color}
+
+Design: template="${this.input.design.template}", navigation="${navStyle}", hero=${this.input.design.show_hero ? "visible" : "hidden"}, tiles=${this.input.design.tile_size}`;
 
     // Log plan prompt
     writeFileSync(
@@ -654,7 +1151,7 @@ Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color
     );
 
     try {
-      const output = this.invokeClaude(planPrompt, this.state.workdir);
+      const output = await this.invokeClaude(planPrompt, this.state.workdir);
 
       // Log raw response
       writeFileSync(join(this.state.workdir, "plan-response.txt"), output);
@@ -789,6 +1286,13 @@ Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color
         }
         return { ok: true };
       }
+      case "visual_correctness": {
+        const reportPath = join(this.state.workdir, "visual-correctness-report.txt");
+        if (!existsSync(reportPath)) {
+          return { ok: false, error: "Visual correctness report was not generated" };
+        }
+        return { ok: true };
+      }
       default:
         return { ok: true };
     }
@@ -877,32 +1381,65 @@ Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color
     writeFileSync(join(this.state.workdir, "report.md"), lines.join("\n"));
   }
 
-  private invokeClaude(prompt: string, cwd: string, timeoutMs: number = 600_000): string {
+  private invokeClaude(prompt: string, cwd: string, timeoutMs: number = 600_000): Promise<string> {
     const claudePath = process.env.CLAUDE_PATH ?? findClaude();
 
-    const result = spawnSync(claudePath, [
-      "-p", "-",
-      "--allowedTools", "Bash,Read,Write,Edit",
-    ], {
-      cwd,
-      input: prompt,
-      stdio: ["pipe", "pipe", "pipe"],
-      timeout: timeoutMs,
-      maxBuffer: 10 * 1024 * 1024,
-      encoding: "utf-8",
-      env: { ...process.env, PATH: `${process.env.PATH}:${process.env.HOME}/.toolbox/bin` },
+    return new Promise((resolve, reject) => {
+      const child = spawnAsync(claudePath, [
+        "-p", "-",
+        "--allowedTools", "Bash,Read,Write,Edit",
+        "--output-format", "json",
+      ], {
+        cwd,
+        stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, PATH: `${process.env.PATH}:${process.env.HOME}/.toolbox/bin` },
+      });
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout!.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+      child.stderr!.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+
+      child.stdin!.write(prompt);
+      child.stdin!.end();
+
+      const timer = setTimeout(() => {
+        child.kill("SIGTERM");
+        reject(new Error(`claude CLI timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        if (code !== 0) {
+          reject(new Error(`claude CLI exited with ${code}: ${stderr.slice(0, 500)}`));
+        } else {
+          try {
+            const parsed = JSON.parse(stdout);
+            const usage = parsed.usage;
+            if (usage) {
+              const tokens = (usage.input_tokens ?? 0)
+                + (usage.cache_creation_input_tokens ?? 0)
+                + (usage.cache_read_input_tokens ?? 0)
+                + (usage.output_tokens ?? 0);
+              this.state.tokensUsed += tokens;
+              this.events.onTokens?.(tokens);
+            }
+            if (parsed.total_cost_usd) {
+              this.lastPhaseCost = parsed.total_cost_usd;
+            }
+            resolve(parsed.result ?? "");
+          } catch {
+            resolve(stdout);
+          }
+        }
+      });
+
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        reject(new Error(`claude CLI error: ${err.message}`));
+      });
     });
-
-    if (result.error) {
-      throw new Error(`claude CLI error: ${result.error.message}`);
-    }
-
-    if (result.status !== 0) {
-      const stderr = result.stderr?.toString() ?? "";
-      throw new Error(`claude CLI exited with ${result.status}: ${stderr.slice(0, 500)}`);
-    }
-
-    return result.stdout?.toString() ?? "";
   }
 
   getState(): SessionState {
