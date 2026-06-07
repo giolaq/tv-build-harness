@@ -176,6 +176,15 @@ Only add:
 
 DO NOT add: onKeyDown, addEventListener('keydown'), manual focus management with useEffect, or any code that calls setFocus/moveFocus in response to arrow keys.
 
+⚠️ SCROLLING RULE for screens with content below the viewport:
+If a screen has content that can extend below 1080px (e.g. detail screen with hero + metadata + related videos), it MUST use SpatialNavigationScrollView as its root scrollable container. A plain View with flex:1 will CLIP content — the user won't be able to scroll down with the remote.
+Pattern:
+  <SpatialNavigationRoot isActive={isActive}>
+    <SpatialNavigationScrollView>
+      {/* hero, metadata, related videos row, etc. */}
+    </SpatialNavigationScrollView>
+  </SpatialNavigationRoot>
+
 ⚠️ OVERFLOW RULE for any element with a focused scale transform:
 If a card/tile has overflow:'hidden' (for image border-radius clipping), the focused style MUST add overflow:'visible' so the focus border and scale growth are not clipped by the element's own bounds. The parent container must also have overflow:'visible' and enough padding to accommodate the scale growth. Example:
   thumbnail: { overflow: 'hidden', borderRadius: 12 },
@@ -304,6 +313,9 @@ The SpatialNavigationFocusableView's onSelect prop is the ONLY handler you need 
 For DRAWER:
 - The drawer content items must be SpatialNavigationFocusableView nodes.
 - The drawer itself should be wrapped in SpatialNavigationNode with captureFocus when open.
+- Menu item text fontSize must NOT exceed scaledPixels(28) — larger font + padding + scale(1.05) will overflow the drawer width (typically 300px).
+- Menu items must have numberOfLines={1} to prevent text wrapping.
+- The drawer container and DrawerContentScrollView must have overflow:'visible' for scale effects.
 
 For HIDDEN:
 - No navigation UI to worry about. Just ensure each screen still has its SpatialNavigationRoot.
@@ -369,6 +381,27 @@ If you find multiple imports:
 After removing duplicates, verify:
 Run: grep -rn "configureRemoteControl\\|import.*configureRemoteControl" ${ctx.appDir}/ --include="*.tsx" --include="*.ts" | grep -v node_modules | wc -l
 This must return exactly 2 (the definition file + one import in App.tsx).
+
+STEP 5: Remove React StrictMode (CAUSES DOUBLE-STEP FOCUS BUG on web).
+Run: grep -rn "StrictMode\\|<StrictMode" ${ctx.appDir}/ --include="*.tsx" --include="*.ts" | grep -v node_modules
+
+React 18+ StrictMode in development mode runs effects TWICE (mount → unmount → remount). This causes the spatial-navigation library's remoteControlSubscriber to register keyboard listeners TWICE — each keypress fires two events → double-step focus.
+
+If you find <StrictMode> wrapping the app (usually in AppNavigator.tsx or App.tsx):
+- REMOVE the <StrictMode> wrapper entirely
+- Remove the StrictMode import
+
+This is a known incompatibility between react-tv-space-navigation and StrictMode on web.
+
+STEP 6: Verify the detail screen is scrollable.
+Run: grep -rn "ScrollView\\|SpatialNavigationScrollView\\|flex.*1" ${ctx.appDir}/packages/shared-ui/src/screens/DetailsScreen.tsx | head -15
+
+The detail screen must be wrapped in a ScrollView or SpatialNavigationScrollView so content below the fold is reachable. If the screen uses a plain View with flex:1 as its root, it will clip content that exceeds the viewport height.
+
+If the detail screen has content that can extend below the viewport (hero image + metadata + related videos row):
+- Ensure the root container is a SpatialNavigationScrollView (not just a View)
+- Or ensure it uses a vertical SpatialNavigationNode that allows focus-driven scrolling
+- The related videos row at the bottom MUST be reachable via D-pad down navigation
 
 Report: how many errors found, how many fixed, any remaining.
 `,
