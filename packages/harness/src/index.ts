@@ -3,6 +3,13 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { spawnSync, execSync } from "node:child_process";
+
+// Prevent perf_hooks buffer overflow warning from long-running TUI renders
+const { performance: perf } = globalThis;
+if (perf?.clearMeasures) {
+  const perfCleaner = setInterval(() => { perf.clearMeasures(); perf.clearMarks(); }, 60_000);
+  perfCleaner.unref();
+}
 import { TVAppHarness } from "./orchestrator.js";
 import { ClaudeOrchestrator } from "./claude-orchestrator.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";

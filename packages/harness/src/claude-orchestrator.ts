@@ -39,8 +39,16 @@ const PHASE_INSTRUCTIONS: Record<string, (ctx: PhaseContext) => string> = {
 Clone the react-native-multi-tv-app-sample template into "${ctx.appDir}":
 1. Run: git clone --depth 1 https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git "${ctx.appDir}"
 2. Run: rm -rf "${ctx.appDir}/.git"
-3. Run: cd "${ctx.appDir}" && git init && git add -A && git commit -m "initial template"
+3. CRITICAL: Fix React duplicate resolution. The template has multiple workspaces that can each resolve their own React copy, causing "Cannot read properties of undefined (reading 'ReactCurrentOwner')" at runtime.
+   Read ${ctx.appDir}/package.json, then edit it to add resolutions that force a single React copy:
+   Add these to the "resolutions" field (merge with existing):
+     "react": "18.3.1",
+     "react-dom": "18.3.1",
+     "@types/react": "^18.2.0"
+   Also read ${ctx.appDir}/apps/expo-multi-tv/package.json and ensure its react/react-dom versions match "18.3.1".
+   Also read ${ctx.appDir}/packages/shared-ui/package.json — if react-tv-space-navigation uses a wildcard ("*") or beta version, pin it to the latest stable: "^5.2.0"
 4. Run: cd "${ctx.appDir}" && yarn install
+5. Run: cd "${ctx.appDir}" && git init && git add -A && git commit -m "initial template"
 App name: ${ctx.spec?.app_name ?? ctx.input.content.title}
 `,
 
@@ -167,6 +175,11 @@ Only add:
 - Visual styling via the isFocused render prop (already built into template's Tile/Card)
 
 DO NOT add: onKeyDown, addEventListener('keydown'), manual focus management with useEffect, or any code that calls setFocus/moveFocus in response to arrow keys.
+
+⚠️ OVERFLOW RULE for any element with a focused scale transform:
+If a card/tile has overflow:'hidden' (for image border-radius clipping), the focused style MUST add overflow:'visible' so the focus border and scale growth are not clipped by the element's own bounds. The parent container must also have overflow:'visible' and enough padding to accommodate the scale growth. Example:
+  thumbnail: { overflow: 'hidden', borderRadius: 12 },
+  thumbnailFocused: { overflow: 'visible', transform: [{ scale: 1.1 }], borderWidth: 6 }
 
 STEP 4: Export all screens from the screens index.
 Check ${ctx.appDir}/packages/shared-ui/src/screens/index.ts (or similar barrel file) and add exports for any new screens.
@@ -339,6 +352,24 @@ STEP 3: Verify all screens are reachable.
 Check that every screen exported from screens/index.ts is referenced in the navigation config.
 grep -r "Screen" ${ctx.appDir}/packages/shared-ui/src/navigation/ --include="*.tsx" --include="*.ts"
 
+STEP 4: Check for duplicate remote control registration (CAUSES DOUBLE-STEP FOCUS BUG).
+Run: grep -rn "configureRemoteControl\\|import.*configureRemoteControl" ${ctx.appDir}/ --include="*.tsx" --include="*.ts" | grep -v node_modules
+
+The file "configureRemoteControl" calls SpatialNavigation.configureRemoteControl() which registers a keyboard event listener. If this file is imported MORE THAN ONCE (from different locations), the listener is registered multiple times and every keypress fires 2+ events → double-step focus.
+
+There must be EXACTLY ONE import of configureRemoteControl in the entire app. It should be in the root App.tsx (the entry point) ONLY.
+
+If you find multiple imports:
+- Keep ONLY the one in apps/expo-multi-tv/App.tsx (the root entry)
+- REMOVE any require() or import of configureRemoteControl from:
+  - navigation/AppNavigator.tsx
+  - apps/expo-multi-tv/app/configureRemoteControl.ts (delete this file if it just re-exports)
+  - Any other location
+
+After removing duplicates, verify:
+Run: grep -rn "configureRemoteControl\\|import.*configureRemoteControl" ${ctx.appDir}/ --include="*.tsx" --include="*.ts" | grep -v node_modules | wc -l
+This must return exactly 2 (the definition file + one import in App.tsx).
+
 Report: how many errors found, how many fixed, any remaining.
 `,
 
@@ -358,7 +389,7 @@ Run: cd ${ctx.appDir}/apps/expo-multi-tv && npx tsc --noEmit 2>&1 | tail -10
 If there are type errors, fix them before proceeding.
 
 STEP 2: Web build (always do this — fastest verification).
-Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo start --web --port 19006 &
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && BROWSER=none EXPO_TV=1 npx expo start --web --port 19006 &
 Wait: sleep 5
 Verify: curl -s http://localhost:19006 | head -5
 If HTML is returned, web build works. Kill it: kill $(lsof -ti:19006) 2>/dev/null || true
@@ -394,7 +425,7 @@ TV apps are viewed from 10 feet away on large screens (1920x1080). Visual defect
 
 ## STEP 1: Start the app
 
-Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo start --web --port 19007 &
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && BROWSER=none EXPO_TV=1 npx expo start --web --port 19007 &
 Run: sleep 10
 Verify: curl -s http://localhost:19007 | head -5
 
@@ -409,8 +440,8 @@ const path = require('path');
 
 (async () => {
   const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--window-size=1920,1080']
+    headless: 'new',
+    args: ['--no-sandbox', '--window-size=1920,1080', '--disable-gpu']
   });
   const page = await browser.newPage();
   await page.setViewport({ width: 1920, height: 1080 });
@@ -620,43 +651,106 @@ If puppeteer is not available:
 Run: npm install --prefix ${ctx.outDir} puppeteer 2>&1 | tail -5
 Then re-run the script.
 
-## STEP 2.5: Pre-scan code for focus-scale clipping (COMMON TV BUG)
+## STEP 2.5: Pre-scan and fix focus-scale clipping (COMMON TV BUG)
 
-Before analyzing screenshots, proactively find and fix the most common TV layout bug: focused cards being clipped by their parent container when they scale up.
+TV apps have THREE layers that can clip focused elements. You must fix ALL of them.
 
-Run: grep -rn "overflow.*hidden\\|overflow.*scroll" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
+Run: grep -rn "overflow.*hidden\\|overflow.*scroll" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -30
 Run: grep -rn "transform.*scale\\|scaleX\\|scaleY\\|focused.*scale" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
-Run: grep -rn "FlatList\\|ScrollView\\|horizontal" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
+Run: grep -rn "borderWidth.*focused\\|border.*focus" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
+Run: grep -rn "FlatList\\|ScrollView\\|DrawerContentScrollView" ${ctx.appDir}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | head -20
 
-For EVERY horizontal list/rail/row that contains focusable cards with scale animations:
-1. Read the component file
-2. Check if the container (FlatList, ScrollView, or wrapping View) has overflow:hidden — if so, change to overflow:'visible'
-3. Check if the container has sufficient padding to accommodate the scale. If a card scales to 1.05x-1.1x, the container needs padding equal to: (card_height * (scale - 1)) / 2 on top/bottom, and (card_width * (scale - 1)) / 2 on left (for first item) and right (for last item).
-4. Apply these fixes:
-   - Set overflow: 'visible' on the FlatList/ScrollView contentContainerStyle AND its parent View
-   - Add paddingTop and paddingBottom to the content container: at minimum 8-12px, or half the scale growth
-   - Add paddingLeft to the content container (so the first card isn't clipped when focused)
-   - If using FlatList, also set style={{ overflow: 'visible' }} on the FlatList itself
-   - Ensure any parent View wrapping the rail also has overflow: 'visible'
+### FIX LAYER 1: The card/tile element itself
 
-Example fix pattern:
+If a card has overflow:'hidden' in its BASE style (for image border-radius clipping), the focus border and scale transform get clipped by the card's own bounds.
+
+Fix: When the card is focused, override overflow to 'visible'. The unfocused state can keep overflow:'hidden' for image clipping.
+
 BEFORE:
-  <View style={{ marginVertical: 8 }}>
-    <FlatList horizontal data={items} renderItem={...} />
-  </View>
+  highlightThumbnail: { overflow: 'hidden', borderRadius: 12 },
+  highlightThumbnailFocused: { borderWidth: 6, transform: [{ scale: 1.1 }] }
 
 AFTER:
-  <View style={{ marginVertical: 8, overflow: 'visible' }}>
-    <FlatList
-      horizontal
-      data={items}
-      style={{ overflow: 'visible' }}
-      contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, overflow: 'visible' }}
-      renderItem={...}
-    />
-  </View>
+  highlightThumbnail: { overflow: 'hidden', borderRadius: 12 },
+  highlightThumbnailFocused: { overflow: 'visible', borderWidth: 6, transform: [{ scale: 1.1 }] }
 
-Apply this fix to ALL horizontal lists and grids that contain focusable/scalable items. Do NOT skip any.
+Apply this to EVERY style that has both overflow:'hidden' AND a corresponding focused state with scale/border.
+
+### FIX LAYER 2: The container (rail/row/grid)
+
+The parent View/FlatList/ScrollView wrapping the cards must:
+- Have overflow: 'visible'
+- Have enough padding to accommodate the growth
+
+Calculate padding needed:
+- If card is 260px tall and scales to 1.1x, it grows 26px (13px each side)
+- If card has a 6px focus border, add another 6px
+- Total vertical padding needed: 13 + 6 = 19px minimum → use 24px to be safe
+- Total horizontal paddingStart needed: (card_width * (scale-1) / 2) + borderWidth → for 420px card at 1.1x = 21 + 6 = 27px minimum
+
+BEFORE:
+  highlightsContainer: { paddingVertical: 10, overflow: 'visible' }
+
+AFTER:
+  highlightsContainer: { paddingVertical: 28, paddingStart: 30, overflow: 'visible' }
+
+### FIX LAYER 3: ScrollViews and Drawer containers
+
+DrawerContentScrollView and any ScrollView that contains focusable items with scale animations ALSO clip. Even with overflow:'visible' on the child, the ScrollView itself clips.
+
+Fix: Add contentContainerStyle with overflow:'visible' AND add padding to accommodate scale.
+
+For the Drawer specifically:
+- The DrawerContentScrollView must have: contentContainerStyle={{ overflow: 'visible', paddingHorizontal: <scaleGrowth> }}
+- The drawer container View must have overflow: 'visible'
+- Menu items with scale(1.05) in a drawer of width W grow by W*0.05/2 on each side → add at least that much padding
+
+BEFORE:
+  <DrawerContentScrollView style={styles.container} scrollEnabled={false}>
+    {/* menu items with scale(1.05) on focus */}
+  </DrawerContentScrollView>
+
+AFTER:
+  <DrawerContentScrollView
+    style={[styles.container, { overflow: 'visible' }]}
+    scrollEnabled={false}
+    contentContainerStyle={{ overflow: 'visible', paddingVertical: 8 }}
+  >
+    {/* menu items with scale(1.05) on focus */}
+  </DrawerContentScrollView>
+
+And for menu items, ensure marginHorizontal is large enough that the scaled item doesn't touch the drawer edges:
+- If menu item is full-width minus 16px margin, and scales to 1.05x, the growth is (itemWidth * 0.05 / 2) ≈ 8-12px
+- So marginHorizontal should be at least 16 + 12 = 28px, or reduce the item width
+
+Also check TEXT OVERFLOW in menu items:
+- Read the longest label text (e.g. "Categories", "Settings") and the menuItem paddingHorizontal
+- When the item scales up, the text container also scales — if fontSize is large (36px+) and the drawer is narrow, text will overflow the rounded rectangle
+- Fix: EITHER reduce fontSize to scaledPixels(28) OR increase the drawer width OR reduce paddingHorizontal so text has more room
+
+### FIX LAYER 4: Container paddingTop for VirtualizedList/horizontal rows
+
+SpatialNavigationVirtualizedList and horizontal FlatLists render inside a container. If that container has NO paddingTop, focused items that scale UP have their top edge clipped.
+
+Find every gridContainer/listContainer/rowContainer that wraps a horizontal list and verify it has paddingTop equal to at least: (itemHeight * (scale - 1) / 2) + borderWidth.
+
+BEFORE:
+  gridContainer: { height: 280, overflow: 'visible' }
+
+AFTER:
+  gridContainer: { height: 280, overflow: 'visible', paddingTop: 16 }
+
+(For a 200px tile at scale 1.08: growth = 200 * 0.08 / 2 = 8px + 4px border = 12px → use 16px paddingTop)
+
+### Summary checklist
+
+For EVERY element that has a focused-state scale transform, verify ALL layers:
+1. ✅ The element itself: overflow:'visible' when focused
+2. ✅ Its immediate container: overflow:'visible' + sufficient paddingTop/paddingBottom/paddingStart for scale growth
+3. ✅ Any ScrollView/FlatList ancestor: overflow:'visible' on both style and contentContainerStyle
+4. ✅ Text inside scaled elements: verify text doesn't overflow the container bounds at the larger scale (reduce font or increase container)
+
+Read each file that has a scale transform and fix all layers. Do NOT skip any.
 
 ## STEP 3: Analyze every screenshot
 
@@ -771,7 +865,7 @@ A FAIL means critical defects could not be fixed.
 Test the web version of the app: start it, screenshot every screen, test navigation and focus.
 
 STEP 1: Start the Expo web dev server.
-Run: cd ${ctx.appDir}/apps/expo-multi-tv && EXPO_TV=1 npx expo start --web --port 19006 &
+Run: cd ${ctx.appDir}/apps/expo-multi-tv && BROWSER=none EXPO_TV=1 npx expo start --web --port 19006 &
 Run: sleep 8
 
 Verify: curl -s http://localhost:19006 | head -5
@@ -784,8 +878,8 @@ const puppeteer = require('puppeteer');
 
 (async () => {
   const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--window-size=1920,1080']
+    headless: 'new',
+    args: ['--no-sandbox', '--window-size=1920,1080', '--disable-gpu']
   });
   const page = await browser.newPage();
   await page.setViewport({ width: 1920, height: 1080 });
@@ -1418,10 +1512,7 @@ Design: template="${this.input.design.template}", navigation="${navStyle}", hero
             const parsed = JSON.parse(stdout);
             const usage = parsed.usage;
             if (usage) {
-              const tokens = (usage.input_tokens ?? 0)
-                + (usage.cache_creation_input_tokens ?? 0)
-                + (usage.cache_read_input_tokens ?? 0)
-                + (usage.output_tokens ?? 0);
+              const tokens = (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0);
               this.state.tokensUsed += tokens;
               this.events.onTokens?.(tokens);
             }
