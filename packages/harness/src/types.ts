@@ -35,7 +35,7 @@ export const PHASE_DEPS: Record<Phase, Phase[]> = {
   vega_build: ["static_checks"],
   visual_correctness: ["simulator_build"],
   visual_qa_loop: ["simulator_build"],
-  visual_smoke_test: ["visual_qa_loop"],
+  visual_smoke_test: ["simulator_build"],
   eas_build: ["static_checks"],
   package: ["simulator_build", "vega_build"],
 };
@@ -51,7 +51,6 @@ export const V1_PHASES: Phase[] = [
   "simulator_build",
   "vega_build",
   "visual_qa_loop",
-  "visual_smoke_test",
 ];
 
 export interface PhaseConfig {

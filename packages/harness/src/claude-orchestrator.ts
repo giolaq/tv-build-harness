@@ -1163,7 +1163,7 @@ export class ClaudeOrchestrator {
     const { platforms } = this.state.config;
 
     const generateOnly = process.argv.includes("--generate-only");
-    const buildPhases: Phase[] = ["simulator_build", "vega_build", "visual_correctness", "visual_qa_loop", "visual_smoke_test"];
+    const buildPhases: Phase[] = ["simulator_build", "vega_build", "visual_correctness", "visual_qa_loop"];
 
     return V1_PHASES.filter((phase) => {
       if (generateOnly && buildPhases.includes(phase)) return false;
@@ -1174,7 +1174,7 @@ export class ClaudeOrchestrator {
 
   private async executePhaseWithRetry(phase: Phase): Promise<PhaseResult> {
     // Phases with internal iteration logic should not be retried externally
-    const noRetryPhases: Phase[] = ["visual_qa_loop", "visual_correctness", "visual_smoke_test"];
+    const noRetryPhases: Phase[] = ["visual_qa_loop", "visual_correctness"];
     if (noRetryPhases.includes(phase)) {
       return this.executePhase(phase);
     }
@@ -1804,29 +1804,44 @@ Fix ALL listed defects. Do not skip any.
   }
 
   private writeQAReport(verdict: QAVerdict | null, iterations: number): void {
+    const routes = this.state.spec?.navigation.routes ?? [];
+    const platforms = this.input.config.platforms;
+
     const lines = [
-      "# Visual QA Loop Report",
+      "# Visual QA Report",
       "",
+      `**App:** ${this.state.spec?.app_name ?? "Unknown"}`,
+      `**Platforms:** ${platforms.join(", ")}`,
+      `**Navigation:** ${this.state.spec?.navigation.type ?? "unknown"} (${routes.length} routes)`,
       `**Iterations:** ${iterations}`,
       `**Verdict:** ${verdict?.status ?? "unknown"}`,
-      `**Critical defects:** ${verdict?.criticalCount ?? "?"}`,
-      `**Major defects:** ${verdict?.majorCount ?? "?"}`,
-      `**Minor defects:** ${verdict?.minorCount ?? "?"}`,
+      "",
+      "## Defect Summary",
+      "",
+      `| Severity | Count |`,
+      `|----------|-------|`,
+      `| Critical | ${verdict?.criticalCount ?? "?"} |`,
+      `| Major    | ${verdict?.majorCount ?? "?"} |`,
+      `| Minor    | ${verdict?.minorCount ?? "?"} |`,
       "",
     ];
 
     if (verdict?.scores && Object.keys(verdict.scores).length > 0) {
-      lines.push("## Scores", "");
+      lines.push("## 10ft UI Scores", "");
+      lines.push("| Dimension | Score |");
+      lines.push("|-----------|-------|");
       for (const [key, val] of Object.entries(verdict.scores)) {
-        lines.push(`- **${key}:** ${val}/10`);
+        const icon = val >= 8 ? "+" : val >= 5 ? "~" : "-";
+        lines.push(`| ${icon} ${key} | ${val}/10 |`);
       }
       lines.push("");
     }
 
     if (verdict?.critical.length) {
-      lines.push("## Critical Defects", "");
+      lines.push("## Critical Defects (must fix)", "");
       for (const d of verdict.critical) {
-        lines.push(`- [${d.screen}] ${d.issue} (${d.file})`);
+        lines.push(`- **[${d.screen}]** ${d.issue}`);
+        lines.push(`  File: \`${d.file}\` | Fix: ${d.fix}`);
       }
       lines.push("");
     }
@@ -1834,10 +1849,35 @@ Fix ALL listed defects. Do not skip any.
     if (verdict?.major.length) {
       lines.push("## Major Defects", "");
       for (const d of verdict.major) {
-        lines.push(`- [${d.screen}] ${d.issue} (${d.file})`);
+        lines.push(`- **[${d.screen}]** ${d.issue}`);
+        lines.push(`  File: \`${d.file}\` | Fix: ${d.fix}`);
       }
       lines.push("");
     }
+
+    if (verdict?.minor.length) {
+      lines.push("## Minor Defects", "");
+      for (const d of verdict.minor) {
+        lines.push(`- [${d.screen}] ${d.issue}`);
+      }
+      lines.push("");
+    }
+
+    lines.push("## Route Coverage", "");
+    for (const route of routes) {
+      lines.push(`- ${route.label} (/${route.id})`);
+    }
+    lines.push("");
+
+    lines.push("## Ship Readiness", "");
+    if (verdict?.status === "pass") {
+      lines.push("**READY TO SHIP** — Zero critical defects. All 10ft UI rules pass.");
+    } else if (verdict && verdict.criticalCount === 0) {
+      lines.push("**SHIP WITH CAUTION** — No critical defects, but major issues remain.");
+    } else {
+      lines.push("**NOT READY** — Critical defects remain. Fix before shipping.");
+    }
+    lines.push("");
 
     writeFileSync(join(this.state.workdir, "visual-qa-report.md"), lines.join("\n"));
   }
