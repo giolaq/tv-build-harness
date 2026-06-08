@@ -12,6 +12,7 @@ import type {
   Phase,
   PhaseResult,
   RunConfig,
+  ScreenTree,
   SessionState,
 } from "./types.js";
 import { V1_PHASES, AppSpecSchema } from "./types.js";
@@ -25,6 +26,7 @@ interface HarnessInput {
   brand: BrandKit;
   config: RunConfig;
   design: DesignTokens;
+  screenTree?: ScreenTree;
   workdir: string;
   skillsDir: string;
 }

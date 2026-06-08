@@ -70,6 +70,40 @@ export interface PhaseResult {
   error?: string;
 }
 
+// ─── Screen Tree (Developer Input) ──────────────────────────────────────────
+
+export interface ScreenNode {
+  id: string;
+  name: string;
+  layout: "hero+rails" | "grid" | "detail" | "player" | "settings" | "search" | "list";
+  data_source?: string | null;
+  icon?: string | null;
+  children?: ScreenNode[];
+}
+
+export const ScreenNodeSchema: z.ZodType<ScreenNode> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    layout: z.enum(["hero+rails", "grid", "detail", "player", "settings", "search", "list"]),
+    data_source: z.string().nullish(),
+    icon: z.string().nullish(),
+    children: z.array(ScreenNodeSchema).optional(),
+  })
+) as z.ZodType<ScreenNode>;
+
+export const ScreenTreeSchema = z.object({
+  navigation_type: z.enum(["drawer", "tabs"]),
+  home: ScreenNodeSchema,
+  screens: z.array(ScreenNodeSchema),
+});
+
+export interface ScreenTree {
+  navigation_type: "drawer" | "tabs";
+  home: ScreenNode;
+  screens: ScreenNode[];
+}
+
 // ─── AppSpec (Planner Output) ────────────────────────────────────────────────
 
 export const RouteSchema = z.object({
@@ -88,7 +122,7 @@ export const SectionSchema = z.object({
 export const ScreenSchema = z.object({
   id: z.string(),
   route: z.string(),
-  layout: z.enum(["hero+rails", "grid", "detail", "player", "settings", "search"]),
+  layout: z.enum(["hero+rails", "grid", "detail", "player", "settings", "search", "list"]),
   uses_template_screen: z.union([z.string(), z.boolean()]).nullish(),
   sections: z.array(SectionSchema).default([]),
 });

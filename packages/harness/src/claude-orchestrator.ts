@@ -12,7 +12,8 @@ import type {
   RunConfig,
   SessionState,
 } from "./types.js";
-import { V1_PHASES, PHASE_DEPS, AppSpecSchema } from "./types.js";
+import { V1_PHASES, PHASE_DEPS, AppSpecSchema, ScreenTreeSchema } from "./types.js";
+import type { ScreenTree } from "./types.js";
 import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
 import { generateScreenshotReport } from "./screenshot-report.js";
@@ -23,6 +24,7 @@ interface HarnessInput {
   brand: BrandKit;
   config: RunConfig;
   design: DesignTokens;
+  screenTree?: ScreenTree;
   workdir: string;
   skillsDir: string;
 }
@@ -1171,6 +1173,12 @@ export class ClaudeOrchestrator {
   }
 
   private async executePhaseWithRetry(phase: Phase): Promise<PhaseResult> {
+    // Phases with internal iteration logic should not be retried externally
+    const noRetryPhases: Phase[] = ["visual_qa_loop", "visual_correctness", "visual_smoke_test"];
+    if (noRetryPhases.includes(phase)) {
+      return this.executePhase(phase);
+    }
+
     const maxRetries = this.state.config.max_retries_per_phase;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1272,13 +1280,24 @@ export class ClaudeOrchestrator {
     const navStyle = this.input.design.navigation_style;
     const navTypeConstraint = navStyle === "hidden" ? "single" : navStyle === "tabs" ? "tabs" : "drawer";
 
+    const screenTreeSection = this.input.screenTree ? `
+SCREEN TREE (developer-specified — you MUST follow this exactly):
+Navigation type: ${this.input.screenTree.navigation_type}
+Home screen: ${this.input.screenTree.home.name} (layout: ${this.input.screenTree.home.layout})
+Sibling screens (${this.input.screenTree.navigation_type === "drawer" ? "drawer items" : "tab items"}):
+${this.input.screenTree.screens.map(s => `  - ${s.name} (layout: ${s.layout}${s.data_source ? `, data: ${s.data_source}` : ""}${s.icon ? `, icon: ${s.icon}` : ""}${s.children?.length ? `, children: [${s.children.map(c => `${c.name}(${c.layout})`).join(", ")}]` : ""})`).join("\n")}
+
+The navigation.routes MUST include exactly these screens: [${[this.input.screenTree.home, ...this.input.screenTree.screens].map(s => s.name).join(", ")}]
+The screens array MUST include all screens from the tree plus any child screens.
+Each screen's layout MUST match what is specified above. Do NOT change layouts.` : "";
+
     const planPrompt = `You are a TV app planner. Given a user brief, content manifest, and brand kit, produce an AppSpec JSON object.
 
 Output ONLY valid JSON (no markdown fencing, no explanation). The JSON must match this schema:
 - app_name: string
 - theme: { mode: "dark"|"light", tokens: Record<string, string> }
 - navigation: { type: "drawer"|"tabs"|"single", routes: [{id, label, icon?}] }
-- screens: [{id, route, layout: "hero+rails"|"grid"|"detail"|"player"|"settings"|"search", uses_template_screen?, sections: [{id, kind: "featured_hero"|"rail"|"grid"|"text", data_source, title?}]}]
+- screens: [{id, route, layout: "hero+rails"|"grid"|"detail"|"player"|"settings"|"search"|"list", uses_template_screen?, sections: [{id, kind: "featured_hero"|"rail"|"grid"|"text", data_source, title?}]}]
 - components_to_customize: [{component, changes: Record<string,string>}]
 - components_to_add: [{name, description, props: Record<string,string>}]
 - data_bindings: [{manifest_path, screen_id, section_id}]
@@ -1286,6 +1305,7 @@ Output ONLY valid JSON (no markdown fencing, no explanation). The JSON must matc
 - auth?: { provider: "none"|"oauth", flow?: "device_code" }
 
 IMPORTANT: The navigation.type MUST be "${navTypeConstraint}" — this is a hard constraint from the design system, do not override it.
+${screenTreeSection}
 
 Brief: ${this.input.prompt}
 
@@ -1718,27 +1738,65 @@ Fix ALL listed defects. Do not skip any.
 
   private parseQAVerdict(output: string): QAVerdict {
     try {
-      const jsonMatch = output.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
+      // If output is the raw CLI wrapper, extract the result field first
+      let text = output;
+      if (text.startsWith('{"type":"result"')) {
+        try {
+          const wrapper = JSON.parse(text);
+          text = wrapper.result ?? text;
+        } catch {}
+      }
+
+      // Find JSON block containing "verdict" key (the model's analysis output)
+      const jsonBlocks = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g) ?? [];
+      let parsed: Record<string, unknown> | null = null;
+      for (const block of jsonBlocks) {
+        try {
+          const candidate = JSON.parse(block);
+          if (candidate.verdict || candidate.criticalDefects) {
+            parsed = candidate;
+            break;
+          }
+        } catch {}
+      }
+
+      // Fallback: try the largest JSON block
+      if (!parsed) {
+        const bigMatch = text.match(/```json\s*([\s\S]*?)```/);
+        if (bigMatch) {
+          parsed = JSON.parse(bigMatch[1]);
+        }
+      }
+
+      if (!parsed) {
+        const fallback = text.match(/\{[\s\S]*\}/);
+        if (fallback) parsed = JSON.parse(fallback[0]);
+      }
+
+      if (!parsed) {
         return { status: "fail", criticalCount: 1, majorCount: 0, minorCount: 0, critical: [], major: [], minor: [], scores: {} };
       }
-      const parsed = JSON.parse(jsonMatch[0]);
-      const critical: QADefect[] = (parsed.criticalDefects ?? []).map((d: Record<string, string>) => ({
+      const data = parsed as Record<string, unknown>;
+      const criticalArr = Array.isArray(data.criticalDefects) ? data.criticalDefects : [];
+      const majorArr = Array.isArray(data.majorDefects) ? data.majorDefects : [];
+      const minorArr = Array.isArray(data.minorDefects) ? data.minorDefects : [];
+
+      const critical: QADefect[] = criticalArr.map((d: Record<string, string>) => ({
         screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
       }));
-      const major: QADefect[] = (parsed.majorDefects ?? []).map((d: Record<string, string>) => ({
+      const major: QADefect[] = majorArr.map((d: Record<string, string>) => ({
         screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
       }));
-      const minor: QADefect[] = (parsed.minorDefects ?? []).map((d: Record<string, string>) => ({
+      const minor: QADefect[] = minorArr.map((d: Record<string, string>) => ({
         screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
       }));
       return {
-        status: parsed.verdict === "pass" ? "pass" : "fail",
+        status: data.verdict === "pass" ? "pass" : "fail",
         criticalCount: critical.length,
         majorCount: major.length,
         minorCount: minor.length,
         critical, major, minor,
-        scores: parsed.scores ?? {},
+        scores: (data.scores as Record<string, number>) ?? {},
       };
     } catch {
       return { status: "fail", criticalCount: 1, majorCount: 0, minorCount: 0, critical: [], major: [], minor: [], scores: {} };

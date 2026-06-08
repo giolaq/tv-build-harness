@@ -1,0 +1,380 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #06060f;
+      --fg: #f2eef8;
+      --accent: #ff6b35;
+      --accent2: #ff3d00;
+      --purple: #8b5cf6;
+      --cyan: #22d3ee;
+      --surface: #111128;
+      --surface2: #1a1a3a;
+      --muted: #6b6b96;
+      --success: #4ade80;
+      --warn: #fbbf24;
+      --fail: #ef4444;
+    }
+    body { background: var(--bg); color: var(--fg); font-family: 'Helvetica Neue', sans-serif; overflow: hidden; }
+    [data-composition-id="root"] { width: 1920px; height: 1080px; position: relative; overflow: hidden; background: var(--bg); }
+
+    .scene { position: absolute; inset: 0; overflow: hidden; }
+    .sc { width: 100%; height: 100%; display: flex; flex-direction: column; padding: 90px 120px; gap: 24px; position: relative; z-index: 2; }
+
+    /* Decoratives */
+    .orb { position: absolute; border-radius: 50%; filter: blur(100px); pointer-events: none; }
+    .grid-bg { position: absolute; inset: 0; background-image: linear-gradient(rgba(139,92,246,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(139,92,246,0.02) 1px, transparent 1px); background-size: 50px 50px; }
+    .particles { position: absolute; inset: 0; pointer-events: none; }
+    .particle { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); opacity: 0.4; }
+    .emoji-float { position: absolute; font-size: 48px; opacity: 0.15; pointer-events: none; }
+    .line-accent { position: absolute; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+    .pulse-ring { position: absolute; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; }
+
+    /* ─── S1: HOOK ─── */
+    #s1 .sc { justify-content: center; align-items: center; text-align: center; }
+    #s1 .mega { font-size: 130px; font-weight: 900; letter-spacing: -0.05em; line-height: 1.0; }
+    #s1 .mega span { color: var(--accent); }
+    #s1 .sub { font-size: 34px; font-weight: 300; color: var(--muted); margin-top: 12px; }
+    #s1 .emoji-burst { font-size: 64px; margin-top: 32px; display: flex; gap: 24px; }
+    #s1 .stat-bar { display: flex; gap: 40px; margin-top: 40px; }
+    .sbox { background: var(--surface); border: 1px solid rgba(255,107,53,0.15); border-radius: 12px; padding: 20px 32px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .sbox .v { font-family: 'JetBrains Mono', monospace; font-size: 52px; font-weight: 900; color: var(--accent); }
+    .sbox .l { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; }
+
+    /* ─── S2: PROBLEM ─── */
+    #s2 .sc { justify-content: center; }
+    #s2 .h2 { font-size: 76px; font-weight: 900; letter-spacing: -0.04em; }
+    #s2 .h2 span { color: var(--fail); }
+    #s2 .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 44px; }
+    .pcard { background: var(--surface); border-radius: 16px; padding: 28px 32px; display: flex; align-items: flex-start; gap: 20px; border: 1px solid rgba(239,68,68,0.1); }
+    .pcard .em { font-size: 44px; flex-shrink: 0; }
+    .pcard .info { display: flex; flex-direction: column; gap: 6px; }
+    .pcard .t { font-size: 26px; font-weight: 700; }
+    .pcard .d { font-size: 18px; color: var(--muted); line-height: 1.4; }
+
+    /* ─── S3: PIPELINE ─── */
+    #s3 .sc { padding: 70px 100px; }
+    #s3 .h2 { font-size: 60px; font-weight: 900; letter-spacing: -0.03em; }
+    #s3 .h2 span { color: var(--purple); }
+    .flow { display: flex; flex-direction: column; gap: 0; margin-top: 28px; }
+    .frow { display: flex; align-items: center; height: 44px; gap: 14px; }
+    .frow .pipe { width: 3px; height: 44px; background: var(--surface2); margin-left: 10px; }
+    .frow .pipe.glow { background: var(--purple); box-shadow: 0 0 8px var(--purple); }
+    .frow .nd { font-family: 'JetBrains Mono', monospace; font-size: 19px; padding: 5px 14px; border-radius: 6px; background: var(--surface); border: 1px solid rgba(255,255,255,0.04); }
+    .frow .nd.par { background: rgba(139,92,246,0.1); border-color: var(--purple); color: var(--purple); }
+    .frow .nd.hot { background: rgba(255,107,53,0.12); border-color: var(--accent); color: var(--accent); font-weight: 700; font-size: 21px; }
+    .frow .tag { font-size: 12px; padding: 3px 10px; border-radius: 20px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    .frow .tag.p { background: rgba(139,92,246,0.1); color: var(--purple); }
+    .frow .tag.o { background: rgba(255,107,53,0.1); color: var(--accent); }
+    .frow .em { font-size: 20px; }
+
+    /* ─── S4: QA LOOP ─── */
+    #s4 .sc { justify-content: center; align-items: center; }
+    #s4 .h2 { font-size: 64px; font-weight: 900; text-align: center; }
+    #s4 .h2 span { color: var(--accent); }
+    .loop-ring { position: relative; width: 700px; height: 400px; margin-top: 48px; }
+    .lnode { position: absolute; width: 240px; padding: 24px; background: var(--surface); border-radius: 16px; border: 2px solid rgba(255,255,255,0.04); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .lnode .ico { font-size: 36px; }
+    .lnode .nm { font-size: 24px; font-weight: 700; }
+    .lnode .dt { font-size: 14px; color: var(--muted); line-height: 1.3; }
+    .lnode:nth-child(1) { top: 0; left: 50%; transform: translateX(-50%); }
+    .lnode:nth-child(2) { top: 50%; right: 0; transform: translateY(-50%); }
+    .lnode:nth-child(3) { bottom: 0; left: 50%; transform: translateX(-50%); }
+    .lnode:nth-child(4) { top: 50%; left: 0; transform: translateY(-50%); }
+    .loop-svg { position: absolute; inset: 0; pointer-events: none; }
+    #s4 .code-line { margin-top: 32px; font-family: 'JetBrains Mono', monospace; font-size: 18px; color: var(--accent); background: var(--surface); padding: 12px 24px; border-radius: 8px; border: 1px solid rgba(255,107,53,0.2); }
+
+    /* ─── S5: CHECKLIST ─── */
+    #s5 .sc { padding: 80px 110px; }
+    #s5 .h2 { font-size: 56px; font-weight: 900; }
+    #s5 .h2 span { color: var(--warn); }
+    .rules { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 40px; margin-top: 36px; }
+    .rule { display: flex; align-items: center; gap: 14px; padding: 16px 20px; background: var(--surface); border-radius: 10px; border-left: 4px solid var(--muted); }
+    .rule.c { border-left-color: var(--fail); }
+    .rule.m { border-left-color: var(--warn); }
+    .rule .ri { font-size: 24px; flex-shrink: 0; }
+    .rule .rt { font-size: 20px; font-weight: 500; }
+
+    /* ─── S6: RESULT ─── */
+    #s6 .sc { flex-direction: row; align-items: center; justify-content: center; gap: 80px; }
+    .rp { flex: 0 0 380px; height: 460px; border-radius: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 40px; }
+    .rp.bad { background: var(--surface); border: 2px solid rgba(239,68,68,0.2); }
+    .rp.good { background: var(--surface); border: 2px solid rgba(74,222,128,0.3); }
+    .rp .lb { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; }
+    .rp.bad .lb { color: var(--fail); }
+    .rp.good .lb { color: var(--success); }
+    .rp .bn { font-family: 'JetBrains Mono', monospace; font-size: 120px; font-weight: 900; }
+    .rp.bad .bn { color: var(--fail); }
+    .rp.good .bn { color: var(--success); }
+    .rp .em { font-size: 56px; }
+    .rp .tx { font-size: 20px; color: var(--muted); text-align: center; }
+    .arrow-big { font-size: 64px; color: var(--accent); }
+
+    /* ─── S7: CLOSE ─── */
+    #s7 .sc { justify-content: center; align-items: center; text-align: center; }
+    #s7 .final { font-size: 88px; font-weight: 900; letter-spacing: -0.04em; line-height: 1.1; }
+    #s7 .final span { color: var(--accent); }
+    #s7 .pills { display: flex; gap: 16px; margin-top: 36px; flex-wrap: wrap; justify-content: center; }
+    .pill { font-family: 'JetBrains Mono', monospace; font-size: 17px; padding: 10px 20px; border-radius: 8px; background: var(--surface); border: 1px solid rgba(255,255,255,0.06); }
+    #s7 .repo { margin-top: 28px; font-family: 'JetBrains Mono', monospace; font-size: 20px; color: var(--muted); }
+    #s7 .emoji-row { font-size: 48px; margin-top: 24px; display: flex; gap: 16px; }
+  </style>
+</head>
+<body>
+<div data-composition-id="root" data-width="1920" data-height="1080" data-start="0" data-duration="75">
+
+  <!-- AUDIO -->
+  <audio id="bgm" data-start="0" data-duration="75" data-track-index="5" src="beat.mp3" data-volume="0.35"></audio>
+
+  <!-- S1: HOOK (0-10s) -->
+  <div id="s1" class="scene clip" data-start="0" data-duration="10" data-track-index="0">
+    <div class="orb" style="width:800px;height:800px;background:rgba(255,107,53,0.08);top:35%;left:50%;"></div>
+    <div class="orb" style="width:500px;height:500px;background:rgba(139,92,246,0.06);top:15%;left:15%;"></div>
+    <div class="grid-bg"></div>
+    <div class="emoji-float" style="top:12%;left:8%;font-size:72px;">&#x1F4FA;</div>
+    <div class="emoji-float" style="top:18%;right:12%;font-size:56px;">&#x1F680;</div>
+    <div class="emoji-float" style="bottom:15%;left:15%;font-size:60px;">&#x2728;</div>
+    <div class="emoji-float" style="bottom:20%;right:8%;font-size:64px;">&#x1F916;</div>
+    <div class="emoji-float" style="top:50%;left:5%;font-size:48px;">&#x1F3AF;</div>
+    <div class="pulse-ring" style="width:300px;height:300px;top:40%;left:48%;"></div>
+    <div class="pulse-ring" style="width:500px;height:500px;top:30%;left:43%;"></div>
+    <div class="sc">
+      <div class="mega">One prompt.<br><span>Pixel-perfect TV app.</span></div>
+      <div class="sub">AI builds it. AI tests it. AI fixes it. Ships clean.</div>
+      <div class="emoji-burst">
+        <span>&#x1F4FA;</span><span>&#x2192;</span><span>&#x1F916;</span><span>&#x2192;</span><span>&#x2705;</span>
+      </div>
+      <div class="stat-bar">
+        <div class="sbox"><span class="v">11</span><span class="l">Phases</span></div>
+        <div class="sbox"><span class="v">3x</span><span class="l">QA Loop</span></div>
+        <div class="sbox"><span class="v">5</span><span class="l">Platforms</span></div>
+        <div class="sbox"><span class="v">0</span><span class="l">Glitches</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S2: PROBLEM (10-20s) -->
+  <div id="s2" class="scene clip" data-start="10" data-duration="10" data-track-index="0">
+    <div class="orb" style="width:600px;height:600px;background:rgba(239,68,68,0.06);top:30%;right:5%;"></div>
+    <div class="grid-bg"></div>
+    <div class="line-accent" style="top:25%;left:0;width:60%;"></div>
+    <div class="emoji-float" style="top:8%;right:5%;font-size:72px;">&#x1F4A5;</div>
+    <div class="emoji-float" style="bottom:10%;left:8%;font-size:64px;">&#x1F62D;</div>
+    <div class="sc">
+      <div class="h2">TV apps are <span>broken</span> by default</div>
+      <div class="cards">
+        <div class="pcard"><span class="em">&#x2702;&#xFE0F;</span><div class="info"><div class="t">Focus Clipping</div><div class="d">Scaled cards cropped by 4 layers of overflow:hidden</div></div></div>
+        <div class="pcard"><span class="em">&#x1F47B;</span><div class="info"><div class="t">Double Events</div><div class="d">StrictMode + duplicate listeners = 2 moves per key</div></div></div>
+        <div class="pcard"><span class="em">&#x1F441;</span><div class="info"><div class="t">10ft Invisible</div><div class="d">14px text, 2:1 contrast. Unreadable from the couch.</div></div></div>
+        <div class="pcard"><span class="em">&#x1F6AB;</span><div class="info"><div class="t">Dead Navigation</div><div class="d">Spatial nav destroyed when switching navigator types</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S3: PIPELINE (20-35s) -->
+  <div id="s3" class="scene clip" data-start="20" data-duration="15" data-track-index="0">
+    <div class="orb" style="width:700px;height:700px;background:rgba(139,92,246,0.06);top:40%;left:5%;"></div>
+    <div class="grid-bg"></div>
+    <div class="emoji-float" style="top:5%;right:8%;font-size:56px;">&#x1F3D7;&#xFE0F;</div>
+    <div class="emoji-float" style="bottom:8%;right:12%;font-size:48px;">&#x26A1;</div>
+    <div class="sc">
+      <div class="h2">&#x1F3D7;&#xFE0F; DAG-Scheduled <span>Pipeline</span></div>
+      <div class="flow">
+        <div class="frow"><div class="pipe"></div><span class="nd">plan</span><span class="em">&#x1F4CB;</span></div>
+        <div class="frow"><div class="pipe"></div><span class="nd">clone_template</span><span class="em">&#x1F4E6;</span></div>
+        <div class="frow"><div class="pipe glow"></div><span class="nd par">metadata_branding</span><span class="tag p">&#x21C4; parallel</span><span class="em">&#x1F3A8;</span></div>
+        <div class="frow"><div class="pipe glow"></div><span class="nd par">manifest_wiring</span><span class="tag p">&#x21C4; parallel</span><span class="em">&#x1F4BE;</span></div>
+        <div class="frow"><div class="pipe"></div><span class="nd">screen_customization</span><span class="em">&#x1F5A5;&#xFE0F;</span></div>
+        <div class="frow"><div class="pipe"></div><span class="nd">navigation_update</span><span class="tag o">spatial-nav</span><span class="em">&#x1F9ED;</span></div>
+        <div class="frow"><div class="pipe"></div><span class="nd">static_checks</span><span class="em">&#x2705;</span></div>
+        <div class="frow"><div class="pipe glow"></div><span class="nd par">simulator_build</span><span class="tag p">&#x21C4; parallel</span><span class="em">&#x1F528;</span></div>
+        <div class="frow"><div class="pipe glow"></div><span class="nd par">vega_build</span><span class="tag p">&#x21C4; parallel</span><span class="em">&#x1F525;</span></div>
+        <div class="frow"><div class="pipe" style="background:var(--accent);box-shadow:0 0 12px var(--accent);"></div><span class="nd hot">&#x1F50D; visual_qa_loop</span><span class="tag o">iterative</span></div>
+        <div class="frow"><div class="pipe"></div><span class="nd">visual_smoke_test</span><span class="em">&#x1F4F8;</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S4: QA LOOP (35-50s) -->
+  <div id="s4" class="scene clip" data-start="35" data-duration="15" data-track-index="0">
+    <div class="orb" style="width:900px;height:900px;background:rgba(255,107,53,0.07);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+    <div class="grid-bg"></div>
+    <div class="emoji-float" style="top:5%;left:5%;font-size:56px;">&#x1F504;</div>
+    <div class="emoji-float" style="top:5%;right:5%;font-size:56px;">&#x1F4F7;</div>
+    <div class="sc">
+      <div class="h2">&#x1F504; The <span>Visual QA Loop</span></div>
+      <div class="loop-ring">
+        <svg class="loop-svg" viewBox="0 0 700 400">
+          <path d="M 350 50 Q 580 50 580 200 Q 580 350 350 350 Q 120 350 120 200 Q 120 50 350 50" fill="none" stroke="rgba(255,107,53,0.2)" stroke-width="2" stroke-dasharray="8 6"/>
+          <polygon points="370,45 360,35 360,55" fill="var(--accent)" opacity="0.5"/>
+        </svg>
+        <div class="lnode"><span class="ico">&#x1F4F7;</span><span class="nm">Capture</span><span class="dt">20+ screenshots<br>focus + scroll + nav</span></div>
+        <div class="lnode"><span class="ico">&#x1F9E0;</span><span class="nm">Analyze</span><span class="dt">Claude vision<br>scores every pixel</span></div>
+        <div class="lnode"><span class="ico">&#x1F527;</span><span class="nm">Fix</span><span class="dt">Auto-patch source<br>overflow, padding, scale</span></div>
+        <div class="lnode"><span class="ico">&#x2705;</span><span class="nm">Verify</span><span class="dt">Re-capture<br>pass or loop again</span></div>
+      </div>
+      <div class="code-line">while (verdict !== "pass" && iter &lt; max) { capture(); analyze(); fix(); }</div>
+    </div>
+  </div>
+
+  <!-- S5: CHECKLIST (50-60s) -->
+  <div id="s5" class="scene clip" data-start="50" data-duration="10" data-track-index="0">
+    <div class="orb" style="width:500px;height:500px;background:rgba(251,191,36,0.05);top:50%;right:10%;"></div>
+    <div class="grid-bg"></div>
+    <div class="emoji-float" style="top:6%;left:6%;font-size:56px;">&#x1F4CF;</div>
+    <div class="emoji-float" style="bottom:8%;right:6%;font-size:48px;">&#x1F50E;</div>
+    <div class="sc">
+      <div class="h2">&#x1F4CB; 10-Foot UI <span>Rules</span></div>
+      <div class="rules">
+        <div class="rule c"><span class="ri">&#x26D4;</span><span class="rt">No clipped focus borders</span></div>
+        <div class="rule c"><span class="ri">&#x1F440;</span><span class="rt">Focus visible at 10 feet</span></div>
+        <div class="rule c"><span class="ri">&#x1F579;&#xFE0F;</span><span class="rt">All content D-pad reachable</span></div>
+        <div class="rule c"><span class="ri">&#x2702;&#xFE0F;</span><span class="rt">No text overflow</span></div>
+        <div class="rule m"><span class="ri">&#x1F524;</span><span class="rt">24px+ body text</span></div>
+        <div class="rule m"><span class="ri">&#x1F4FA;</span><span class="rt">TV safe area (90%)</span></div>
+        <div class="rule m"><span class="ri">&#x1F4D0;</span><span class="rt">Consistent alignment</span></div>
+        <div class="rule m"><span class="ri">&#x1F4F1;</span><span class="rt">1080p + 720p works</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S6: BEFORE/AFTER (60-70s) -->
+  <div id="s6" class="scene clip" data-start="60" data-duration="10" data-track-index="0">
+    <div class="orb" style="width:500px;height:500px;background:rgba(74,222,128,0.06);top:40%;right:20%;"></div>
+    <div class="grid-bg"></div>
+    <div class="sc">
+      <div class="rp bad">
+        <div class="lb">Iteration 1</div>
+        <div class="em">&#x1F4A5;</div>
+        <div class="bn">5</div>
+        <div class="tx">critical defects<br>clipping + overflow + broken nav</div>
+      </div>
+      <div class="arrow-big">&#x27A1;&#xFE0F;</div>
+      <div class="rp good">
+        <div class="lb">Iteration 3</div>
+        <div class="em">&#x2728;</div>
+        <div class="bn">0</div>
+        <div class="tx">critical defects<br>pixel-perfect on all screens</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S7: CLOSE (70-75s) -->
+  <div id="s7" class="scene clip" data-start="70" data-duration="5" data-track-index="0">
+    <div class="orb" style="width:1000px;height:1000px;background:rgba(255,107,53,0.08);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+    <div class="orb" style="width:600px;height:600px;background:rgba(139,92,246,0.05);top:30%;left:30%;"></div>
+    <div class="grid-bg"></div>
+    <div class="emoji-float" style="top:10%;left:10%;font-size:72px;">&#x1F680;</div>
+    <div class="emoji-float" style="top:12%;right:10%;font-size:64px;">&#x1F4FA;</div>
+    <div class="emoji-float" style="bottom:12%;left:12%;font-size:56px;">&#x2728;</div>
+    <div class="emoji-float" style="bottom:10%;right:12%;font-size:60px;">&#x1F3AF;</div>
+    <div class="sc">
+      <div class="final">Ship TV apps that<br><span>actually work.</span></div>
+      <div class="pills">
+        <div class="pill">&#x1F916; Claude Code</div>
+        <div class="pill">&#x1F4F7; Puppeteer</div>
+        <div class="pill">&#x1F441; Vision QA</div>
+        <div class="pill">&#x1F4FA; React Native TV</div>
+        <div class="pill">&#x26A1; DAG Scheduler</div>
+      </div>
+      <div class="emoji-row"><span>&#x1F4FA;</span><span>&#x1F916;</span><span>&#x1F504;</span><span>&#x2705;</span><span>&#x1F680;</span></div>
+      <div class="repo">github.com/giolaq/your-harness-repo</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script>
+window.__timelines = window.__timelines || {};
+const tl = gsap.timeline({ paused: true });
+
+// ─── S1: HOOK (0-10s) ───
+tl.from("#s1 .orb", { scale: 0.1, opacity: 0, duration: 1.5, ease: "expo.out", stagger: 0.3 }, 0.1);
+tl.from("#s1 .pulse-ring", { scale: 0.3, opacity: 0.6, duration: 2, ease: "power2.out", stagger: 0.4 }, 0.3);
+tl.to("#s1 .pulse-ring", { scale: 2.5, opacity: 0, duration: 3, ease: "power2.out", stagger: 0.4 }, 0.3);
+tl.from("#s1 .mega", { y: 80, opacity: 0, duration: 0.7, ease: "power4.out" }, 0.5);
+tl.from("#s1 .sub", { y: 30, opacity: 0, duration: 0.5, ease: "power3.out" }, 1.0);
+tl.from("#s1 .emoji-burst span", { scale: 0, opacity: 0, duration: 0.3, ease: "back.out(3)", stagger: 0.1 }, 1.4);
+tl.from(".sbox", { y: 50, opacity: 0, scale: 0.8, duration: 0.4, ease: "back.out(2)", stagger: 0.1 }, 2.0);
+tl.from("#s1 .emoji-float", { scale: 0, rotation: -30, opacity: 0, duration: 0.6, ease: "elastic.out(1, 0.5)", stagger: 0.15 }, 1.2);
+tl.to("#s1 .emoji-float", { y: -20, duration: 4, ease: "sine.inOut", yoyo: true, repeat: 1, stagger: 0.3 }, 3);
+tl.to("#s1 .orb", { scale: 1.15, duration: 4, ease: "sine.inOut", yoyo: true, repeat: 1 }, 2);
+
+// ─── S2: PROBLEM (10-20s) ───
+tl.from("#s2 .h2", { x: -80, opacity: 0, duration: 0.7, ease: "expo.out" }, 10.3);
+tl.from(".pcard", { y: 60, opacity: 0, rotation: -3, duration: 0.5, ease: "power3.out", stagger: 0.12 }, 11.0);
+tl.from("#s2 .line-accent", { scaleX: 0, transformOrigin: "left", duration: 0.8, ease: "power3.inOut" }, 10.5);
+tl.from("#s2 .emoji-float", { scale: 0, rotation: 20, opacity: 0, duration: 0.5, ease: "back.out(2)", stagger: 0.2 }, 11.5);
+tl.to("#s2 .orb", { scale: 1.3, duration: 5, ease: "sine.inOut", yoyo: true, repeat: 1 }, 11);
+tl.to(".pcard .em", { scale: 1.2, duration: 0.3, ease: "elastic.out(1,0.3)", stagger: { each: 0.8, repeat: 1, yoyo: true } }, 13);
+
+// ─── S3: PIPELINE (20-35s) ───
+tl.from("#s3 .h2", { y: -50, opacity: 0, duration: 0.6, ease: "power4.out" }, 20.3);
+tl.from(".frow", { x: -50, opacity: 0, duration: 0.3, ease: "power3.out", stagger: 0.09 }, 21.0);
+tl.from("#s3 .emoji-float", { scale: 0, opacity: 0, duration: 0.5, ease: "back.out(2)", stagger: 0.2 }, 22);
+// Pulse parallel pipes
+tl.to(".frow .pipe.glow", { boxShadow: "0 0 16px #8b5cf6", duration: 0.4, ease: "power2.inOut", yoyo: true, repeat: 2, stagger: 0.1 }, 24);
+// Pulse the hot node
+tl.to(".frow .nd.hot", { scale: 1.08, boxShadow: "0 0 20px rgba(255,107,53,0.5)", duration: 0.4, ease: "elastic.out(1,0.4)", yoyo: true, repeat: 3 }, 27);
+tl.to("#s3 .orb", { x: 40, duration: 10, ease: "sine.inOut" }, 21);
+
+// ─── S4: QA LOOP (35-50s) ───
+tl.from("#s4 .h2", { scale: 0.85, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 35.3);
+tl.from(".lnode", { scale: 0.5, opacity: 0, duration: 0.5, ease: "back.out(2)", stagger: 0.2 }, 36.0);
+tl.from("#s4 .loop-svg", { opacity: 0, duration: 0.8, ease: "sine.out" }, 37.0);
+tl.from("#s4 .code-line", { y: 30, opacity: 0, duration: 0.5, ease: "power3.out" }, 38.5);
+// Animate nodes lighting up in sequence (the loop feeling)
+tl.to(".lnode:nth-child(1)", { borderColor: "var(--accent)", duration: 0.3, ease: "power2.out" }, 40);
+tl.to(".lnode:nth-child(1)", { borderColor: "rgba(255,255,255,0.04)", duration: 0.3 }, 40.8);
+tl.to(".lnode:nth-child(2)", { borderColor: "var(--accent)", duration: 0.3, ease: "power2.out" }, 41);
+tl.to(".lnode:nth-child(2)", { borderColor: "rgba(255,255,255,0.04)", duration: 0.3 }, 41.8);
+tl.to(".lnode:nth-child(3)", { borderColor: "var(--accent)", duration: 0.3, ease: "power2.out" }, 42);
+tl.to(".lnode:nth-child(3)", { borderColor: "rgba(255,255,255,0.04)", duration: 0.3 }, 42.8);
+tl.to(".lnode:nth-child(4)", { borderColor: "var(--accent)", duration: 0.3, ease: "power2.out" }, 43);
+tl.to(".lnode:nth-child(4)", { borderColor: "rgba(255,255,255,0.04)", duration: 0.3 }, 43.8);
+// Second loop iteration faster
+tl.to(".lnode:nth-child(1)", { borderColor: "var(--success)", duration: 0.2 }, 44.5);
+tl.to(".lnode:nth-child(2)", { borderColor: "var(--success)", duration: 0.2 }, 44.9);
+tl.to(".lnode:nth-child(3)", { borderColor: "var(--success)", duration: 0.2 }, 45.3);
+tl.to(".lnode:nth-child(4)", { borderColor: "var(--success)", duration: 0.2 }, 45.7);
+tl.to("#s4 .orb", { scale: 1.2, duration: 6, ease: "sine.inOut", yoyo: true, repeat: 1 }, 36);
+
+// ─── S5: CHECKLIST (50-60s) ───
+tl.from("#s5 .h2", { x: 50, opacity: 0, duration: 0.6, ease: "expo.out" }, 50.3);
+tl.from(".rule", { x: -30, opacity: 0, duration: 0.3, ease: "power3.out", stagger: 0.07 }, 51.0);
+tl.from("#s5 .emoji-float", { scale: 0, opacity: 0, duration: 0.5, ease: "back.out(2)", stagger: 0.2 }, 51.5);
+// Flash critical rules
+tl.to(".rule.c", { borderLeftColor: "#ff0000", duration: 0.2, ease: "power2.inOut", yoyo: true, repeat: 1, stagger: 0.05 }, 54);
+tl.to(".rule.c .ri", { scale: 1.3, duration: 0.2, ease: "elastic.out(1,0.3)", yoyo: true, repeat: 1, stagger: 0.05 }, 54);
+
+// ─── S6: BEFORE/AFTER (60-70s) ───
+tl.from(".rp.bad", { x: -120, opacity: 0, rotation: -5, duration: 0.7, ease: "power4.out" }, 60.3);
+tl.from(".arrow-big", { scale: 0, opacity: 0, duration: 0.4, ease: "back.out(3)" }, 61.0);
+tl.from(".rp.good", { x: 120, opacity: 0, rotation: 5, duration: 0.7, ease: "power4.out" }, 61.2);
+tl.from(".rp .bn", { scale: 0.2, opacity: 0, duration: 0.5, ease: "back.out(3)", stagger: 0.15 }, 62.0);
+tl.from(".rp .em", { scale: 0, rotation: -180, duration: 0.5, ease: "back.out(2)", stagger: 0.15 }, 62.5);
+// Pulse the good panel
+tl.to(".rp.good", { borderColor: "rgba(74,222,128,0.6)", boxShadow: "0 0 30px rgba(74,222,128,0.15)", duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 3 }, 64);
+
+// ─── S7: CLOSE (70-75s) ───
+tl.from("#s7 .final", { y: 50, opacity: 0, duration: 0.7, ease: "power4.out" }, 70.3);
+tl.from(".pill", { y: 30, opacity: 0, scale: 0.8, duration: 0.35, ease: "back.out(2)", stagger: 0.06 }, 71.0);
+tl.from("#s7 .emoji-row span", { scale: 0, rotation: -20, duration: 0.3, ease: "elastic.out(1,0.5)", stagger: 0.08 }, 71.8);
+tl.from("#s7 .repo", { opacity: 0, y: 15, duration: 0.4, ease: "sine.out" }, 72.5);
+tl.from("#s7 .emoji-float", { scale: 0, opacity: 0, rotation: 30, duration: 0.6, ease: "elastic.out(1,0.4)", stagger: 0.1 }, 70.5);
+tl.to("#s7 .emoji-float", { y: -15, duration: 2, ease: "sine.inOut", yoyo: true, repeat: 1, stagger: 0.2 }, 71.5);
+tl.to("#s7 .orb", { scale: 1.3, duration: 3, ease: "sine.inOut" }, 71);
+// Final fade
+tl.to("#s7 .final", { opacity: 0, y: -20, duration: 0.5, ease: "power2.in" }, 74.0);
+tl.to("#s7 .pills", { opacity: 0, duration: 0.4, ease: "power2.in" }, 74.2);
+tl.to("#s7 .emoji-row", { opacity: 0, duration: 0.3, ease: "sine.in" }, 74.3);
+tl.to("#s7 .repo", { opacity: 0, duration: 0.3, ease: "sine.in" }, 74.4);
+
+window.__timelines["root"] = tl;
+</script>
+</body>
+</html>

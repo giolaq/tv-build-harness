@@ -1,0 +1,5 @@
+{
+  "platforms": ["androidtv", "appletv", "web"],
+  "visual_qa_max_iterations": 3,
+  "visual_qa_pass_threshold": "normal"
+}

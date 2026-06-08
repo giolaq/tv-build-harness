@@ -1,0 +1,71 @@
+{
+  "navigation_type": "tabs",
+  "home": {
+    "id": "home",
+    "name": "Live",
+    "layout": "hero+rails",
+    "icon": "play-circle",
+    "data_source": "featured+live_now",
+    "children": [
+      {
+        "id": "player",
+        "name": "Player",
+        "layout": "player",
+        "data_source": "stream_url"
+      }
+    ]
+  },
+  "screens": [
+    {
+      "id": "schedule",
+      "name": "Schedule",
+      "layout": "list",
+      "icon": "calendar",
+      "data_source": "upcoming_events",
+      "children": [
+        {
+          "id": "event_detail",
+          "name": "Event Detail",
+          "layout": "detail",
+          "data_source": "event_by_id"
+        }
+      ]
+    },
+    {
+      "id": "replays",
+      "name": "Replays",
+      "layout": "grid",
+      "icon": "rewind",
+      "data_source": "all_videos",
+      "children": [
+        {
+          "id": "replay_player",
+          "name": "Replay Player",
+          "layout": "player",
+          "data_source": "stream_url"
+        }
+      ]
+    },
+    {
+      "id": "leagues",
+      "name": "Leagues",
+      "layout": "grid",
+      "icon": "trophy",
+      "data_source": "categories",
+      "children": [
+        {
+          "id": "league_detail",
+          "name": "League",
+          "layout": "grid",
+          "data_source": "category_items"
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "layout": "settings",
+      "icon": "gear"
+    }
+  ]
+}

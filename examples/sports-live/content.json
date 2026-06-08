@@ -1,0 +1,23 @@
+{
+  "title": "Arena Sports",
+  "description": "Live sports streaming — football, basketball, tennis, and more",
+  "categories": [
+    { "id": "football", "name": "Football", "items": ["v1", "v2", "v3"] },
+    { "id": "basketball", "name": "Basketball", "items": ["v4", "v5", "v6"] },
+    { "id": "tennis", "name": "Tennis", "items": ["v7", "v8"] },
+    { "id": "motorsport", "name": "Motorsport", "items": ["v9", "v10"] }
+  ],
+  "videos": [
+    { "id": "v1", "title": "Champions League Final", "description": "The biggest match of the season — two titans clash for European glory", "duration_sec": 7200, "thumbnail_url": "https://picsum.photos/seed/football1/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["football", "live", "champions-league"] },
+    { "id": "v2", "title": "Premier League: City vs United", "description": "Manchester derby — rivalry at its finest", "duration_sec": 5400, "thumbnail_url": "https://picsum.photos/seed/football2/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["football", "premier-league"] },
+    { "id": "v3", "title": "Serie A: Milan vs Inter", "description": "Derby della Madonnina — passion under the floodlights", "duration_sec": 5400, "thumbnail_url": "https://picsum.photos/seed/football3/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["football", "serie-a"] },
+    { "id": "v4", "title": "NBA Finals Game 7", "description": "Winner takes all — the ultimate basketball showdown", "duration_sec": 9000, "thumbnail_url": "https://picsum.photos/seed/basketball1/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["basketball", "nba", "finals"] },
+    { "id": "v5", "title": "EuroLeague Semifinal", "description": "European basketball at its peak", "duration_sec": 7200, "thumbnail_url": "https://picsum.photos/seed/basketball2/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["basketball", "euroleague"] },
+    { "id": "v6", "title": "All-Star Weekend Highlights", "description": "The best dunks, passes, and moments from All-Star Weekend", "duration_sec": 3600, "thumbnail_url": "https://picsum.photos/seed/basketball3/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["basketball", "highlights"] },
+    { "id": "v7", "title": "Wimbledon Final", "description": "Grass court perfection — the championship match", "duration_sec": 10800, "thumbnail_url": "https://picsum.photos/seed/tennis1/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["tennis", "grand-slam"] },
+    { "id": "v8", "title": "Roland Garros Semifinal", "description": "Clay court battle under the Paris sun", "duration_sec": 9000, "thumbnail_url": "https://picsum.photos/seed/tennis2/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["tennis", "grand-slam"] },
+    { "id": "v9", "title": "F1 Monaco Grand Prix", "description": "The jewel of motorsport — tight streets, high stakes", "duration_sec": 7200, "thumbnail_url": "https://picsum.photos/seed/f1monaco/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["motorsport", "f1"] },
+    { "id": "v10", "title": "MotoGP Italian Grand Prix", "description": "Two wheels, maximum adrenaline at Mugello", "duration_sec": 5400, "thumbnail_url": "https://picsum.photos/seed/motogp/800/450", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["motorsport", "motogp"] }
+  ],
+  "featured": ["v1", "v4", "v7", "v9"]
+}

@@ -1,0 +1,16 @@
+{
+  "template": "netflix-style",
+  "hero_height": 550,
+  "show_hero": true,
+  "tile_size": "large",
+  "tile_ratio": "16:9",
+  "spacing": "normal",
+  "corner_radius": 8,
+  "rails_per_screen": 4,
+  "font_scale": 1.0,
+  "show_descriptions": true,
+  "show_duration": true,
+  "navigation_style": "tabs",
+  "focus_style": "border+scale",
+  "animation_speed": "normal"
+}

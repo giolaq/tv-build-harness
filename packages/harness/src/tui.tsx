@@ -52,21 +52,77 @@ function WaveText({ text, tick }: { text: string; tick: number }) {
   return <>{chars}</>;
 }
 
+const TV_FRAMES = [
+  // Frame 0: happy eyes open
+  [
+    "  ╔═══════════════╗  ",
+    "  ║  ◕  ▽  ◕    ║  ",
+    "  ║    ╰──╯      ║  ",
+    "  ╚═══════════════╝  ",
+    "     ║      ║        ",
+    "    ╱╨══════╨╲       ",
+  ],
+  // Frame 1: wink
+  [
+    "  ╔═══════════════╗  ",
+    "  ║  ─  ▽  ◕    ║  ",
+    "  ║    ╰──╯      ║  ",
+    "  ╚═══════════════╝  ",
+    "     ║      ║        ",
+    "    ╱╨══════╨╲       ",
+  ],
+  // Frame 2: excited
+  [
+    "  ╔═══════════════╗  ",
+    "  ║  ◕  ▽  ◕    ║  ",
+    "  ║    ╰▽▽╯      ║  ",
+    "  ╚═══════════════╝  ",
+    "     ║      ║        ",
+    "    ╱╨══════╨╲       ",
+  ],
+  // Frame 3: thinking
+  [
+    "  ╔═══════════════╗  ",
+    "  ║  ◑  ▽  ◑    ║  ",
+    "  ║    ╰~~╯      ║  ",
+    "  ╚═══════════════╝  ",
+    "     ║      ║        ",
+    "    ╱╨══════╨╲       ",
+  ],
+];
+
+function TVLogo({ tick }: { tick: number }) {
+  const frameIdx = Math.floor(tick / 12) % TV_FRAMES.length;
+  const frame = TV_FRAMES[frameIdx];
+  return (
+    <Box flexDirection="column" marginRight={1}>
+      {frame.map((line, i) => (
+        <Text key={i} color={i < 4 ? "cyan" : "gray"}>{line}</Text>
+      ))}
+    </Box>
+  );
+}
+
 function Header({ state }: DashboardProps) {
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box>
-        <Text bold color="cyan">TV App Harness</Text>
-        <Text color="gray"> │ </Text>
-        <Text bold>{state.appName}</Text>
-      </Box>
-      <Box>
-        <Text color="gray">Platforms: </Text>
-        <Text>{state.platforms.join(", ")}</Text>
-        <Text color="gray"> │ Template: </Text>
-        <Text>{state.design.template}</Text>
-        <Text color="gray"> │ Nav: </Text>
-        <Text>{state.design.navigation_style}</Text>
+        <TVLogo tick={state.animTick} />
+        <Box flexDirection="column" justifyContent="center">
+          <Box>
+            <Text bold color="cyan">TV App Harness</Text>
+            <Text color="gray"> │ </Text>
+            <Text bold>{state.appName}</Text>
+          </Box>
+          <Box>
+            <Text color="gray">Platforms: </Text>
+            <Text>{state.platforms.join(", ")}</Text>
+            <Text color="gray"> │ Template: </Text>
+            <Text>{state.design.template}</Text>
+            <Text color="gray"> │ Nav: </Text>
+            <Text>{state.design.navigation_style}</Text>
+          </Box>
+        </Box>
       </Box>
       <Box marginTop={0}>
         <Text color="gray">{"─".repeat(70)}</Text>

@@ -21,6 +21,7 @@ import {
   BrandKitSchema,
   RunConfigSchema,
   DesignTokensSchema,
+  ScreenTreeSchema,
 } from "./types.js";
 
 loadEnvFile();
@@ -140,21 +141,26 @@ function loadInputs() {
     ? DesignTokensSchema.parse(JSON.parse(readFileSync(designPath, "utf-8")))
     : DesignTokensSchema.parse({});
 
+  const screensPath = join(inputDir, "screens.json");
+  const screenTree = existsSync(screensPath)
+    ? ScreenTreeSchema.parse(JSON.parse(readFileSync(screensPath, "utf-8")))
+    : undefined;
+
   const prompt = existsSync(promptPath)
     ? readFileSync(promptPath, "utf-8").trim()
     : `A streaming app called "${content.title}". ${content.description}`;
 
-  return { inputDir, content, brand, config, design, prompt };
+  return { inputDir, content, brand, config, design, screenTree, prompt };
 }
 
 async function runHarness() {
-  const { content, brand, config, design, prompt } = loadInputs();
+  const { content, brand, config, design, screenTree, prompt } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
 
   const harness = new TVAppHarness(
-    { prompt, content, brand, config, design, workdir, skillsDir }
+    { prompt, content, brand, config, design, screenTree, workdir, skillsDir }
   );
 
   console.log(`\n  TV App Harness — Agent SDK mode`);
@@ -177,7 +183,7 @@ async function runHarness() {
 }
 
 async function runWithClaude() {
-  const { inputDir, content, brand, config, design, prompt } = loadInputs();
+  const { inputDir, content, brand, config, design, screenTree, prompt } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
@@ -203,7 +209,7 @@ async function runWithClaude() {
     tui.start();
 
     const harness = new ClaudeOrchestrator(
-      { prompt, content, brand, config, design, workdir, skillsDir },
+      { prompt, content, brand, config, design, screenTree, workdir, skillsDir },
       {
         onPhaseStart: (phase) => tui.setPhase(phase),
         onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
@@ -219,7 +225,7 @@ async function runWithClaude() {
     tui.log(`Output: ${outDir}`);
   } else {
     const harness = new ClaudeOrchestrator(
-      { prompt, content, brand, config, design, workdir, skillsDir }
+      { prompt, content, brand, config, design, screenTree, workdir, skillsDir }
     );
 
     console.log(`\n  TV App Harness (Claude CLI mode)`);
