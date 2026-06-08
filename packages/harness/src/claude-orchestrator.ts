@@ -34,6 +34,25 @@ interface PhaseContext {
   appDir: string;
 }
 
+interface QADefect {
+  screen: string;
+  issue: string;
+  element: string;
+  file: string;
+  fix: string;
+}
+
+interface QAVerdict {
+  status: "pass" | "fail";
+  criticalCount: number;
+  majorCount: number;
+  minorCount: number;
+  critical: QADefect[];
+  major: QADefect[];
+  minor: QADefect[];
+  scores: Record<string, number>;
+}
+
 const PHASE_INSTRUCTIONS: Record<string, (ctx: PhaseContext) => string> = {
   clone_template: (ctx) => `
 Clone the react-native-multi-tv-app-sample template into "${ctx.appDir}":
@@ -1026,6 +1045,7 @@ export interface HarnessEvents {
   onPhaseStart?: (phase: Phase) => void;
   onPhaseEnd?: (phase: Phase, result: PhaseResult, cost?: number) => void;
   onTokens?: (tokens: number) => void;
+  onIteration?: (phase: Phase, current: number, max: number) => void;
   onLog?: (message: string) => void;
 }
 
@@ -1141,7 +1161,7 @@ export class ClaudeOrchestrator {
     const { platforms } = this.state.config;
 
     const generateOnly = process.argv.includes("--generate-only");
-    const buildPhases: Phase[] = ["simulator_build", "vega_build", "visual_correctness", "visual_smoke_test"];
+    const buildPhases: Phase[] = ["simulator_build", "vega_build", "visual_correctness", "visual_qa_loop", "visual_smoke_test"];
 
     return V1_PHASES.filter((phase) => {
       if (generateOnly && buildPhases.includes(phase)) return false;
@@ -1180,6 +1200,10 @@ export class ClaudeOrchestrator {
 
     if (phase === "plan") {
       return this.executePlanPhase();
+    }
+
+    if (phase === "visual_qa_loop") {
+      return this.executeVisualQALoop();
     }
 
     const instructionBuilder = PHASE_INSTRUCTIONS[phase];
@@ -1301,6 +1325,463 @@ Design: template="${this.input.design.template}", navigation="${navStyle}", hero
       const message = err instanceof Error ? err.message : String(err);
       return { phase: "plan", status: "failed", iterations: 1, error: message };
     }
+  }
+
+  private async executeVisualQALoop(): Promise<PhaseResult> {
+    const maxIterations = this.input.config.visual_qa_max_iterations ?? 3;
+    const threshold = this.input.config.visual_qa_pass_threshold ?? "normal";
+    const appDir = join(this.state.workdir, "app");
+    const screenshotDir = join(this.state.workdir, "screenshots");
+    const port = 19007;
+
+    mkdirSync(screenshotDir, { recursive: true });
+
+    try {
+      await this.startWebServer(appDir, port);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { phase: "visual_qa_loop", status: "failed", iterations: 0, error: `Web server failed: ${msg}` };
+    }
+
+    let lastVerdict: QAVerdict | null = null;
+
+    for (let iter = 1; iter <= maxIterations; iter++) {
+      this.events.onIteration?.("visual_qa_loop", iter, maxIterations);
+      this.events.onLog?.(`Visual QA iteration ${iter}/${maxIterations}`);
+
+      // Step A: Capture screenshots
+      const capturePrompt = this.buildCapturePrompt(appDir, screenshotDir, port, iter);
+      writeFileSync(join(this.state.workdir, `visual-qa-capture-${iter}.md`), capturePrompt);
+
+      try {
+        await this.invokeClaude(capturePrompt, appDir, 300_000);
+      } catch (err) {
+        this.events.onLog?.(`Capture failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
+        continue;
+      }
+
+      // Step B: Analyze screenshots
+      const analysisPrompt = this.buildAnalysisPrompt(appDir, screenshotDir, iter);
+      writeFileSync(join(this.state.workdir, `visual-qa-analysis-${iter}.md`), analysisPrompt);
+
+      let analysisResult: string;
+      try {
+        analysisResult = await this.invokeClaude(analysisPrompt, appDir, 600_000);
+      } catch (err) {
+        this.events.onLog?.(`Analysis failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
+        continue;
+      }
+
+      writeFileSync(join(this.state.workdir, `visual-qa-result-${iter}.txt`), analysisResult);
+
+      // Step C: Parse verdict
+      lastVerdict = this.parseQAVerdict(analysisResult);
+      writeFileSync(
+        join(this.state.workdir, `visual-qa-verdict-${iter}.json`),
+        JSON.stringify(lastVerdict, null, 2)
+      );
+
+      const passes = threshold === "strict"
+        ? lastVerdict.criticalCount === 0 && lastVerdict.majorCount === 0
+        : lastVerdict.criticalCount === 0;
+
+      this.events.onLog?.(
+        `Iter ${iter}: ${lastVerdict.criticalCount} critical, ${lastVerdict.majorCount} major, ${lastVerdict.minorCount} minor`
+      );
+
+      if (passes) {
+        await this.stopWebServer(port);
+        this.writeQAReport(lastVerdict, iter);
+        return { phase: "visual_qa_loop", status: "success", iterations: iter };
+      }
+
+      if (iter === maxIterations) {
+        break;
+      }
+
+      // Step D: Fix defects
+      const fixPrompt = this.buildFixPrompt(lastVerdict, appDir);
+      writeFileSync(join(this.state.workdir, `visual-qa-fix-${iter}.md`), fixPrompt);
+
+      try {
+        await this.invokeClaude(fixPrompt, appDir, 600_000);
+      } catch (err) {
+        this.events.onLog?.(`Fix failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
+      }
+
+      // Wait for hot-reload
+      await new Promise(r => setTimeout(r, 3000));
+    }
+
+    await this.stopWebServer(port);
+    this.writeQAReport(lastVerdict, maxIterations);
+
+    const errorMsg = lastVerdict
+      ? `${lastVerdict.criticalCount} critical, ${lastVerdict.majorCount} major defects remain after ${maxIterations} iterations`
+      : "Visual QA loop failed to produce results";
+
+    return {
+      phase: "visual_qa_loop",
+      status: lastVerdict && lastVerdict.criticalCount === 0 ? "degraded" : "failed",
+      iterations: maxIterations,
+      error: errorMsg,
+    };
+  }
+
+  private async startWebServer(appDir: string, port: number): Promise<void> {
+    const expoDir = join(appDir, "apps", "expo-multi-tv");
+    const child = spawnAsync("npx", ["expo", "start", "--web", "--port", String(port)], {
+      cwd: expoDir,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, BROWSER: "none", EXPO_TV: "1", PATH: `${process.env.PATH}:${process.env.HOME}/.toolbox/bin` },
+      detached: true,
+    });
+    child.unref();
+
+    // Store PID for cleanup
+    (this as unknown as { _webServerPid?: number })._webServerPid = child.pid;
+
+    // Poll for server readiness
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        execSync(`curl -s http://localhost:${port} > /dev/null`, { timeout: 5000, stdio: "pipe" });
+        return;
+      } catch {}
+    }
+    throw new Error(`Web server not ready after 60s on port ${port}`);
+  }
+
+  private async stopWebServer(port: number): Promise<void> {
+    try {
+      execSync(`kill $(lsof -ti:${port}) 2>/dev/null || true`, { stdio: "pipe" });
+    } catch {}
+  }
+
+  private buildCapturePrompt(appDir: string, screenshotDir: string, port: number, iter: number): string {
+    const routes = this.state.spec?.navigation.routes ?? [];
+    const routeCount = Math.min(routes.length, 4);
+    const iterDir = join(screenshotDir, `iter-${iter}`);
+
+    return `You are a test automation engineer. Capture screenshots of the TV app for visual QA analysis.
+
+Create the directory: mkdir -p ${iterDir}
+
+Write and run this Puppeteer script (save as ${this.state.workdir}/capture-iter-${iter}.cjs):
+
+const puppeteer = require('puppeteer');
+const path = require('path');
+const fs = require('fs');
+
+(async () => {
+  const dir = '${iterDir}';
+  fs.mkdirSync(dir, { recursive: true });
+
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--window-size=1920,1080', '--disable-gpu']
+  });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1920, height: 1080 });
+
+  let n = 0;
+  async function shot(name) {
+    await new Promise(r => setTimeout(r, 1500));
+    await page.screenshot({ path: path.join(dir, \`\${String(++n).padStart(2,'0')}-\${name}.png\`) });
+    console.log('Shot: ' + name);
+  }
+
+  async function focusNth(sel, idx) {
+    await page.evaluate((s, i) => {
+      const els = document.querySelectorAll(s);
+      if (els[i]) { els[i].focus(); els[i].dispatchEvent(new FocusEvent('focus', {bubbles:true})); }
+    }, sel, idx);
+    await new Promise(r => setTimeout(r, 600));
+  }
+
+  try {
+    await page.goto('http://localhost:${port}', { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.click('body');
+    await new Promise(r => setTimeout(r, 500));
+
+    const cardSel = await page.evaluate(() => {
+      for (const s of ['[data-focusable="true"]','[role="button"]','[tabindex="0"]']) {
+        if (document.querySelectorAll(s).length > 2) return s;
+      }
+      return '[tabindex]';
+    });
+
+    // Home screen states
+    await shot('home-default');
+    await focusNth(cardSel, 0);
+    await shot('home-first-card-focused');
+    await focusNth(cardSel, 1);
+    await shot('home-second-card-focused');
+    await focusNth(cardSel, 3);
+    await shot('home-mid-row-focused');
+
+    // Second row
+    const row2 = await page.evaluate((s) => {
+      const c = document.querySelectorAll(s);
+      if (c.length < 4) return -1;
+      const t = c[0].getBoundingClientRect().top;
+      for (let i=1;i<c.length;i++) if (c[i].getBoundingClientRect().top > t+50) return i;
+      return Math.min(5, c.length-1);
+    }, cardSel);
+    if (row2 > 0) { await focusNth(cardSel, row2); await shot('home-row2-focused'); }
+
+    // Scroll far
+    const last = Math.min(await page.evaluate((s) => document.querySelectorAll(s).length-1, cardSel), 12);
+    if (last > 5) { await focusNth(cardSel, last); await shot('home-far-scroll'); }
+
+    // Navigation
+    const navOpened = await page.evaluate(() => {
+      const t = document.querySelector('[data-testid*="menu"],[aria-label*="menu"],[aria-label*="Menu"]');
+      if (t) { t.click(); return true; }
+      const tab = document.querySelector('[role="tab"]');
+      if (tab) { tab.click(); return true; }
+      return false;
+    });
+    if (navOpened) { await new Promise(r => setTimeout(r, 800)); await shot('nav-open'); }
+
+    // Visit other screens
+    const navItems = await page.evaluate(() =>
+      document.querySelectorAll('[role="tab"],[role="menuitem"],[data-testid*="nav"],a[href]').length
+    );
+    for (let i = 0; i < Math.min(navItems, ${routeCount}); i++) {
+      await page.evaluate((idx) => {
+        const items = document.querySelectorAll('[role="tab"],[role="menuitem"],[data-testid*="nav"],a[href]');
+        if (items[idx]) items[idx].click();
+      }, i);
+      await new Promise(r => setTimeout(r, 1500));
+      await shot('screen-' + (i+1));
+      await focusNth(cardSel, 0);
+      await shot('screen-' + (i+1) + '-focused');
+      await page.keyboard.press('Backspace');
+      await new Promise(r => setTimeout(r, 800));
+    }
+
+    // Detail view
+    await page.goto('http://localhost:${port}', { waitUntil: 'networkidle0', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 1000));
+    await page.evaluate((s) => { const c = document.querySelectorAll(s); if(c[0]) c[0].click(); }, cardSel);
+    await new Promise(r => setTimeout(r, 1500));
+    await shot('detail-view');
+
+    // 720p responsive
+    await page.setViewport({ width: 1280, height: 720 });
+    await page.goto('http://localhost:${port}', { waitUntil: 'networkidle0', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 1500));
+    await shot('home-720p');
+    await focusNth(cardSel, 0);
+    await shot('home-720p-focused');
+
+    console.log('Total: ' + n + ' screenshots');
+  } catch(e) {
+    console.error('Error:', e.message);
+    await shot('error-state');
+  }
+  await browser.close();
+})();
+
+Run: cd ${this.state.workdir} && node capture-iter-${iter}.cjs 2>&1
+
+If puppeteer is not available:
+Run: npm install --prefix ${this.state.workdir} puppeteer 2>&1 | tail -3
+Then re-run the script.
+`;
+  }
+
+  private buildAnalysisPrompt(appDir: string, screenshotDir: string, iter: number): string {
+    const iterDir = join(screenshotDir, `iter-${iter}`);
+    const brand = this.input.brand;
+    const design = this.input.design;
+
+    return `You are a senior TV UI quality engineer performing a pixel-perfect visual inspection.
+
+Read EVERY screenshot in ${iterDir}/ and analyze each one against the 10-foot UI checklist below.
+
+## 10-Foot UI Checklist (NON-NEGOTIABLE)
+
+For each screenshot, check ALL of the following:
+
+### 1. Overflow & Clipping (CRITICAL)
+- NO element cut off at any edge
+- Focus borders (when visible) must be FULLY rendered — not cropped on top/left/right/bottom
+- Scaled elements must not have any part hidden by parent containers
+- Text must not extend past its container boundaries (especially in navigation/drawer items)
+- Horizontal rails: first card left edge visible, last card right edge visible
+
+### 2. Focus Visibility (CRITICAL)
+- Every focused element must have a CLEARLY VISIBLE indicator (border, scale, glow, or color change)
+- Focus indicator must be distinguishable from 10 feet away (thick border ≥4px, obvious scale ≥1.05x, or bright color contrast)
+- If a screenshot shows a focused state, the focused element must be immediately obvious
+
+### 3. Text Legibility (MAJOR)
+- Body text ≥ 24px equivalent (visible, readable)
+- Labels/captions ≥ 18px
+- Contrast ratio ≥ 4.5:1 against background
+- No text overlapping other text or images without a readable background
+
+### 4. TV Safe Area (MAJOR)
+- All content within the inner 90% of the viewport (5% margin on each edge)
+- No text or interactive elements in the outer 5% overscan zone
+
+### 5. Alignment & Spacing (MAJOR)
+- Grid items aligned on both axes
+- Horizontal rails have consistent spacing between items
+- No jagged edges or misaligned elements
+- Consistent vertical rhythm between sections
+
+### 6. Scroll & Reachability (CRITICAL)
+- If content extends below the viewport, there must be evidence of scrollability
+- No dead-end screens where content is visible but unreachable
+
+### 7. Navigation Chrome (MAJOR)
+- Drawer/tab items fully visible with text fitting within bounds
+- Navigation UI properly themed (not default/unstyled)
+- Active/focused nav item clearly distinguishable
+
+### 8. Responsive (MINOR)
+- 720p screenshots should maintain readability and layout integrity
+- No elements collapsing or overlapping at smaller viewport
+
+## Brand Spec
+- Primary: ${brand.primary_color}
+- Accent: ${brand.accent_color}
+- Background: ${brand.background_color}
+- Template: ${design.template}
+- Focus style: ${design.focus_style}
+
+## Output Format
+
+You MUST output valid JSON (no markdown fencing, no explanation before or after). The JSON must match:
+{
+  "verdict": "pass" | "fail",
+  "criticalDefects": [
+    { "screen": "<screenshot name>", "issue": "<description>", "element": "<component/style name>", "file": "<likely source file>", "fix": "<suggested fix>" }
+  ],
+  "majorDefects": [...same structure...],
+  "minorDefects": [...same structure...],
+  "scores": {
+    "overflow": <0-10>,
+    "focus": <0-10>,
+    "textLegibility": <0-10>,
+    "safeArea": <0-10>,
+    "alignment": <0-10>,
+    "scrollAccess": <0-10>,
+    "navigation": <0-10>,
+    "responsive": <0-10>
+  },
+  "summary": "<one-line overall assessment>"
+}
+
+verdict is "pass" ONLY if criticalDefects is empty${this.input.config.visual_qa_pass_threshold === "strict" ? " AND majorDefects is empty" : ""}.
+Be STRICT. If in doubt, flag it. Better to over-report than miss a defect.
+`;
+  }
+
+  private buildFixPrompt(verdict: QAVerdict, appDir: string): string {
+    const defects = [...verdict.critical, ...verdict.major];
+    const defectList = defects.map((d, i) =>
+      `${i + 1}. [${d.screen}] ${d.issue}\n   Element: ${d.element}\n   File: ${d.file}\n   Suggested fix: ${d.fix}`
+    ).join("\n\n");
+
+    return `You are a TV UI developer. Fix the following visual defects found during QA testing.
+
+## Defects to Fix (${defects.length} total)
+
+${defectList}
+
+## Rules
+
+1. Read each file mentioned above before editing
+2. For overflow/clipping issues:
+   - Add overflow:'visible' to focused styles
+   - Add sufficient padding to containers (calculate: itemSize * (scale-1) / 2 + borderWidth)
+   - Ensure ScrollViews have overflow:'visible' on both style and contentContainerStyle
+3. For text overflow in drawers/nav:
+   - Reduce fontSize to fit within container width
+   - Add numberOfLines={1} to prevent wrapping
+4. For scroll/reachability issues:
+   - Replace root View with SpatialNavigationScrollView
+5. For focus visibility issues:
+   - Ensure borderWidth ≥ scaledPixels(4) and uses the accent color
+   - Ensure scale transform is ≥ 1.05
+6. DO NOT add onKeyDown or custom focus event handlers
+7. DO NOT remove SpatialNavigationRoot from any screen
+8. After fixing, verify with: cd "${appDir}" && npx tsc --noEmit 2>&1 | head -10
+
+Fix ALL listed defects. Do not skip any.
+`;
+  }
+
+  private parseQAVerdict(output: string): QAVerdict {
+    try {
+      const jsonMatch = output.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return { status: "fail", criticalCount: 1, majorCount: 0, minorCount: 0, critical: [], major: [], minor: [], scores: {} };
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
+      const critical: QADefect[] = (parsed.criticalDefects ?? []).map((d: Record<string, string>) => ({
+        screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
+      }));
+      const major: QADefect[] = (parsed.majorDefects ?? []).map((d: Record<string, string>) => ({
+        screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
+      }));
+      const minor: QADefect[] = (parsed.minorDefects ?? []).map((d: Record<string, string>) => ({
+        screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
+      }));
+      return {
+        status: parsed.verdict === "pass" ? "pass" : "fail",
+        criticalCount: critical.length,
+        majorCount: major.length,
+        minorCount: minor.length,
+        critical, major, minor,
+        scores: parsed.scores ?? {},
+      };
+    } catch {
+      return { status: "fail", criticalCount: 1, majorCount: 0, minorCount: 0, critical: [], major: [], minor: [], scores: {} };
+    }
+  }
+
+  private writeQAReport(verdict: QAVerdict | null, iterations: number): void {
+    const lines = [
+      "# Visual QA Loop Report",
+      "",
+      `**Iterations:** ${iterations}`,
+      `**Verdict:** ${verdict?.status ?? "unknown"}`,
+      `**Critical defects:** ${verdict?.criticalCount ?? "?"}`,
+      `**Major defects:** ${verdict?.majorCount ?? "?"}`,
+      `**Minor defects:** ${verdict?.minorCount ?? "?"}`,
+      "",
+    ];
+
+    if (verdict?.scores && Object.keys(verdict.scores).length > 0) {
+      lines.push("## Scores", "");
+      for (const [key, val] of Object.entries(verdict.scores)) {
+        lines.push(`- **${key}:** ${val}/10`);
+      }
+      lines.push("");
+    }
+
+    if (verdict?.critical.length) {
+      lines.push("## Critical Defects", "");
+      for (const d of verdict.critical) {
+        lines.push(`- [${d.screen}] ${d.issue} (${d.file})`);
+      }
+      lines.push("");
+    }
+
+    if (verdict?.major.length) {
+      lines.push("## Major Defects", "");
+      for (const d of verdict.major) {
+        lines.push(`- [${d.screen}] ${d.issue} (${d.file})`);
+      }
+      lines.push("");
+    }
+
+    writeFileSync(join(this.state.workdir, "visual-qa-report.md"), lines.join("\n"));
   }
 
   private buildSkillContext(phase: Phase): string {

@@ -14,6 +14,7 @@ const PHASE_SKILL_MAP: Record<Phase, string[]> = {
   simulator_build: ["rntv-build-config"],
   vega_build: ["vega-sdk"],
   visual_correctness: ["10ft-ui", "theming"],
+  visual_qa_loop: ["10ft-ui", "theming", "spatial-navigation"],
   visual_smoke_test: ["10ft-ui", "rntv-third-party"],
   eas_build: ["eas-build"],
   package: [],

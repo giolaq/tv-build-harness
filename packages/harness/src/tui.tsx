@@ -11,6 +11,7 @@ export interface TUIState {
   currentPhases: Set<Phase>;
   phaseResults: Map<Phase, PhaseResult>;
   phaseCosts: Map<Phase, number>;
+  phaseIterations: Map<Phase, { current: number; max: number }>;
   totalTokens: number;
   tokenBudget: number;
   totalCost: number;
@@ -82,6 +83,7 @@ function PhaseList({ state }: DashboardProps) {
         const isCurrent = state.currentPhases.has(phase);
         const status = isCurrent ? "running" : result?.status ?? "pending";
         const cost = state.phaseCosts.get(phase);
+        const iterInfo = state.phaseIterations.get(phase);
 
         return (
           <Box key={phase}>
@@ -97,13 +99,14 @@ function PhaseList({ state }: DashboardProps) {
                 </Text>
               )}
             </Box>
-            <Box width={12}>
+            <Box width={16}>
               <Text color={
                 status === "success" ? "green" :
                 status === "degraded" ? "yellow" :
                 status === "failed" ? "red" : "gray"
               }>
                 {status}
+                {iterInfo ? ` ${iterInfo.current}/${iterInfo.max}` : ""}
               </Text>
             </Box>
             <Box width={10}>
@@ -212,6 +215,7 @@ export class TUI {
       currentPhases: new Set(),
       phaseResults: new Map(),
       phaseCosts: new Map(),
+      phaseIterations: new Map(),
       totalTokens: 0,
       tokenBudget: 500_000,
       totalCost: 0,
@@ -253,6 +257,11 @@ export class TUI {
     }
     this.state.currentPhases.delete(phase);
     this.log(`${result.status === "success" ? "✓" : "✗"} ${phase}: ${result.status}${cost ? ` ($${cost.toFixed(3)})` : ""}`);
+    this.update();
+  }
+
+  setIteration(phase: Phase, current: number, max: number): void {
+    this.state.phaseIterations.set(phase, { current, max });
     this.update();
   }
 

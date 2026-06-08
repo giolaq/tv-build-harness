@@ -14,6 +14,7 @@ export const PHASES = [
   "simulator_build",
   "vega_build",
   "visual_correctness",
+  "visual_qa_loop",
   "visual_smoke_test",
   "eas_build",
   "package",
@@ -33,7 +34,8 @@ export const PHASE_DEPS: Record<Phase, Phase[]> = {
   simulator_build: ["static_checks"],
   vega_build: ["static_checks"],
   visual_correctness: ["simulator_build"],
-  visual_smoke_test: ["visual_correctness"],
+  visual_qa_loop: ["simulator_build"],
+  visual_smoke_test: ["visual_qa_loop"],
   eas_build: ["static_checks"],
   package: ["simulator_build", "vega_build"],
 };
@@ -48,7 +50,7 @@ export const V1_PHASES: Phase[] = [
   "static_checks",
   "simulator_build",
   "vega_build",
-  "visual_correctness",
+  "visual_qa_loop",
   "visual_smoke_test",
 ];
 
@@ -228,6 +230,8 @@ export const RunConfigSchema = z.object({
   max_retries_per_phase: z.number().default(5),
   build_locally: z.boolean().default(true),
   eas_profile: z.string().default("preview"),
+  visual_qa_max_iterations: z.number().default(3),
+  visual_qa_pass_threshold: z.enum(["strict", "normal"]).default("normal"),
 });
 
 export type RunConfig = z.infer<typeof RunConfigSchema>;

@@ -208,6 +208,7 @@ async function runWithClaude() {
         onPhaseStart: (phase) => tui.setPhase(phase),
         onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
         onTokens: (tokens) => tui.addTokens(tokens),
+        onIteration: (phase, current, max) => tui.setIteration(phase, current, max),
         onLog: (msg) => tui.log(msg),
       }
     );
