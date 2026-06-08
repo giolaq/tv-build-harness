@@ -1,5 +1,5 @@
 {
-  "navigation_type": "tabs",
+  "navigation_type": "drawer",
   "home": {
     "id": "home",
     "name": "Live",

@@ -1,1 +1,1 @@
-A live sports streaming app. Dark, bold, high-energy. The home screen should feel like you're about to watch the biggest game of your life. Top tabs for navigation. Green accent for live indicators and CTAs. Hero banner shows the featured live event with a "Watch Now" badge pulsing.
+A live sports streaming app. Dark, bold, high-energy. The home screen should feel like you're about to watch the biggest game of your life. Left drawer for navigation. Green accent for live indicators and CTAs. Hero banner shows the featured live event with a "Watch Now" badge pulsing.

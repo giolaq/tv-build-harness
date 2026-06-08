@@ -542,8 +542,19 @@ const path = require('path');
   }
 
   try {
-    // Home screen — default state
-    await page.goto('http://localhost:19007', { waitUntil: 'networkidle0', timeout: 30000 });
+    // Home screen — wait for React to fully render (not just HTML shell)
+    await page.goto('http://localhost:19007', { waitUntil: 'networkidle0', timeout: 60000 });
+
+    // Wait for actual React content to appear in DOM (not just the root div)
+    await page.waitForFunction(() => {
+      const root = document.getElementById('root') || document.getElementById('app') || document.body;
+      // React Native Web renders deeply nested divs — check for meaningful content
+      return root.querySelectorAll('[data-testid], [role="button"], [tabindex], img, [style]').length > 3;
+    }, { timeout: 30000 }).catch(() => {});
+
+    // Extra safety wait for animations/transitions to settle
+    await new Promise(r => setTimeout(r, 3000));
+
     await screenshot('home-default');
 
     // IMPORTANT: Click the page body to give the webview focus, otherwise key events are ignored
@@ -1458,18 +1469,36 @@ Design: template="${this.input.design.template}", navigation="${navStyle}", hero
     });
     child.unref();
 
-    // Store PID for cleanup
     (this as unknown as { _webServerPid?: number })._webServerPid = child.pid;
 
-    // Poll for server readiness
+    // Phase 1: Wait for server to respond at all
     for (let i = 0; i < 30; i++) {
       await new Promise(r => setTimeout(r, 2000));
       try {
         execSync(`curl -s http://localhost:${port} > /dev/null`, { timeout: 5000, stdio: "pipe" });
-        return;
+        break;
+      } catch {
+        if (i === 29) throw new Error(`Web server not ready after 60s on port ${port}`);
+      }
+    }
+
+    // Phase 2: Wait for the JS bundle to compile (Expo compiles on first request)
+    // The first curl triggers compilation; we need to wait for it to finish
+    this.events.onLog?.("Web server responding, waiting for JS bundle compilation...");
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        const body = execSync(`curl -s http://localhost:${port}`, { timeout: 10000, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+        // Check if the response contains the bundled script (not just the HTML shell)
+        if (body.includes("bundle.js") || body.includes("AppEntry") || body.length > 2000) {
+          // Give it a few more seconds for the client to hydrate
+          await new Promise(r => setTimeout(r, 5000));
+          return;
+        }
       } catch {}
     }
-    throw new Error(`Web server not ready after 60s on port ${port}`);
+    // If we get here, server is up but bundle may still be compiling — proceed anyway
+    this.events.onLog?.("Bundle compilation timeout — proceeding with screenshots");
   }
 
   private async stopWebServer(port: number): Promise<void> {

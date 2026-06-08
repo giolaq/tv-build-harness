@@ -10,7 +10,7 @@
   "font_scale": 1.0,
   "show_descriptions": true,
   "show_duration": true,
-  "navigation_style": "tabs",
+  "navigation_style": "drawer",
   "focus_style": "border+scale",
   "animation_speed": "normal"
 }
