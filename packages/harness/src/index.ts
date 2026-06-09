@@ -14,7 +14,6 @@ import { TVAppHarness } from "./orchestrator.js";
 import { ClaudeOrchestrator } from "./claude-orchestrator.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { ReplayClient } from "./recorder.js";
-import { SkillFetcher } from "./skill-fetcher.js";
 import { SkillLibrary } from "./skill-library.js";
 import {
   ContentManifestSchema,
@@ -67,11 +66,9 @@ function loadEnvFile(): void {
 async function main() {
   switch (command) {
     case "run":
-      await ensureSkills();
       await runHarness();
       break;
     case "claude-run":
-      await ensureSkills();
       await runWithClaude();
       break;
     case "doctor":
@@ -80,19 +77,14 @@ async function main() {
     case "replay":
       await runReplay();
       break;
-    case "install-skills":
-      await installSkills();
-      break;
-    case "update-skills":
-      await updateSkills();
-      break;
     case "add-screen":
-      await ensureSkills();
       await addScreen();
       break;
     case "review":
-      await ensureSkills();
       await reviewCode();
+      break;
+    case "test-ui":
+      await testUI();
       break;
     default:
       printUsage();
@@ -216,6 +208,7 @@ async function runWithClaude() {
         onTokens: (tokens) => tui.addTokens(tokens),
         onIteration: (phase, current, max) => tui.setIteration(phase, current, max),
         onLog: (msg) => tui.log(msg),
+        onPhaseMessage: (phase, msg) => tui.addPhaseMessage(phase, msg),
       }
     );
 
@@ -247,46 +240,6 @@ async function runWithClaude() {
   }
 }
 
-async function ensureSkills() {
-  const fetcher = new SkillFetcher(resolve("../../skills"));
-  if (!fetcher.isPopulated()) {
-    console.log("  Fetching remote skills...");
-    const { fetched, failed } = await fetcher.fetchAll();
-    if (fetched.length > 0) {
-      console.log(`  Fetched ${fetched.length} remote skills: ${fetched.join(", ")}`);
-    }
-    if (failed.length > 0) {
-      console.log(`  Warning: ${failed.length} skills failed to fetch:`);
-      for (const f of failed) console.log(`    - ${f}`);
-    }
-  }
-}
-
-async function installSkills() {
-  const fetcher = new SkillFetcher(resolve("../../skills"));
-  console.log("\n  Fetching remote skills...\n");
-  const { fetched, failed } = await fetcher.fetchAll();
-  for (const name of fetched) {
-    console.log(`  ✓ ${name}`);
-  }
-  for (const f of failed) {
-    console.log(`  ✗ ${f}`);
-  }
-  console.log(`\n  ${fetched.length} installed, ${failed.length} failed.\n`);
-}
-
-async function updateSkills() {
-  const fetcher = new SkillFetcher(resolve("../../skills"));
-  console.log("\n  Updating remote skills...\n");
-  const { updated, failed } = await fetcher.update();
-  for (const name of updated) {
-    console.log(`  ✓ ${name}`);
-  }
-  for (const f of failed) {
-    console.log(`  ✗ ${f}`);
-  }
-  console.log(`\n  ${updated.length} updated, ${failed.length} failed.\n`);
-}
 
 async function addScreen() {
   const screenName = args[1];
@@ -307,7 +260,7 @@ async function addScreen() {
   const appDir = findAppDir();
   const skillsDir = resolveSkillsDir();
   const skills = loadSkillsForCommand(skillsDir, [
-    "template-anatomy", "shared-ui-catalog", "rntv-focus-navigation", "10ft-ui"
+    "template-anatomy", "shared-ui-catalog", "10ft-ui"
   ]);
 
   const prompt = [
@@ -338,8 +291,7 @@ async function reviewCode() {
   const appDir = findAppDir();
   const skillsDir = resolveSkillsDir();
   const skills = loadSkillsForCommand(skillsDir, [
-    "template-anatomy", "shared-ui-catalog", "rntv-focus-navigation",
-    "rntv-platform-detection", "10ft-ui"
+    "template-anatomy", "shared-ui-catalog", "10ft-ui"
   ]);
 
   const scope = args[1] ?? "";
@@ -493,6 +445,12 @@ async function runReplay() {
   console.log(`\n  Replay complete.\n`);
 }
 
+async function testUI() {
+  const appDir = findAppDir();
+  const { runUITests } = await import("./ui-test-runner.js");
+  await runUITests(appDir, { keepOpen: !process.argv.includes("--close") });
+}
+
 function printUsage() {
   console.log(`
   tv-harness — AI-orchestrated multi-platform TV app generator
@@ -500,20 +458,22 @@ function printUsage() {
   Commands:
     claude-run [dir]       Run full pipeline using Claude CLI
     run [dir]              Run full pipeline using Anthropic API (requires ANTHROPIC_API_KEY)
+    test-ui                Open a visible browser and run the UI test sequence in real time
     add-screen <Name>      Add a screen to the generated app (--type=grid|hero+rails|detail|...)
     review [scope]         Review the generated app code for TV-specific issues
     doctor                 Check prerequisites
     replay <file>          Replay a recorded run
-    install-skills         Fetch remote skills (react-native-tvos/skills etc.)
-    update-skills          Re-fetch remote skills to get latest versions
 
   Options:
     --example <name>       Use a bundled example (e.g. cooking-shows)
     --generate-only        Skip simulator build phases
-    --app=<path>           Specify app directory for add-screen/review
+    --app=<path>           Specify app directory for add-screen/review/test-ui
+    --close                Close browser after test-ui completes (default: stay open)
 
   Examples:
     npx tv-harness claude-run --example cooking-shows
+    npx tv-harness test-ui
+    npx tv-harness test-ui --app=./my-app --close
     npx tv-harness add-screen Watchlist --type=grid
     npx tv-harness add-screen Home --type=hero+rails
     npx tv-harness review

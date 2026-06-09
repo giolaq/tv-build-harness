@@ -60,14 +60,18 @@ const PHASE_INSTRUCTIONS: Record<string, (ctx: PhaseContext) => string> = {
 Clone the react-native-multi-tv-app-sample template into "${ctx.appDir}":
 1. Run: git clone --depth 1 https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git "${ctx.appDir}"
 2. Run: rm -rf "${ctx.appDir}/.git"
-3. CRITICAL: Fix React duplicate resolution. The template has multiple workspaces that can each resolve their own React copy, causing "Cannot read properties of undefined (reading 'ReactCurrentOwner')" at runtime.
-   Read ${ctx.appDir}/package.json, then edit it to add resolutions that force a single React copy:
+3. CRITICAL: Fix React/react-native duplicate resolution. The template has multiple workspaces that can each resolve their own React or react-native copy, causing "Invalid hook call" / "Cannot read properties of null (reading 'useEffect')" at runtime.
+   Read ${ctx.appDir}/package.json, then edit it to add resolutions that force a single copy of React AND react-native across ALL workspaces:
    Add these to the "resolutions" field (merge with existing):
-     "react": "18.3.1",
-     "react-dom": "18.3.1",
-     "@types/react": "^18.2.0"
-   Also read ${ctx.appDir}/apps/expo-multi-tv/package.json and ensure its react/react-dom versions match "18.3.1".
-   Also read ${ctx.appDir}/packages/shared-ui/package.json — if react-tv-space-navigation uses a wildcard ("*") or beta version, pin it to the latest stable: "^5.2.0"
+     "react": "19.1.0",
+     "react-dom": "19.1.0",
+     "react-native": "npm:react-native-tvos@~0.81.0-0",
+     "@types/react": "~19.1.0"
+   Also read ${ctx.appDir}/apps/expo-multi-tv/package.json and ensure its react/react-dom versions match "19.1.0" and react-native is "npm:react-native-tvos@~0.81.0-0".
+   Also read ${ctx.appDir}/packages/shared-ui/package.json:
+   - NEVER put "react", "react-dom", or "react-native" in shared-ui's devDependencies — they MUST only be in peerDependencies. If any exist in devDependencies, REMOVE them immediately.
+   - Navigation packages (@react-navigation/*, react-tv-space-navigation) should also be peerDependencies in shared-ui, not devDependencies.
+   - If react-tv-space-navigation uses a wildcard ("*") or beta version in the consuming app, pin it to "^6.0.0".
 4. Run: cd "${ctx.appDir}" && yarn install
 5. Run: cd "${ctx.appDir}" && git init && git add -A && git commit -m "initial template"
 App name: ${ctx.spec?.app_name ?? ctx.input.content.title}
@@ -244,7 +248,7 @@ The template uses a drawer navigator — you MUST REPLACE it with a top tab navi
 
 Steps to switch from drawer to tabs:
 1. Check if @react-navigation/bottom-tabs or @react-navigation/material-top-tabs is installed.
-   If not: run "yarn workspace @multi-tv/shared-ui add @react-navigation/bottom-tabs" (or add to the expo-multi-tv workspace if that's where nav deps live)
+   If not: run "yarn workspace @multi-tv/expo-multi-tv add @react-navigation/bottom-tabs" (ALWAYS add to expo-multi-tv, NEVER to shared-ui — shared-ui only has peerDependencies)
 2. Find the DrawerNavigator file (likely DrawerNavigator.tsx or similar in packages/shared-ui/src/navigation/)
 3. REPLACE the drawer navigator with a tab navigator. Use createBottomTabNavigator() or createMaterialTopTabNavigator() for a top bar.
 4. For a TOP tab bar specifically, use createMaterialTopTabNavigator with tabBarPosition: 'top' and style it:
@@ -1054,12 +1058,19 @@ Write ${ctx.outDir}/build-report.txt with:
   },
 };
 
+export interface PhaseMessage {
+  type: "text" | "tool_use" | "tool_result";
+  content: string;
+  toolName?: string;
+}
+
 export interface HarnessEvents {
   onPhaseStart?: (phase: Phase) => void;
   onPhaseEnd?: (phase: Phase, result: PhaseResult, cost?: number) => void;
   onTokens?: (tokens: number) => void;
   onIteration?: (phase: Phase, current: number, max: number) => void;
   onLog?: (message: string) => void;
+  onPhaseMessage?: (phase: Phase, message: PhaseMessage) => void;
 }
 
 export class ClaudeOrchestrator {
@@ -2118,22 +2129,49 @@ Fix ALL listed defects. Do not skip any.
 
   private invokeClaude(prompt: string, cwd: string, timeoutMs: number = 600_000): Promise<string> {
     const claudePath = process.env.CLAUDE_PATH ?? findClaude();
+    const phase = this.state.currentPhase;
 
     return new Promise((resolve, reject) => {
       const child = spawnAsync(claudePath, [
         "-p", "-",
         "--allowedTools", "Bash,Read,Write,Edit",
-        "--output-format", "json",
+        "--output-format", "stream-json",
+        "--verbose",
       ], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
         env: { ...process.env, PATH: `${process.env.PATH}:${process.env.HOME}/.toolbox/bin` },
       });
 
-      let stdout = "";
+      let buffer = "";
       let stderr = "";
+      let resultText = "";
 
-      child.stdout!.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+      child.stdout!.on("data", (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+            this.handleStreamEvent(phase, event);
+            if (event.type === "result") {
+              resultText = event.result ?? "";
+              if (event.usage) {
+                const tokens = (event.usage.input_tokens ?? 0) + (event.usage.output_tokens ?? 0);
+                this.state.tokensUsed += tokens;
+                this.events.onTokens?.(tokens);
+              }
+              if (event.total_cost_usd) {
+                this.lastPhaseCost = event.total_cost_usd;
+              }
+            }
+          } catch {}
+        }
+      });
+
       child.stderr!.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
 
       child.stdin!.write(prompt);
@@ -2146,24 +2184,27 @@ Fix ALL listed defects. Do not skip any.
 
       child.on("close", (code) => {
         clearTimeout(timer);
+        if (buffer.trim()) {
+          try {
+            const event = JSON.parse(buffer);
+            this.handleStreamEvent(phase, event);
+            if (event.type === "result") {
+              resultText = event.result ?? "";
+              if (event.usage) {
+                const tokens = (event.usage.input_tokens ?? 0) + (event.usage.output_tokens ?? 0);
+                this.state.tokensUsed += tokens;
+                this.events.onTokens?.(tokens);
+              }
+              if (event.total_cost_usd) {
+                this.lastPhaseCost = event.total_cost_usd;
+              }
+            }
+          } catch {}
+        }
         if (code !== 0) {
           reject(new Error(`claude CLI exited with ${code}: ${stderr.slice(0, 500)}`));
         } else {
-          try {
-            const parsed = JSON.parse(stdout);
-            const usage = parsed.usage;
-            if (usage) {
-              const tokens = (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0);
-              this.state.tokensUsed += tokens;
-              this.events.onTokens?.(tokens);
-            }
-            if (parsed.total_cost_usd) {
-              this.lastPhaseCost = parsed.total_cost_usd;
-            }
-            resolve(parsed.result ?? "");
-          } catch {
-            resolve(stdout);
-          }
+          resolve(resultText);
         }
       });
 
@@ -2172,6 +2213,43 @@ Fix ALL listed defects. Do not skip any.
         reject(new Error(`claude CLI error: ${err.message}`));
       });
     });
+  }
+
+  private handleStreamEvent(phase: Phase, event: any): void {
+    if (!this.events.onPhaseMessage) return;
+
+    if (event.type === "assistant" && event.message?.content) {
+      for (const block of event.message.content) {
+        if (block.type === "text" && block.text) {
+          this.events.onPhaseMessage(phase, { type: "text", content: block.text });
+        } else if (block.type === "tool_use") {
+          const input = typeof block.input === "string"
+            ? block.input.slice(0, 200)
+            : JSON.stringify(block.input ?? "").slice(0, 200);
+          this.events.onPhaseMessage(phase, {
+            type: "tool_use",
+            content: input,
+            toolName: block.name,
+          });
+        }
+      }
+    } else if (event.type === "tool_result" || (event.type === "user" && event.message?.content)) {
+      const content = event.message?.content ?? event.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === "tool_result" && block.content) {
+            const text = typeof block.content === "string"
+              ? block.content.slice(0, 300)
+              : JSON.stringify(block.content).slice(0, 300);
+            this.events.onPhaseMessage(phase, {
+              type: "tool_result",
+              content: text,
+              toolName: block.tool_use_id,
+            });
+          }
+        }
+      }
+    }
   }
 
   getState(): SessionState {

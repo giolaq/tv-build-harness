@@ -4,18 +4,18 @@ import type { Phase, SkillMeta } from "./types.js";
 
 const PHASE_SKILL_MAP: Record<Phase, string[]> = {
   plan: [],
-  clone_template: ["template-anatomy", "rntv-project-setup"],
+  clone_template: ["template-anatomy"],
   metadata_branding: ["template-anatomy", "theming", "firetv-leanback"],
   manifest_wiring: ["template-anatomy", "manifest-wiring"],
-  screen_customization: ["template-anatomy", "shared-ui-catalog", "rntv-focus-navigation", "10ft-ui"],
+  screen_customization: ["template-anatomy", "shared-ui-catalog", "10ft-ui"],
   navigation_update: ["template-anatomy", "shared-ui-catalog", "spatial-navigation"],
-  prebuild: ["rntv-build-config", "firetv-leanback"],
-  static_checks: ["rntv-focus-navigation", "rntv-platform-detection"],
-  simulator_build: ["rntv-build-config"],
+  prebuild: ["firetv-leanback"],
+  static_checks: [],
+  simulator_build: [],
   vega_build: ["vega-sdk"],
   visual_correctness: ["10ft-ui", "theming"],
   visual_qa_loop: ["10ft-ui", "theming", "spatial-navigation"],
-  visual_smoke_test: ["10ft-ui", "rntv-third-party"],
+  visual_smoke_test: ["10ft-ui"],
   eas_build: ["eas-build"],
   package: [],
 };
@@ -46,7 +46,6 @@ export class SkillLibrary {
 
     scanDir(this.skillsDir);
     scanDir(join(this.skillsDir, "auto"));
-    scanDir(join(this.skillsDir, ".remote-cache"));
   }
 
   private parseFrontmatter(content: string, filePath: string): SkillMeta | null {
