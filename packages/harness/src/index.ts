@@ -86,6 +86,9 @@ async function main() {
     case "test-ui":
       await testUI();
       break;
+    case "visual-qa":
+      await runVisualQA();
+      break;
     default:
       printUsage();
       break;
@@ -445,6 +448,64 @@ async function runReplay() {
   console.log(`\n  Replay complete.\n`);
 }
 
+async function runVisualQA() {
+  const outDir = findOutDir();
+  const skillsDir = resolveSkillsDir();
+
+  const specPath = join(outDir, "spec.json");
+  if (!existsSync(specPath)) {
+    console.error(`  No spec.json found in ${outDir}. Run a full generation first.`);
+    process.exit(1);
+  }
+
+  const config = RunConfigSchema.parse({ platforms: ["web"] });
+  const brand = BrandKitSchema.parse({ name: "App", primary_color: "#1a1a2e", accent_color: "#e94560", background_color: "#16213e", font_family: "System", logo_path: "", splash_path: "" });
+  const design = DesignTokensSchema.parse({});
+  const content = { title: "App", description: "", categories: [], videos: [], featured: [] } as any;
+
+  const harness = ClaudeOrchestrator.fromExistingRun(
+    outDir,
+    { prompt: "", content, brand, config, design, workdir: resolve("."), skillsDir },
+    {
+      onLog: (msg) => console.log(`  ${msg}`),
+      onIteration: (_, cur, max) => console.log(`  Iteration ${cur}/${max}`),
+    }
+  );
+
+  console.log(`\n  Visual QA Loop — reusing ${outDir}\n`);
+  const result = await harness.runVisualQAOnly();
+
+  const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
+  console.log(`\n  ${icon} visual_qa_loop: ${result.status} (${result.iterations} iterations)`);
+  if (result.error) console.log(`  Error: ${result.error}`);
+  console.log();
+}
+
+function findOutDir(): string {
+  const appFlag = args.find((a) => a.startsWith("--app="));
+  if (appFlag) {
+    const dir = resolve(appFlag.split("=")[1]);
+    if (existsSync(join(dir, "spec.json"))) return dir;
+    // If they pointed at the app subdir, go up one level
+    const parent = resolve(dir, "..");
+    if (existsSync(join(parent, "spec.json"))) return parent;
+  }
+
+  // Find the most recent out/ directory
+  const outDir = resolve("out");
+  if (existsSync(outDir)) {
+    const entries = readdirSync(outDir)
+      .map((e) => ({ name: e, mtime: statSync(join(outDir, e)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    if (entries.length > 0) {
+      return join(outDir, entries[0].name);
+    }
+  }
+
+  console.error("  Could not find output directory. Use --app=<path-to-out/runId>");
+  process.exit(1);
+}
+
 async function testUI() {
   const appDir = findAppDir();
   const { runUITests } = await import("./ui-test-runner.js");
@@ -459,6 +520,7 @@ function printUsage() {
     claude-run [dir]       Run full pipeline using Claude CLI
     run [dir]              Run full pipeline using Anthropic API (requires ANTHROPIC_API_KEY)
     test-ui                Open a visible browser and run the UI test sequence in real time
+    visual-qa              Run only the visual QA loop on an existing generated app
     add-screen <Name>      Add a screen to the generated app (--type=grid|hero+rails|detail|...)
     review [scope]         Review the generated app code for TV-specific issues
     doctor                 Check prerequisites
@@ -474,6 +536,8 @@ function printUsage() {
     npx tv-harness claude-run --example cooking-shows
     npx tv-harness test-ui
     npx tv-harness test-ui --app=./my-app --close
+    npx tv-harness visual-qa
+    npx tv-harness visual-qa --app=out/d811afcb
     npx tv-harness add-screen Watchlist --type=grid
     npx tv-harness add-screen Home --type=hero+rails
     npx tv-harness review
