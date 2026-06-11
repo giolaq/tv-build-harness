@@ -1,14 +1,16 @@
 Run all static checks and fix any errors.
 
-STEP 0: Fix shared-ui/package.json (CRITICAL — prevents ReactCurrentOwner crash).
+STEP 0: Fix shared-ui/package.json (CRITICAL — prevents white screen / MIME type / ReactCurrentOwner crash).
 Run: cat {{appDir}}/packages/shared-ui/package.json
 Check the devDependencies field. It must ONLY contain entries starting with "@types/" and "typescript".
-If ANY runtime package is in devDependencies (react-tv-space-navigation, @bam.tech/lrud, @react-navigation/*, react-native*, react, react-dom, react-native-gesture-handler, react-native-video, etc.):
+If ANY runtime package is in devDependencies (react-tv-space-navigation, @bam.tech/lrud, @react-navigation/*, react-native*, react, react-dom, react-native-gesture-handler, react-native-reanimated, react-native-screens, react-native-safe-area-context, react-native-video, expo-linear-gradient, react-native-pixel-perfect, etc.):
 1. Remove it from devDependencies
 2. Add it to peerDependencies (with "*" version)
 3. Make sure expo-multi-tv/package.json has it in dependencies (add if missing)
-Then run: cd "{{appDir}}" && yarn install
-WHY: Packages in shared-ui/devDependencies get installed in shared-ui/node_modules/. They do require("react") but react is NOT there — it's only in expo-multi-tv/node_modules/. This causes the app to crash with "Cannot read properties of undefined (reading 'ReactCurrentOwner')".
+4. CRITICAL: Delete shared-ui/node_modules entirely and re-install:
+   Run: rm -rf {{appDir}}/packages/shared-ui/node_modules
+   Run: cd "{{appDir}}" && yarn install
+WHY: Packages in shared-ui/devDependencies get installed in shared-ui/node_modules/. Metro resolves imports from there but those packages can't find THEIR dependencies (react, react-native-worklets, etc.) because those only exist in expo-multi-tv/node_modules/. This causes Metro bundling to fail with "Unable to resolve module" or the app crashes with "ReactCurrentOwner" error. Deleting shared-ui/node_modules forces Metro to resolve everything from expo-multi-tv where all deps are available.
 
 STEP 1: TypeScript check.
 Run: cd "{{appDir}}" && npx tsc --noEmit 2>&1

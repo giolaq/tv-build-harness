@@ -16,6 +16,11 @@ Clone the react-native-multi-tv-app-sample template into "{{appDir}}":
    WHY: Yarn installs devDependencies in shared-ui/node_modules/. Packages like react-tv-space-navigation do require("react") at runtime but react is NOT in shared-ui/node_modules/ — it's only in expo-multi-tv/node_modules/. This causes "Cannot read properties of undefined (reading 'ReactCurrentOwner')" crash.
    The ONLY place to "yarn add" runtime packages is the expo-multi-tv workspace.
    - If react-tv-space-navigation uses a wildcard ("*") or beta version in the consuming app, pin it to "^6.0.0".
-4. Run: cd "{{appDir}}" && yarn install
-5. Run: cd "{{appDir}}" && git init && git add -A && git commit -m "initial template"
+4. CRITICAL: Block Metro from resolving shared-ui/node_modules.
+   Read {{appDir}}/apps/expo-multi-tv/metro.config.js. Add a blockList entry to the resolver that excludes shared-ui/node_modules:
+   Add to config.resolver:
+     blockList: [/packages\/shared-ui\/node_modules\/.*/]
+   This prevents Metro from ever bundling packages from shared-ui/node_modules even if they get installed there accidentally. All imports must resolve from expo-multi-tv/node_modules.
+5. Run: cd "{{appDir}}" && yarn install
+6. Run: cd "{{appDir}}" && git init && git add -A && git commit -m "initial template"
 App name: {{appName}}
