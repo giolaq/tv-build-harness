@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { ToolDefinition, ToolHandler, ToolResult } from "../types.js";
 
 export const vegaBuildDefinition: ToolDefinition = {
-  name: "vega_build",
+  name: "vega_build_loop",
   description: "Build the Vega OS variant of the app via the Vega SDK toolchain",
   input_schema: {
     type: "object",
@@ -31,6 +31,6 @@ export const vegaBuildHandler: ToolHandler = async (input): Promise<ToolResult> 
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, output: null, error: `vega_build failed: ${message}` };
+    return { ok: false, output: null, error: `vega_build_loop failed: ${message}` };
   }
 };

@@ -6,7 +6,7 @@ import type { ToolDefinition, ToolHandler, ToolResult } from "../types.js";
 const TEMPLATE_REPO = "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git";
 
 export const cloneTemplateDefinition: ToolDefinition = {
-  name: "clone_template",
+  name: "scaffold",
   description: "Clone the react-native-multi-tv-app-sample template, strip git history, and install dependencies",
   input_schema: {
     type: "object",
@@ -47,6 +47,6 @@ export const cloneTemplateHandler: ToolHandler = async (input): Promise<ToolResu
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, output: null, error: `clone_template failed: ${message}` };
+    return { ok: false, output: null, error: `scaffold failed: ${message}` };
   }
 };

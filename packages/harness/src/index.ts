@@ -190,8 +190,8 @@ async function runWithClaude() {
     const { V1_PHASES } = await import("./types.js");
 
     const activePhases = V1_PHASES.filter((phase) => {
-      if (process.argv.includes("--generate-only") && ["simulator_build", "vega_build", "visual_smoke_test"].includes(phase)) return false;
-      if (phase === "vega_build") return !config.platforms.includes("firetv-vega");
+      if (process.argv.includes("--generate-only") && ["build_loop", "vega_build_loop", "visual_smoke_test"].includes(phase)) return false;
+      if (phase === "vega_build_loop") return !config.platforms.includes("firetv-vega");
       return true;
     });
 

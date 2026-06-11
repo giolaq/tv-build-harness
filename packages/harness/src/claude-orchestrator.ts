@@ -202,11 +202,11 @@ export class ClaudeOrchestrator {
     const { platforms } = this.state.config;
 
     const generateOnly = process.argv.includes("--generate-only");
-    const buildPhases: Phase[] = ["simulator_build", "vega_build", "visual_correctness", "visual_qa_loop"];
+    const buildPhases: Phase[] = ["build_loop", "vega_build_loop", "visual_correctness", "visual_qa_loop"];
 
     return V1_PHASES.filter((phase) => {
       if (generateOnly && buildPhases.includes(phase)) return false;
-      if (phase === "vega_build") return platforms.includes("firetv-vega");
+      if (phase === "vega_build_loop") return platforms.includes("firetv-vega");
       return true;
     });
   }
@@ -275,10 +275,10 @@ export class ClaudeOrchestrator {
 
     try {
       const appDir = join(this.state.workdir, "app");
-      const cwd = phase === "clone_template" ? this.state.workdir : appDir;
+      const cwd = phase === "scaffold" ? this.state.workdir : appDir;
       mkdirSync(cwd, { recursive: true });
 
-      const buildPhases: Phase[] = ["simulator_build", "vega_build"];
+      const buildPhases: Phase[] = ["build_loop", "vega_build_loop"];
       const timeoutMs = buildPhases.includes(phase) ? 900_000 : 600_000;
 
       const output = await this.invokeClaude(fullPrompt, cwd, timeoutMs);
@@ -312,17 +312,17 @@ export class ClaudeOrchestrator {
     const spec = this.state.spec;
 
     switch (phase) {
-      case "clone_template":
-        return this.prompts.load("clone_template", {
+      case "scaffold":
+        return this.prompts.load("scaffold", {
           appDir,
           appName: spec?.app_name ?? this.input.content.title,
         });
 
-      case "metadata_branding": {
+      case "branding": {
         const appName = spec?.app_name ?? this.input.content.title;
         const slug = appName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
         const bundleId = "com.tvharness." + appName.toLowerCase().replace(/[^a-z0-9]/g, "");
-        return this.prompts.load("metadata_branding", {
+        return this.prompts.load("branding", {
           appDir,
           appName,
           slug,
@@ -334,8 +334,8 @@ export class ClaudeOrchestrator {
         });
       }
 
-      case "manifest_wiring":
-        return this.prompts.load("manifest_wiring", {
+      case "content":
+        return this.prompts.load("content", {
           appDir,
           contentManifest: JSON.stringify(this.input.content, null, 2),
           featuredIds: JSON.stringify(this.input.content.featured),
@@ -344,18 +344,18 @@ export class ClaudeOrchestrator {
           contentTitle: this.input.content.title,
         });
 
-      case "screen_customization": {
+      case "screens": {
         if (!spec) return "No AppSpec available. Skip this phase.";
         const screensList = spec.screens.map(s =>
           `- ${s.id}: layout="${s.layout}", route="${s.route}"${s.uses_template_screen ? `, reuses="${s.uses_template_screen}"` : ""}`
         ).join("\n");
-        return this.prompts.load("screen_customization", {
+        return this.prompts.load("screens", {
           appDir,
           screensList,
         });
       }
 
-      case "navigation_update": {
+      case "navigation": {
         if (!spec) return "No AppSpec available. Skip this phase.";
         const navType = spec.navigation.type;
         const navStyle = this.input.design.navigation_style;
@@ -405,7 +405,7 @@ Steps for hidden navigation:
 
         const instructions = typeInstructions[resolvedType] ?? typeInstructions["drawer"];
 
-        return this.prompts.load("navigation_update", {
+        return this.prompts.load("navigation", {
           appDir,
           resolvedType,
           routesList,
@@ -413,16 +413,16 @@ Steps for hidden navigation:
         });
       }
 
-      case "static_checks":
-        return this.prompts.load("static_checks", {
+      case "verify":
+        return this.prompts.load("verify", {
           appDir,
         });
 
-      case "simulator_build": {
+      case "build_loop": {
         const platforms = this.input.config.platforms;
         const wantsAndroid = platforms.includes("androidtv") || platforms.includes("firetv-fos");
         const wantsIos = platforms.includes("appletv");
-        return this.prompts.load("simulator_build", {
+        return this.prompts.load("build_loop", {
           appDir,
           platforms: platforms.join(", "),
           wantsAndroid: wantsAndroid ? "true" : "",
@@ -431,8 +431,8 @@ Steps for hidden navigation:
         });
       }
 
-      case "vega_build":
-        return this.prompts.load("vega_build", {
+      case "vega_build_loop":
+        return this.prompts.load("vega_build_loop", {
           appDir,
         });
 
@@ -953,13 +953,13 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     const appDir = join(this.state.workdir, "app");
 
     switch (phase) {
-      case "clone_template": {
+      case "scaffold": {
         if (!existsSync(join(appDir, "package.json"))) {
           return { ok: false, error: "Template not cloned: package.json missing in app dir" };
         }
         return { ok: true };
       }
-      case "metadata_branding": {
+      case "branding": {
         try {
           const diff = execSync("git diff --stat", { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
           const untracked = execSync("git ls-files --others --exclude-standard", { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
@@ -982,7 +982,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
         }
         return { ok: true };
       }
-      case "manifest_wiring": {
+      case "content": {
         const candidates = [
           join(appDir, "packages", "shared-ui", "src", "data"),
           join(appDir, "packages", "shared-ui", "data"),
@@ -1004,7 +1004,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
         }
         return { ok: true };
       }
-      case "static_checks": {
+      case "verify": {
         try {
           execSync("npx tsc --noEmit", {
             cwd: appDir,

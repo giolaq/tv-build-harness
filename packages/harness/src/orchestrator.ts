@@ -106,11 +106,11 @@ export class TVAppHarness {
   private getActivePhases(): Phase[] {
     const { platforms } = this.state.config;
     const generateOnly = process.argv.includes("--generate-only");
-    const buildPhases: Phase[] = ["simulator_build", "vega_build", "visual_smoke_test"];
+    const buildPhases: Phase[] = ["build_loop", "vega_build_loop", "visual_smoke_test"];
 
     return V1_PHASES.filter((phase) => {
       if (generateOnly && buildPhases.includes(phase)) return false;
-      if (phase === "vega_build") return platforms.includes("firetv-vega");
+      if (phase === "vega_build_loop") return platforms.includes("firetv-vega");
       return true;
     });
   }
@@ -122,7 +122,7 @@ export class TVAppHarness {
       return this.executePlanPhase();
     }
 
-    if (phase === "clone_template") {
+    if (phase === "scaffold") {
       return this.executeClonePhase();
     }
 
@@ -148,7 +148,7 @@ export class TVAppHarness {
           cwd: appDir,
           mcpServers: { "tv-harness": mcpServer },
           allowedTools: [
-            "mcp__tv-harness__clone_template",
+            "mcp__tv-harness__scaffold",
             "mcp__tv-harness__apply_theme",
             "mcp__tv-harness__inject_content",
             "mcp__tv-harness__add_screen",
@@ -333,12 +333,12 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
 
   private getMaxTurns(phase: Phase): number {
     const limits: Partial<Record<Phase, number>> = {
-      metadata_branding: 20,
-      manifest_wiring: 25,
-      screen_customization: 20,
-      navigation_update: 15,
-      static_checks: 10,
-      simulator_build: 10,
+      branding: 20,
+      content: 25,
+      screens: 20,
+      navigation: 15,
+      verify: 10,
+      build_loop: 10,
       visual_smoke_test: 5,
     };
     return limits[phase] ?? 15;
@@ -348,7 +348,7 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
     const appDir = join(this.state.workdir, "app");
 
     if (existsSync(join(appDir, "package.json"))) {
-      return { phase: "clone_template", status: "success", iterations: 0 };
+      return { phase: "scaffold", status: "success", iterations: 0 };
     }
 
     try {
@@ -364,10 +364,10 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
       console.log("  Installing dependencies...");
       execSync("yarn install", { cwd: appDir, stdio: "pipe", timeout: 180_000 });
       console.log("  Template ready.");
-      return { phase: "clone_template", status: "success", iterations: 0 };
+      return { phase: "scaffold", status: "success", iterations: 0 };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return { phase: "clone_template", status: "failed", iterations: 0, error: message.slice(0, 200) };
+      return { phase: "scaffold", status: "failed", iterations: 0, error: message.slice(0, 200) };
     }
   }
 
@@ -455,7 +455,7 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
     const skills = this.skills;
 
     const cloneTemplateTool = tool(
-      "clone_template",
+      "scaffold",
       "Clone the react-native-multi-tv-app-sample template, strip git history, install deps",
       { target_dir: z.string(), app_name: z.string() },
       async ({ target_dir, app_name }) => {
@@ -682,9 +682,9 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
   private buildPhaseUserMessage(phase: Phase): string {
     const appDir = join(this.state.workdir, "app");
     const messages: Record<string, string> = {
-      clone_template: `Clone the react-native-multi-tv-app-sample template into "${appDir}" and install dependencies. App name: "${this.state.spec?.app_name}".`,
-      metadata_branding: `Apply branding to the app at ${appDir}. Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color}, accent=${this.input.brand.accent_color}, bg=${this.input.brand.background_color}, font=${this.input.brand.font_family}. Find and edit the theme token files in packages/shared-ui/. Update app.json with the app name.`,
-      manifest_wiring: `Wire this content manifest into the app at ${appDir}.
+      scaffold: `Clone the react-native-multi-tv-app-sample template into "${appDir}" and install dependencies. App name: "${this.state.spec?.app_name}".`,
+      branding: `Apply branding to the app at ${appDir}. Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color}, accent=${this.input.brand.accent_color}, bg=${this.input.brand.background_color}, font=${this.input.brand.font_family}. Find and edit the theme token files in packages/shared-ui/. Update app.json with the app name.`,
+      content: `Wire this content manifest into the app at ${appDir}.
 
 You MUST do ALL of these steps:
 1. Write the content JSON to packages/shared-ui/src/data/content.json
@@ -694,11 +694,11 @@ You MUST do ALL of these steps:
 
 Content manifest:
 ${JSON.stringify(this.input.content, null, 2)}`,
-      screen_customization: `Customize screens at ${appDir}/packages/shared-ui/src/screens/ per the AppSpec. IMPORTANT: Only rename or modify EXISTING screen files. Do NOT import screens that don't exist. First run: ls packages/shared-ui/src/screens/ to see what's available. After edits, run: npx tsc --noEmit to verify no broken imports.`,
-      navigation_update: this.buildNavigationPrompt(appDir),
-      static_checks: `Run type checking at ${appDir}: npx tsc --noEmit. Fix any errors.`,
-      simulator_build: `Build the app at ${appDir} for platforms: ${this.state.config.platforms.join(", ")}. Use expo prebuild for iOS/Android.`,
-      vega_build: `Build the Vega OS variant at ${appDir}/apps/vega.`,
+      screens: `Customize screens at ${appDir}/packages/shared-ui/src/screens/ per the AppSpec. IMPORTANT: Only rename or modify EXISTING screen files. Do NOT import screens that don't exist. First run: ls packages/shared-ui/src/screens/ to see what's available. After edits, run: npx tsc --noEmit to verify no broken imports.`,
+      navigation: this.buildNavigationPrompt(appDir),
+      verify: `Run type checking at ${appDir}: npx tsc --noEmit. Fix any errors.`,
+      build_loop: `Build the app at ${appDir} for platforms: ${this.state.config.platforms.join(", ")}. Use expo prebuild for iOS/Android.`,
+      vega_build_loop: `Build the Vega OS variant at ${appDir}/apps/vega.`,
       visual_smoke_test: `Verify build artifacts exist at ${appDir} and capture screenshots from any running simulators.`,
     };
 
