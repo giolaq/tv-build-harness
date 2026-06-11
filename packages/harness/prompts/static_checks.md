@@ -80,4 +80,23 @@ If the detail screen has content that can extend below the viewport (hero image 
 - Or ensure it uses a vertical SpatialNavigationNode that allows focus-driven scrolling
 - The related videos row at the bottom MUST be reachable via D-pad down navigation
 
+STEP 8: Fix VirtualizedList itemSize (CAUSES CARD OVERLAP).
+Run: grep -rn "itemSize" {{appDir}}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts"
+Run: grep -rn "transform.*scale\|scale:" {{appDir}}/packages/shared-ui/src/ --include="*.tsx" --include="*.ts" | grep -i "focus"
+
+For EVERY SpatialNavigationVirtualizedList with orientation="horizontal":
+1. Find the card width (look for the thumbnail/card style: width: scaledPixels(XXX))
+2. Find the focused scale (look for the focused style: transform: [{ scale: Y.YY }])
+3. Find the border width on focus (borderWidth: scaledPixels(ZZ))
+4. Find the margin (marginEnd: scaledPixels(MM))
+5. Calculate correct itemSize: (cardWidth * scale) + margin + (borderWidth * 2)
+   Example: card 420px, scale 1.1, border 6px, margin 20px → (420 * 1.1) + 20 + 12 = 494px
+
+If the current itemSize is LESS than the calculated value, UPDATE IT.
+This is the #1 cause of cards visually overlapping their neighbors when focused.
+
+Also verify the container wrapping the list has sufficient paddingTop and paddingBottom:
+  padding = (cardHeight * (scale - 1) / 2) + borderWidth
+  Example: card 260px, scale 1.1, border 6px → (260 * 0.1 / 2) + 6 = 19px → use scaledPixels(20)
+
 Report: how many errors found, how many fixed, any remaining.
