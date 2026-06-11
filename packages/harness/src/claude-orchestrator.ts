@@ -349,9 +349,13 @@ export class ClaudeOrchestrator {
         const screensList = spec.screens.map(s =>
           `- ${s.id}: layout="${s.layout}", route="${s.route}"${s.uses_template_screen ? `, reuses="${s.uses_template_screen}"` : ""}`
         ).join("\n");
+        const navType = spec.navigation.type;
+        const isDrawer = navType === "drawer";
         return this.prompts.load("screens", {
           appDir,
           screensList,
+          hasDrawer: isDrawer ? "true" : "",
+          noDrawer: isDrawer ? "" : "true",
         });
       }
 
@@ -375,21 +379,30 @@ Edit the DrawerNavigator file to:
 - KEEP any existing focus trapping logic (SpatialNavigationNode with captureFocus) in the drawer content`,
 
           tabs: `
-The template uses a drawer navigator — you MUST REPLACE it with a top tab navigator.
+The template uses a drawer navigator — you MUST REPLACE it with a top tab bar.
 
-Steps to switch from drawer to tabs:
-1. Check if @react-navigation/bottom-tabs or @react-navigation/material-top-tabs is installed.
-   If not: run "yarn workspace @multi-tv/expo-multi-tv add @react-navigation/bottom-tabs" (ALWAYS add to expo-multi-tv, NEVER to shared-ui — shared-ui only has peerDependencies)
-2. Find the DrawerNavigator file (likely DrawerNavigator.tsx or similar in packages/shared-ui/src/navigation/)
-3. REPLACE the drawer navigator with a tab navigator. Use createBottomTabNavigator() or createMaterialTopTabNavigator() for a top bar.
-4. For a TOP tab bar specifically, use createMaterialTopTabNavigator with tabBarPosition: 'top' and style it:
-   - Background: match the app's background color
-   - Active indicator: use the accent/primary color
-   - Labels: visible, using the theme text color
-   - Tab bar should be at the TOP of the screen, below any status bar
-5. Update the parent navigator (AppNavigator/RootNavigator) to use your new tab navigator instead of the drawer
-6. Remove the drawer-related imports and the CustomDrawerContent component reference
-7. Remove any menu toggle buttons or hamburger icons from screen headers`,
+IMPORTANT: Do NOT install @react-navigation/bottom-tabs or @react-navigation/material-top-tabs. These packages have version conflicts with the template's @react-navigation/native and WILL crash with "createScreenFactory is not a function".
+
+Instead, implement tabs using the EXISTING drawer navigator infrastructure with a CUSTOM top tab bar:
+
+Steps:
+1. Keep the drawer navigator but set drawerType: 'permanent' and drawerStyle: { width: 0, height: 0 } (invisible drawer)
+   OR replace the drawer with a simple Stack navigator that renders a custom top tab bar + screen content
+2. Create a custom TopTabBar component at packages/shared-ui/src/components/TopTabBar.tsx:
+   - Renders a horizontal row of tab items at the top of the screen
+   - Each tab is a SpatialNavigationFocusableView (for D-pad navigation)
+   - Active tab is highlighted with accent color
+   - Use SpatialNavigationNode with orientation="horizontal" to wrap the tab row
+   - Tab labels must be scaledPixels(22) minimum for TV readability
+3. The TopTabBar receives the current route and an onTabPress callback
+4. Wrap screens in a View with the TopTabBar at top and screen content below:
+   <View style={{flex:1}}>
+     <TopTabBar routes={routes} activeRoute={currentRoute} onTabPress={navigate} />
+     <View style={{flex:1}}>{/* screen content */}</View>
+   </View>
+5. Remove the drawer-related imports, CustomDrawerContent component, and MenuContext/MenuProvider (not needed for tabs)
+6. Remove any menu toggle buttons or hamburger icons
+7. Since there is no drawer, screens do NOT need isMenuOpen — just use isActive={isFocused} with useIsFocused()`,
 
           hidden: `
 The template uses a drawer navigator — you MUST REMOVE visible navigation chrome.
@@ -413,10 +426,14 @@ Steps for hidden navigation:
         });
       }
 
-      case "verify":
+      case "verify": {
+        const isDrawerNav = spec?.navigation.type === "drawer";
         return this.prompts.load("verify", {
           appDir,
+          hasDrawer: isDrawerNav ? "true" : "",
+          noDrawer: isDrawerNav ? "" : "true",
         });
+      }
 
       case "build_loop": {
         const platforms = this.input.config.platforms;

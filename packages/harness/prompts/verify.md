@@ -56,6 +56,7 @@ If you find <StrictMode> wrapping the app (usually in AppNavigator.tsx or App.ts
 
 This is a known incompatibility between react-tv-space-navigation and StrictMode on web.
 
+{{#if hasDrawer}}
 STEP 6: Verify drawer focus isolation on ALL screens.
 When the drawer is open, screens behind it must NOT receive focus. Every screen with a SpatialNavigationRoot must disable it when the drawer is open.
 
@@ -69,6 +70,19 @@ The isMenuOpen count must equal or exceed the SpatialNavigationRoot count. If an
 - The SpatialNavigationRoot must use isActive={isActive} with this computed value.
 
 Without this fix, D-pad input will move focus on BOTH the drawer and the screen simultaneously.
+{{/if}}
+{{#if noDrawer}}
+STEP 6: Verify screen focus isolation.
+Every screen must use useIsFocused() so its SpatialNavigationRoot deactivates when navigated away:
+
+Run: grep -rn "SpatialNavigationRoot" {{appDir}}/packages/shared-ui/src/screens/ --include="*.tsx"
+Run: grep -rn "useIsFocused" {{appDir}}/packages/shared-ui/src/screens/ --include="*.tsx" | wc -l
+
+These counts must match. If any screen has SpatialNavigationRoot but no useIsFocused, add it:
+- import { useIsFocused } from '@react-navigation/native';
+- const isFocused = useIsFocused();
+- <SpatialNavigationRoot isActive={isFocused}>
+{{/if}}
 
 STEP 7: Verify the detail screen is scrollable.
 Run: grep -rn "ScrollView\|SpatialNavigationScrollView\|flex.*1" {{appDir}}/packages/shared-ui/src/screens/DetailsScreen.tsx | head -15

@@ -33,6 +33,7 @@ Only add:
 
 DO NOT add: onKeyDown, addEventListener('keydown'), manual focus management with useEffect, or any code that calls setFocus/moveFocus in response to arrow keys.
 
+{{#if hasDrawer}}
 ⚠️ DRAWER FOCUS ISOLATION — EVERY screen must deactivate its SpatialNavigationRoot when the drawer is open.
 Without this, D-pad input moves focus on BOTH the drawer AND the screen behind it simultaneously.
 Pattern — EVERY screen MUST follow this:
@@ -46,6 +47,15 @@ Pattern — EVERY screen MUST follow this:
   <SpatialNavigationRoot isActive={isActive}>
 
 NEVER use just isActive={isFocused} — that leaves the screen active when the drawer is open.
+{{/if}}
+{{#if noDrawer}}
+Every screen must use useIsFocused() to deactivate its SpatialNavigationRoot when not the active route:
+  import { useIsFocused } from '@react-navigation/native';
+  ...
+  const isFocused = useIsFocused();
+  ...
+  <SpatialNavigationRoot isActive={isFocused}>
+{{/if}}
 
 ⚠️ SCROLLING RULE for screens with content below the viewport:
 If a screen has content that can extend below 1080px (e.g. detail screen with hero + metadata + related videos), it MUST use SpatialNavigationScrollView as its root scrollable container. A plain View with flex:1 will CLIP content — the user won't be able to scroll down with the remote.
