@@ -158,12 +158,16 @@ The split that matters: the **engine is deterministic and unit-tested** (orderin
 packages/harness/
 ├── src/
 │   ├── index.ts                 CLI entry point (run, claude-run, doctor, replay, ...)
-│   ├── pipeline-engine.ts       Shared deterministic phase loop (deps, retry, resume)
+│   ├── pipeline-engine.ts       Shared deterministic phase loop (deps, retry, resume policy)
 │   ├── harness-config.ts        PhaseSpec schema, default pipeline, harness.config.json loader
 │   ├── verification.ts          Declarative verify checks (file_exists/grep/tsc/...)
 │   ├── checkpoint.ts            checkpoint.json save/load + --resume discovery
-│   ├── claude-orchestrator.ts   claude-run executor — spawns claude CLI per phase
+│   ├── claude-cli.ts            Claude CLI invocation: binary discovery, stream-json parsing
+│   ├── claude-orchestrator.ts   claude-run executor — lifecycle + engine wiring
 │   ├── orchestrator.ts          API-mode executor — Messages API + tool loop
+│   ├── phase-prompts.ts         Per-phase prompt assembly (variables, plan prompt, design ctx)
+│   ├── visual-qa.ts             Visual QA loop: web server, bundle prewarm, capture/analyze/fix
+│   ├── run-report.ts            Shared end-of-run report.md writer
 │   ├── tool-registry.ts         Typed tool registration (API mode only)
 │   ├── skill-library.ts         Loads skills from ./skills/ per phase
 │   ├── prompt-loader.ts         Loads prompts/*.md (project dir overrides built-ins)
@@ -178,6 +182,7 @@ packages/harness/
 │       ├── expo-prebuild.ts
 │       ├── run-simulator.ts
 │       └── ...
+├── prompts/                     Phase prompt templates (navigation_* variants overridable)
 ├── tests/                       Vitest unit tests (engine, config, verification, ...)
 └── vitest.config.ts
 ```
