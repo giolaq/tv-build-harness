@@ -2,7 +2,7 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { spawnSync, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 
 // Prevent perf_hooks buffer overflow warning from long-running TUI renders
 const { performance: perf } = globalThis;
@@ -19,6 +19,7 @@ import { SkillFetcher } from "./skill-fetcher.js";
 import { loadHarnessConfig } from "./harness-config.js";
 import type { HarnessConfig } from "./harness-config.js";
 import { findResumableRun } from "./checkpoint.js";
+import { resolveClaude, invokeClaude } from "./claude-cli.js";
 import {
   ContentManifestSchema,
   BrandKitSchema,
@@ -270,10 +271,7 @@ async function runHarness() {
 }
 
 async function runWithClaude() {
-  const claudePath = process.env.CLAUDE_PATH ?? findClaudeBinary();
-  try {
-    execSync(`test -x "${claudePath}" || command -v "${claudePath}"`, { stdio: "pipe" });
-  } catch {
+  if (!resolveClaude()) {
     console.error(`  The "claude" CLI was not found on this machine — claude-run mode needs it.`);
     console.error(`  Fix: npm install -g @anthropic-ai/claude-code   (or set CLAUDE_PATH=/path/to/claude)`);
     console.error(`  Or use API mode instead: tv-harness run (requires ANTHROPIC_API_KEY).`);
@@ -310,6 +308,11 @@ async function runWithClaude() {
       ? ClaudeOrchestrator.resume(resumeDir, input, events)
       : new ClaudeOrchestrator(input, events);
 
+  const resumeBanner = (harness: ClaudeOrchestrator) =>
+    `Resuming ${resumeDir}${fromPhase
+      ? ` (redoing from: ${fromPhase})`
+      : ` (skipping: ${[...harness.getResumedPhases()].join(", ") || "none"})`}`;
+
   if (useTui) {
     const { TUI } = await import("./tui.js");
     const { selectActivePhases } = await import("./pipeline-engine.js");
@@ -336,9 +339,7 @@ async function runWithClaude() {
       onPhaseMessage: (phase, msg) => tui.addPhaseMessage(phase, msg),
     });
 
-    if (resumeDir) {
-      tui.log(`Resuming run from ${resumeDir} (skipping: ${[...harness.getResumedPhases()].join(", ") || "none"})`);
-    }
+    if (resumeDir) tui.log(resumeBanner(harness));
 
     const { state, outDir } = await harness.run({ generateOnly, fromPhase });
     const failed = [...state.phaseResults.values()].some(r => r.status === "failed" && state.phaseResults.keys().next().value === "plan");
@@ -352,9 +353,7 @@ async function runWithClaude() {
     console.log(`  Platforms: ${config.platforms.join(", ")}`);
     console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);
     console.log(`  Skills dir: ${skillsDir}`);
-    if (resumeDir) {
-      console.log(`  Resuming: ${resumeDir} (skipping: ${[...harness.getResumedPhases()].join(", ") || "none"})`);
-    }
+    if (resumeDir) console.log(`  ${resumeBanner(harness)}`);
     console.log();
 
     const { state, outDir } = await harness.run({ generateOnly, fromPhase });
@@ -413,7 +412,7 @@ async function addScreen() {
   ].join("\n");
 
   console.log(`\n  Adding screen: ${screenName} (${layout})\n`);
-  invokeClaude(prompt, appDir);
+  await invokeClaude({ prompt, cwd: appDir });
   console.log(`\n  Screen "${screenName}" added.\n`);
 }
 
@@ -457,7 +456,7 @@ async function reviewCode() {
   ].join("\n");
 
   console.log(`\n  Reviewing TV app code...\n`);
-  const output = invokeClaude(prompt, appDir);
+  const output = (await invokeClaude({ prompt, cwd: appDir })).text;
   console.log(output);
 }
 
@@ -503,52 +502,6 @@ function loadSkillsForCommand(skillsDir: string, skillNames: string[]): string {
     if (content) parts.push(content);
   }
   return parts.join("\n\n");
-}
-
-function invokeClaude(prompt: string, cwd: string): string {
-  const claudePath = process.env.CLAUDE_PATH ?? findClaudeBinary();
-
-  const result = spawnSync(claudePath, [
-    "-p", "-",
-    "--allowedTools", "Bash,Read,Write,Edit",
-  ], {
-    cwd,
-    input: prompt,
-    stdio: ["pipe", "pipe", "pipe"],
-    timeout: 600_000,
-    maxBuffer: 10 * 1024 * 1024,
-    encoding: "utf-8",
-    env: { ...process.env, PATH: `${process.env.PATH}:${process.env.HOME}/.toolbox/bin` },
-  });
-
-  if (result.error) {
-    throw new Error(`claude CLI error: ${result.error.message}`);
-  }
-
-  if (result.status !== 0) {
-    const stderr = result.stderr?.toString() ?? "";
-    throw new Error(`claude CLI exited with ${result.status}: ${stderr.slice(0, 500)}`);
-  }
-
-  return result.stdout?.toString() ?? "";
-}
-
-function findClaudeBinary(): string {
-  const candidates = [
-    join(process.env.HOME ?? "", ".toolbox", "bin", "claude"),
-    join(process.env.HOME ?? "", ".local", "bin", "claude"),
-    "/usr/local/bin/claude",
-    "/opt/homebrew/bin/claude",
-  ];
-
-  for (const p of candidates) {
-    try {
-      execSync(`test -x "${p}"`, { stdio: "pipe" });
-      return p;
-    } catch {}
-  }
-
-  return "claude";
 }
 
 async function runDoctorCommand() {

@@ -215,13 +215,32 @@ describe("selectActivePhases", () => {
     expect(withVega.map((p) => p.name)).toContain("vega_build_loop");
   });
 
-  it("marks phases before fromPhase as pre-completed", () => {
-    const { active, preCompleted } = selectActivePhases(pipeline, {
+  it("marks phases before fromPhase as completed", () => {
+    const { active, completed } = selectActivePhases(pipeline, {
       platforms: ["web"],
       fromPhase: "build_loop",
     });
-    expect([...preCompleted]).toEqual(["plan", "scaffold"]);
+    expect([...completed]).toEqual(["plan", "scaffold"]);
     expect(active.map((p) => p.name)).toContain("build_loop");
+  });
+
+  it("treats resumed phases as completed, filtered to the active pipeline", () => {
+    const { completed } = selectActivePhases(pipeline, {
+      platforms: ["web"],
+      resumedPhases: new Set(["plan", "scaffold", "vega_build_loop"]),
+    });
+    // vega_build_loop isn't active for web-only — a stale checkpoint entry
+    // must not leak into the completed set.
+    expect([...completed].sort()).toEqual(["plan", "scaffold"]);
+  });
+
+  it("fromPhase overrides resumed phases: later checkpointed phases get redone", () => {
+    const { completed } = selectActivePhases(pipeline, {
+      platforms: ["web"],
+      fromPhase: "scaffold",
+      resumedPhases: new Set(["plan", "scaffold", "build_loop", "visual_qa_loop"]),
+    });
+    expect([...completed]).toEqual(["plan"]);
   });
 
   it("throws a helpful error for an unknown fromPhase", () => {

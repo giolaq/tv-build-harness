@@ -1,4 +1,4 @@
-import { execSync, spawn as spawnAsync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -25,6 +25,7 @@ import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
 import { runVerifyChecks } from "./verification.js";
 import { saveCheckpoint, loadCheckpoint } from "./checkpoint.js";
+import { invokeClaude, claudeEnv, ClaudeCliError } from "./claude-cli.js";
 
 interface HarnessInput {
   prompt: string;
@@ -89,6 +90,8 @@ export class ClaudeOrchestrator {
   private prompts: PromptLoader;
   private webServer?: ChildProcess;
   private resumedPhases: Set<string> = new Set();
+  // Resolved by the engine at run start; checkpoints are built from this.
+  private effectiveCompleted: Set<string> = new Set();
   // Last verification failure per phase — fed back into the next attempt's prompt.
   private lastVerifyError: Map<string, string> = new Map();
 
@@ -163,13 +166,16 @@ export class ClaudeOrchestrator {
   }
 
   async run(options: RunOptions = {}): Promise<{ state: SessionState; outDir: string }> {
-    const { active, preCompleted } = selectActivePhases(this.harness.phases, {
+    const { active, completed } = selectActivePhases(this.harness.phases, {
       platforms: this.state.config.platforms,
       generateOnly: options.generateOnly,
       fromPhase: options.fromPhase,
+      resumedPhases: this.resumedPhases,
     });
 
-    const completed = new Set([...this.resumedPhases, ...preCompleted]);
+    // The engine's resolved completion set is also what checkpoints build on —
+    // under --from-phase it deliberately excludes the phases being redone.
+    this.effectiveCompleted = completed;
 
     const results = await runPipeline({
       phases: active,
@@ -204,7 +210,10 @@ export class ClaudeOrchestrator {
           this.checkpoint();
         },
         onPhaseSkipped: (spec) => {
-          this.state.phaseResults.set(spec.name, { phase: spec.name, status: "success", iterations: 0 });
+          const skipped: PhaseResult = { phase: spec.name, status: "success", iterations: 0 };
+          this.state.phaseResults.set(spec.name, skipped);
+          // Surface to the UI too, or skipped phases sit "pending" forever in the TUI.
+          this.events.onPhaseEnd?.(spec.name, skipped, 0);
           this.events.onLog?.(`Phase ${spec.name} skipped (already completed)`);
         },
         onRetry: (spec, attempt, max, result) => {
@@ -232,7 +241,7 @@ export class ClaudeOrchestrator {
   }
 
   private checkpoint(): void {
-    const completedPhases = [...this.resumedPhases];
+    const completedPhases = [...this.effectiveCompleted];
     for (const [name, result] of this.state.phaseResults) {
       if ((result.status === "success" || result.status === "degraded") && !completedPhases.includes(name)) {
         completedPhases.push(name);
@@ -289,7 +298,7 @@ export class ClaudeOrchestrator {
       const cwd = spec.cwd === "out" ? this.state.workdir : appDir;
       mkdirSync(cwd, { recursive: true });
 
-      const output = await this.invokeClaude(fullPrompt, cwd, spec.timeoutMs, spec.model);
+      const output = await this.runClaude(fullPrompt, cwd, spec.timeoutMs, spec.model);
 
       // Log full response
       writeFileSync(join(this.state.workdir, `response-${phase}.txt`), output);
@@ -581,7 +590,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     );
 
     try {
-      const output = await this.invokeClaude(planPrompt, this.state.workdir);
+      const output = await this.runClaude(planPrompt, this.state.workdir);
 
       // Log raw response
       writeFileSync(join(this.state.workdir, "plan-response.txt"), output);
@@ -637,7 +646,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
       writeFileSync(join(this.state.workdir, `visual-qa-capture-${iter}.md`), capturePrompt);
 
       try {
-        await this.invokeClaude(capturePrompt, appDir, 300_000);
+        await this.runClaude(capturePrompt, appDir, 300_000);
       } catch (err) {
         this.events.onLog?.(`Capture failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
         continue;
@@ -649,7 +658,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
 
       let analysisResult: string;
       try {
-        analysisResult = await this.invokeClaude(analysisPrompt, appDir, 600_000);
+        analysisResult = await this.runClaude(analysisPrompt, appDir, 600_000);
       } catch (err) {
         this.events.onLog?.(`Analysis failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
         continue;
@@ -687,7 +696,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
       writeFileSync(join(this.state.workdir, `visual-qa-fix-${iter}.md`), fixPrompt);
 
       try {
-        await this.invokeClaude(fixPrompt, appDir, 600_000);
+        await this.runClaude(fixPrompt, appDir, 600_000);
       } catch (err) {
         this.events.onLog?.(`Fix failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
       }
@@ -719,10 +728,10 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
       execSync(`rm -rf "${join(expoDir, "node_modules", ".cache", "metro")}" 2>/dev/null || true`, { stdio: "pipe" });
     } catch {}
 
-    const child = spawnAsync("npx", ["expo", "start", "--web", "--port", String(port)], {
+    const child = spawn("npx", ["expo", "start", "--web", "--port", String(port)], {
       cwd: expoDir,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, BROWSER: "none", EXPO_TV: "1", PATH: `${process.env.PATH}:${process.env.HOME}/.toolbox/bin` },
+      env: { ...claudeEnv(), BROWSER: "none", EXPO_TV: "1" },
       detached: true,
     });
 
@@ -1130,95 +1139,35 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     writeFileSync(join(this.state.workdir, "report.md"), lines.join("\n"));
   }
 
-  private invokeClaude(prompt: string, cwd: string, timeoutMs: number = 600_000, model?: string): Promise<string> {
-    const claudePath = process.env.CLAUDE_PATH ?? findClaude();
+  private async runClaude(prompt: string, cwd: string, timeoutMs?: number, model?: string): Promise<string> {
     const phase = this.state.currentPhase;
-
-    return new Promise((resolve, reject) => {
-      const child = spawnAsync(claudePath, [
-        "-p", "-",
-        "--allowedTools", "Bash,Read,Write,Edit",
-        "--output-format", "stream-json",
-        "--verbose",
-        ...(model ? ["--model", model] : []),
-      ], {
+    try {
+      const result = await invokeClaude({
+        prompt,
         cwd,
-        stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env, PATH: `${process.env.PATH}:${process.env.HOME}/.toolbox/bin` },
+        timeoutMs,
+        model,
+        onEvent: (event) => this.handleStreamEvent(phase, event),
       });
+      this.bookUsage(result);
+      return result.text;
+    } catch (err) {
+      // Failed attempts still burned real tokens — count them or the budget
+      // guard and cost report undercount exactly the expensive runs.
+      if (err instanceof ClaudeCliError) this.bookUsage(err.partial);
+      throw err;
+    }
+  }
 
-      let buffer = "";
-      let stderr = "";
-      let resultText = "";
-
-      child.stdout!.on("data", (chunk: Buffer) => {
-        buffer += chunk.toString();
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const event = JSON.parse(line);
-            this.handleStreamEvent(phase, event);
-            if (event.type === "result") {
-              resultText = event.result ?? "";
-              if (event.usage) {
-                const tokens = (event.usage.input_tokens ?? 0) + (event.usage.output_tokens ?? 0);
-                this.state.tokensUsed += tokens;
-                this.events.onTokens?.(tokens);
-              }
-              if (event.total_cost_usd) {
-                this.lastPhaseCost = event.total_cost_usd;
-                this.totalCost += event.total_cost_usd;
-              }
-            }
-          } catch {}
-        }
-      });
-
-      child.stderr!.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-
-      child.stdin!.write(prompt);
-      child.stdin!.end();
-
-      const timer = setTimeout(() => {
-        child.kill("SIGTERM");
-        reject(new Error(`claude CLI timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        if (buffer.trim()) {
-          try {
-            const event = JSON.parse(buffer);
-            this.handleStreamEvent(phase, event);
-            if (event.type === "result") {
-              resultText = event.result ?? "";
-              if (event.usage) {
-                const tokens = (event.usage.input_tokens ?? 0) + (event.usage.output_tokens ?? 0);
-                this.state.tokensUsed += tokens;
-                this.events.onTokens?.(tokens);
-              }
-              if (event.total_cost_usd) {
-                this.lastPhaseCost = event.total_cost_usd;
-                this.totalCost += event.total_cost_usd;
-              }
-            }
-          } catch {}
-        }
-        if (code !== 0) {
-          reject(new Error(`claude CLI exited with ${code}: ${stderr.slice(0, 500)}`));
-        } else {
-          resolve(resultText);
-        }
-      });
-
-      child.on("error", (err) => {
-        clearTimeout(timer);
-        reject(new Error(`claude CLI error: ${err.message}`));
-      });
-    });
+  private bookUsage(result: { tokensUsed: number; costUsd: number }): void {
+    if (result.tokensUsed) {
+      this.state.tokensUsed += result.tokensUsed;
+      this.events.onTokens?.(result.tokensUsed);
+    }
+    if (result.costUsd) {
+      this.lastPhaseCost = result.costUsd;
+      this.totalCost += result.costUsd;
+    }
   }
 
   private handleStreamEvent(phase: Phase, event: any): void {
@@ -1261,22 +1210,4 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
   getState(): SessionState {
     return this.state;
   }
-}
-
-function findClaude(): string {
-  const candidates = [
-    join(process.env.HOME ?? "", ".toolbox", "bin", "claude"),
-    join(process.env.HOME ?? "", ".local", "bin", "claude"),
-    "/usr/local/bin/claude",
-    "/opt/homebrew/bin/claude",
-  ];
-
-  for (const p of candidates) {
-    try {
-      execSync(`test -x "${p}"`, { stdio: "pipe" });
-      return p;
-    } catch {}
-  }
-
-  return "claude";
 }

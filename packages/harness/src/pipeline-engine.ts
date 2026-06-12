@@ -113,18 +113,30 @@ async function executePhaseWithRetry(
   return last;
 }
 
-/** Filters the configured pipeline down to the phases active for this run. */
+/**
+ * Filters the configured pipeline down to the phases active for this run and
+ * resolves which of them count as already completed.
+ *
+ * Completion policy lives here so every orchestrator shares it:
+ * - `resumedPhases` (from a checkpoint) are skipped.
+ * - `fromPhase` means "redo from here": only phases *before* it count as
+ *   completed, even when the checkpoint already includes later ones.
+ */
 export function selectActivePhases(
   phases: PhaseSpec[],
-  opts: { platforms: string[]; generateOnly?: boolean; fromPhase?: string }
-): { active: PhaseSpec[]; preCompleted: Set<string> } {
+  opts: {
+    platforms: string[];
+    generateOnly?: boolean;
+    fromPhase?: string;
+    resumedPhases?: Set<string>;
+  }
+): { active: PhaseSpec[]; completed: Set<string> } {
   const active = phases.filter((spec) => {
     if (opts.generateOnly && spec.buildPhase) return false;
     if (spec.requiresPlatform && !opts.platforms.includes(spec.requiresPlatform)) return false;
     return true;
   });
 
-  const preCompleted = new Set<string>();
   if (opts.fromPhase) {
     const idx = active.findIndex((p) => p.name === opts.fromPhase);
     if (idx === -1) {
@@ -132,8 +144,10 @@ export function selectActivePhases(
         `--from-phase "${opts.fromPhase}" is not in the active pipeline. Active phases: ${active.map((p) => p.name).join(", ")}`
       );
     }
-    for (const spec of active.slice(0, idx)) preCompleted.add(spec.name);
+    return { active, completed: new Set(active.slice(0, idx).map((p) => p.name)) };
   }
 
-  return { active, preCompleted };
+  const activeNames = new Set(active.map((p) => p.name));
+  const completed = new Set([...(opts.resumedPhases ?? [])].filter((name) => activeNames.has(name)));
+  return { active, completed };
 }

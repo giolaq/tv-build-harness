@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { resolveClaude } from "./claude-cli.js";
 
 interface CheckResult {
   name: string;
@@ -72,26 +72,10 @@ function checkCommand(name: string, command: string, label: string, fix?: string
 }
 
 function checkClaudeCli(): CheckResult {
-  const candidates = [
-    process.env.CLAUDE_PATH,
-    join(process.env.HOME ?? "", ".toolbox", "bin", "claude"),
-    join(process.env.HOME ?? "", ".local", "bin", "claude"),
-    "/usr/local/bin/claude",
-    "/opt/homebrew/bin/claude",
-  ].filter(Boolean) as string[];
-
-  for (const p of candidates) {
-    try {
-      execSync(`test -x "${p}"`, { stdio: "pipe" });
-      return { name: "Claude CLI", ok: true, detail: p };
-    } catch {}
+  const path = resolveClaude();
+  if (path) {
+    return { name: "Claude CLI", ok: true, detail: path };
   }
-
-  try {
-    const p = execSync("command -v claude", { stdio: "pipe", timeout: 5_000 }).toString().trim();
-    if (p) return { name: "Claude CLI", ok: true, detail: p };
-  } catch {}
-
   return {
     name: "Claude CLI",
     ok: false,
