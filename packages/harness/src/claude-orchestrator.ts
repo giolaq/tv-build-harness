@@ -1,9 +1,7 @@
-import { execSync, spawn } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
+import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createServer } from "node:net";
 import type {
   AppSpec,
   BrandKit,
@@ -25,7 +23,8 @@ import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
 import { runVerifyChecks } from "./verification.js";
 import { saveCheckpoint, loadCheckpoint } from "./checkpoint.js";
-import { invokeClaude, claudeEnv, ClaudeCliError } from "./claude-cli.js";
+import { invokeClaude, ClaudeCliError } from "./claude-cli.js";
+import { runVisualQALoop } from "./visual-qa.js";
 
 interface HarnessInput {
   prompt: string;
@@ -42,25 +41,6 @@ interface HarnessInput {
 export interface RunOptions {
   generateOnly?: boolean;
   fromPhase?: string;
-}
-
-interface QADefect {
-  screen: string;
-  issue: string;
-  element: string;
-  file: string;
-  fix: string;
-}
-
-interface QAVerdict {
-  status: "pass" | "fail";
-  criticalCount: number;
-  majorCount: number;
-  minorCount: number;
-  critical: QADefect[];
-  major: QADefect[];
-  minor: QADefect[];
-  scores: Record<string, number>;
 }
 
 export interface PhaseMessage {
@@ -88,7 +68,6 @@ export class ClaudeOrchestrator {
   private lastPhaseCost: number = 0;
   private totalCost: number = 0;
   private prompts: PromptLoader;
-  private webServer?: ChildProcess;
   private resumedPhases: Set<string> = new Set();
   // Resolved by the engine at run start; checkpoints are built from this.
   private effectiveCompleted: Set<string> = new Set();
@@ -619,390 +598,21 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     }
   }
 
-  private async executeVisualQALoop(): Promise<PhaseResult> {
-    const maxIterations = this.input.config.visual_qa_max_iterations ?? 3;
-    const threshold = this.input.config.visual_qa_pass_threshold ?? "normal";
-    const appDir = join(this.state.workdir, "app");
-    const screenshotDir = join(this.state.workdir, "screenshots");
-    const port = await this.getFreePort(19007);
-
-    mkdirSync(screenshotDir, { recursive: true });
-
-    try {
-      await this.startWebServer(appDir, port);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { phase: "visual_qa_loop", status: "failed", iterations: 0, error: `Web server failed: ${msg}` };
-    }
-
-    let lastVerdict: QAVerdict | null = null;
-
-    for (let iter = 1; iter <= maxIterations; iter++) {
-      this.events.onIteration?.("visual_qa_loop", iter, maxIterations);
-      this.events.onLog?.(`Visual QA iteration ${iter}/${maxIterations}`);
-
-      // Step A: Capture screenshots
-      const capturePrompt = this.buildCapturePrompt(appDir, screenshotDir, port, iter);
-      writeFileSync(join(this.state.workdir, `visual-qa-capture-${iter}.md`), capturePrompt);
-
-      try {
-        await this.runClaude(capturePrompt, appDir, 300_000);
-      } catch (err) {
-        this.events.onLog?.(`Capture failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
-        continue;
-      }
-
-      // Step B: Analyze screenshots
-      const analysisPrompt = this.buildAnalysisPrompt(appDir, screenshotDir, iter);
-      writeFileSync(join(this.state.workdir, `visual-qa-analysis-${iter}.md`), analysisPrompt);
-
-      let analysisResult: string;
-      try {
-        analysisResult = await this.runClaude(analysisPrompt, appDir, 600_000);
-      } catch (err) {
-        this.events.onLog?.(`Analysis failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
-        continue;
-      }
-
-      writeFileSync(join(this.state.workdir, `visual-qa-result-${iter}.txt`), analysisResult);
-
-      // Step C: Parse verdict
-      lastVerdict = this.parseQAVerdict(analysisResult);
-      writeFileSync(
-        join(this.state.workdir, `visual-qa-verdict-${iter}.json`),
-        JSON.stringify(lastVerdict, null, 2)
-      );
-
-      const passes = threshold === "strict"
-        ? lastVerdict.criticalCount === 0 && lastVerdict.majorCount === 0
-        : lastVerdict.criticalCount === 0;
-
-      this.events.onLog?.(
-        `Iter ${iter}: ${lastVerdict.criticalCount} critical, ${lastVerdict.majorCount} major, ${lastVerdict.minorCount} minor`
-      );
-
-      if (passes) {
-        await this.stopWebServer(port);
-        this.writeQAReport(lastVerdict, iter);
-        return { phase: "visual_qa_loop", status: "success", iterations: iter };
-      }
-
-      if (iter === maxIterations) {
-        break;
-      }
-
-      // Step D: Fix defects
-      const fixPrompt = this.buildFixPrompt(lastVerdict, appDir);
-      writeFileSync(join(this.state.workdir, `visual-qa-fix-${iter}.md`), fixPrompt);
-
-      try {
-        await this.runClaude(fixPrompt, appDir, 600_000);
-      } catch (err) {
-        this.events.onLog?.(`Fix failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
-      }
-
-      // Wait for hot-reload
-      await new Promise(r => setTimeout(r, 3000));
-    }
-
-    await this.stopWebServer(port);
-    this.writeQAReport(lastVerdict, maxIterations);
-
-    const errorMsg = lastVerdict
-      ? `${lastVerdict.criticalCount} critical, ${lastVerdict.majorCount} major defects remain after ${maxIterations} iterations`
-      : "Visual QA loop failed to produce results";
-
-    return {
-      phase: "visual_qa_loop",
-      status: lastVerdict && lastVerdict.criticalCount === 0 ? "degraded" : "failed",
-      iterations: maxIterations,
-      error: errorMsg,
-    };
-  }
-
-  private async startWebServer(appDir: string, port: number): Promise<void> {
-    const expoDir = join(appDir, "apps", "expo-multi-tv");
-
-    // Clear Metro's temp cache to avoid stale lockfiles
-    try {
-      execSync(`rm -rf "${join(expoDir, "node_modules", ".cache", "metro")}" 2>/dev/null || true`, { stdio: "pipe" });
-    } catch {}
-
-    const child = spawn("npx", ["expo", "start", "--web", "--port", String(port)], {
-      cwd: expoDir,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...claudeEnv(), BROWSER: "none", EXPO_TV: "1" },
-      detached: true,
+  private executeVisualQALoop(): Promise<PhaseResult> {
+    return runVisualQALoop({
+      appDir: join(this.state.workdir, "app"),
+      outDir: this.state.workdir,
+      maxIterations: this.input.config.visual_qa_max_iterations ?? 3,
+      threshold: this.input.config.visual_qa_pass_threshold ?? "normal",
+      brand: this.input.brand,
+      design: this.input.design,
+      spec: this.state.spec,
+      platforms: this.input.config.platforms,
+      prompts: this.prompts,
+      runClaude: (prompt: string, cwd: string, timeoutMs?: number) => this.runClaude(prompt, cwd, timeoutMs),
+      onLog: (msg: string) => this.events.onLog?.(msg),
+      onIteration: (current: number, max: number) => this.events.onIteration?.("visual_qa_loop", current, max),
     });
-
-    // Drain stdout/stderr so the child process doesn't block on full pipes
-    let serverOutput = "";
-    child.stdout?.on("data", (chunk: Buffer) => { serverOutput += chunk.toString(); });
-    child.stderr?.on("data", (chunk: Buffer) => { serverOutput += chunk.toString(); });
-    child.on("exit", (code) => {
-      if (code && code !== 0) {
-        this.events.onLog?.(`Expo server exited with code ${code}: ${serverOutput.slice(-200)}`);
-      }
-    });
-    child.unref();
-    this.webServer = child;
-
-    // Phase 1: Wait for server to respond at all
-    for (let i = 0; i < 30; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      try {
-        execSync(`curl -s http://localhost:${port} > /dev/null`, { timeout: 5000, stdio: "pipe" });
-        break;
-      } catch {
-        if (i === 29) {
-          const hint = serverOutput.slice(-300);
-          throw new Error(`Web server not ready after 60s on port ${port}. Server output: ${hint}`);
-        }
-      }
-    }
-
-    // Phase 2: Wait for the JS bundle to compile (Expo compiles on first request)
-    // The first curl triggers compilation; we need to wait for it to finish
-    this.events.onLog?.("Web server responding, waiting for JS bundle compilation...");
-    for (let i = 0; i < 20; i++) {
-      await new Promise(r => setTimeout(r, 3000));
-      try {
-        const body = execSync(`curl -s http://localhost:${port}`, { timeout: 10000, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-        // Check if the response contains the bundled script (not just the HTML shell)
-        if (body.includes("bundle.js") || body.includes("AppEntry") || body.length > 2000) {
-          // Give it a few more seconds for the client to hydrate
-          await new Promise(r => setTimeout(r, 5000));
-          return;
-        }
-      } catch {}
-    }
-    // If we get here, server is up but bundle may still be compiling — proceed anyway
-    this.events.onLog?.("Bundle compilation timeout — proceeding with screenshots");
-  }
-
-  private async stopWebServer(port: number): Promise<void> {
-    const child = this.webServer;
-    this.webServer = undefined;
-    if (!child || child.killed) return;
-
-    try {
-      if (child.pid) {
-        process.kill(-child.pid, "SIGTERM");
-      } else {
-        child.kill("SIGTERM");
-      }
-    } catch {
-      try {
-        child.kill("SIGTERM");
-      } catch {}
-    }
-  }
-
-  private getFreePort(preferred: number): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const server = createServer();
-      server.once("error", () => {
-        const fallback = createServer();
-        fallback.once("error", reject);
-        fallback.listen(0, () => {
-          const address = fallback.address();
-          const port = typeof address === "object" && address ? address.port : preferred;
-          fallback.close(() => resolve(port));
-        });
-      });
-      server.listen(preferred, () => {
-        server.close(() => resolve(preferred));
-      });
-    });
-  }
-
-  private buildCapturePrompt(appDir: string, screenshotDir: string, port: number, iter: number): string {
-    const routes = this.state.spec?.navigation.routes ?? [];
-    const routeCount = Math.min(routes.length, 4);
-    const iterDir = join(screenshotDir, `iter-${iter}`);
-
-    return this.prompts.load("visual_qa_capture", {
-      iterDir,
-      workdir: this.state.workdir,
-      iter: String(iter),
-      port: String(port),
-      routeCount: String(routeCount),
-    });
-  }
-
-  private buildAnalysisPrompt(appDir: string, screenshotDir: string, iter: number): string {
-    const iterDir = join(screenshotDir, `iter-${iter}`);
-    const brand = this.input.brand;
-    const design = this.input.design;
-
-    return this.prompts.load("visual_qa_analysis", {
-      iterDir,
-      primaryColor: brand.primary_color,
-      accentColor: brand.accent_color,
-      backgroundColor: brand.background_color,
-      template: design.template,
-      focusStyle: design.focus_style,
-      verdictExtra: this.input.config.visual_qa_pass_threshold === "strict" ? " AND majorDefects is empty" : "",
-    });
-  }
-
-  private buildFixPrompt(verdict: QAVerdict, appDir: string): string {
-    const defects = [...verdict.critical, ...verdict.major];
-    const defectList = defects.map((d, i) =>
-      `${i + 1}. [${d.screen}] ${d.issue}\n   Element: ${d.element}\n   File: ${d.file}\n   Suggested fix: ${d.fix}`
-    ).join("\n\n");
-
-    return this.prompts.load("visual_qa_fix", {
-      defectCount: String(defects.length),
-      defectList,
-      appDir,
-    });
-  }
-
-  private parseQAVerdict(output: string): QAVerdict {
-    try {
-      // If output is the raw CLI wrapper, extract the result field first
-      let text = output;
-      if (text.startsWith('{"type":"result"')) {
-        try {
-          const wrapper = JSON.parse(text);
-          text = wrapper.result ?? text;
-        } catch {}
-      }
-
-      // Find JSON block containing "verdict" key (the model's analysis output)
-      const jsonBlocks = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g) ?? [];
-      let parsed: Record<string, unknown> | null = null;
-      for (const block of jsonBlocks) {
-        try {
-          const candidate = JSON.parse(block);
-          if (candidate.verdict || candidate.criticalDefects) {
-            parsed = candidate;
-            break;
-          }
-        } catch {}
-      }
-
-      // Fallback: try the largest JSON block
-      if (!parsed) {
-        const bigMatch = text.match(/```json\s*([\s\S]*?)```/);
-        if (bigMatch) {
-          parsed = JSON.parse(bigMatch[1]);
-        }
-      }
-
-      if (!parsed) {
-        const fallback = text.match(/\{[\s\S]*\}/);
-        if (fallback) parsed = JSON.parse(fallback[0]);
-      }
-
-      if (!parsed) {
-        return { status: "pass", criticalCount: 0, majorCount: 0, minorCount: 0, critical: [], major: [], minor: [], scores: {} };
-      }
-      const data = parsed as Record<string, unknown>;
-      const criticalArr = Array.isArray(data.criticalDefects) ? data.criticalDefects : [];
-      const majorArr = Array.isArray(data.majorDefects) ? data.majorDefects : [];
-      const minorArr = Array.isArray(data.minorDefects) ? data.minorDefects : [];
-
-      const critical: QADefect[] = criticalArr.map((d: Record<string, string>) => ({
-        screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
-      }));
-      const major: QADefect[] = majorArr.map((d: Record<string, string>) => ({
-        screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
-      }));
-      const minor: QADefect[] = minorArr.map((d: Record<string, string>) => ({
-        screen: d.screen ?? "", issue: d.issue ?? "", element: d.element ?? "", file: d.file ?? "", fix: d.fix ?? "",
-      }));
-      return {
-        status: data.verdict === "pass" ? "pass" : "fail",
-        criticalCount: critical.length,
-        majorCount: major.length,
-        minorCount: minor.length,
-        critical, major, minor,
-        scores: (data.scores as Record<string, number>) ?? {},
-      };
-    } catch {
-      return { status: "fail", criticalCount: 1, majorCount: 0, minorCount: 0, critical: [], major: [], minor: [], scores: {} };
-    }
-  }
-
-  private writeQAReport(verdict: QAVerdict | null, iterations: number): void {
-    const routes = this.state.spec?.navigation.routes ?? [];
-    const platforms = this.input.config.platforms;
-
-    const lines = [
-      "# Visual QA Report",
-      "",
-      `**App:** ${this.state.spec?.app_name ?? "Unknown"}`,
-      `**Platforms:** ${platforms.join(", ")}`,
-      `**Navigation:** ${this.state.spec?.navigation.type ?? "unknown"} (${routes.length} routes)`,
-      `**Iterations:** ${iterations}`,
-      `**Verdict:** ${verdict?.status ?? "unknown"}`,
-      "",
-      "## Defect Summary",
-      "",
-      `| Severity | Count |`,
-      `|----------|-------|`,
-      `| Critical | ${verdict?.criticalCount ?? "?"} |`,
-      `| Major    | ${verdict?.majorCount ?? "?"} |`,
-      `| Minor    | ${verdict?.minorCount ?? "?"} |`,
-      "",
-    ];
-
-    if (verdict?.scores && Object.keys(verdict.scores).length > 0) {
-      lines.push("## 10ft UI Scores", "");
-      lines.push("| Dimension | Score |");
-      lines.push("|-----------|-------|");
-      for (const [key, val] of Object.entries(verdict.scores)) {
-        const icon = val >= 8 ? "+" : val >= 5 ? "~" : "-";
-        lines.push(`| ${icon} ${key} | ${val}/10 |`);
-      }
-      lines.push("");
-    }
-
-    if (verdict?.critical.length) {
-      lines.push("## Critical Defects (must fix)", "");
-      for (const d of verdict.critical) {
-        lines.push(`- **[${d.screen}]** ${d.issue}`);
-        lines.push(`  File: \`${d.file}\` | Fix: ${d.fix}`);
-      }
-      lines.push("");
-    }
-
-    if (verdict?.major.length) {
-      lines.push("## Major Defects", "");
-      for (const d of verdict.major) {
-        lines.push(`- **[${d.screen}]** ${d.issue}`);
-        lines.push(`  File: \`${d.file}\` | Fix: ${d.fix}`);
-      }
-      lines.push("");
-    }
-
-    if (verdict?.minor.length) {
-      lines.push("## Minor Defects", "");
-      for (const d of verdict.minor) {
-        lines.push(`- [${d.screen}] ${d.issue}`);
-      }
-      lines.push("");
-    }
-
-    lines.push("## Route Coverage", "");
-    for (const route of routes) {
-      lines.push(`- ${route.label} (/${route.id})`);
-    }
-    lines.push("");
-
-    lines.push("## Ship Readiness", "");
-    if (verdict?.status === "pass") {
-      lines.push("**READY TO SHIP** — Zero critical defects. All 10ft UI rules pass.");
-    } else if (verdict && verdict.criticalCount === 0) {
-      lines.push("**SHIP WITH CAUTION** — No critical defects, but major issues remain.");
-    } else {
-      lines.push("**NOT READY** — Critical defects remain. Fix before shipping.");
-    }
-    lines.push("");
-
-    writeFileSync(join(this.state.workdir, "visual-qa-report.md"), lines.join("\n"));
   }
 
   private buildSkillContext(spec: PhaseSpec): string {

@@ -2,7 +2,8 @@ You are a test automation engineer. Capture screenshots of the TV app for visual
 
 Create the directory: mkdir -p {{iterDir}}
 
-Write and run this Puppeteer script (save as {{workdir}}/capture-iter-{{iter}}.cjs):
+Write and run this Puppeteer script (save as {{workdir}}/capture-iter-{{iter}}.cjs).
+Run it ONCE. Partial captures are fine — if some sections fail, the screenshots that were captured are sufficient. Do NOT rewrite the script, do NOT debug failures, do NOT install packages unless require('puppeteer') itself fails.
 
 const puppeteer = require('puppeteer');
 const path = require('path');
@@ -13,49 +14,91 @@ const fs = require('fs');
   fs.mkdirSync(dir, { recursive: true });
 
   const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--window-size=1920,1080', '--disable-gpu']
+    // 'shell' (old headless), NOT 'new': the new headless mode's screenshot
+    // pipeline hangs indefinitely on this app's continuous animations.
+    headless: 'shell',
+    args: ['--no-sandbox', '--window-size=1920,1080', '--mute-audio', '--autoplay-policy=no-user-gesture-required']
   });
-  const page = await browser.newPage();
+  let page = await browser.newPage();
   await page.setViewport({ width: 1920, height: 1080 });
 
   let n = 0;
+  // Screenshots must never abort the run — a crashed tab loses one shot, not
+  // the session. n counts SUCCESSES only: it gates the exit code.
   async function shot(name) {
-    await new Promise(r => setTimeout(r, 1500));
-    await page.screenshot({ path: path.join(dir, `${String(++n).padStart(2,'0')}-${name}.png`) });
-    console.log('Shot: ' + name);
+    try {
+      await new Promise(r => setTimeout(r, 1500));
+      await page.screenshot({ path: path.join(dir, `${String(n + 1).padStart(2,'0')}-${name}.png`) });
+      n++;
+      console.log('Shot: ' + name);
+    } catch (e) {
+      console.log('Shot failed (' + name + '): ' + e.message.split('\n')[0]);
+    }
   }
 
   async function focusNth(sel, idx) {
-    await page.evaluate((s, i) => {
-      const els = document.querySelectorAll(s);
-      if (els[i]) { els[i].focus(); els[i].dispatchEvent(new FocusEvent('focus', {bubbles:true})); }
-    }, sel, idx);
-    await new Promise(r => setTimeout(r, 600));
+    try {
+      await page.evaluate((s, i) => {
+        const els = document.querySelectorAll(s);
+        if (els[i]) { els[i].focus(); els[i].dispatchEvent(new FocusEvent('focus', {bubbles:true})); }
+      }, sel, idx);
+      await new Promise(r => setTimeout(r, 600));
+    } catch (e) { console.log('focus failed: ' + e.message.split('\n')[0]); }
   }
 
-  try {
-    await page.goto('http://localhost:{{port}}', { waitUntil: 'networkidle0', timeout: 60000 });
+  // Always starts from a FRESH page: the Expo dev client reloads the page when
+  // the bundle finishes compiling, which detaches the old frame — a page that
+  // is not closed but unusable. Retries once if the fresh page detaches too.
+  async function gotoHome(viewport) {
+    let lastError = new Error('gotoHome: no attempts ran');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        try { if (!page.isClosed()) await page.close(); } catch {}
+        page = await browser.newPage();
+        await page.setViewport(viewport || { width: 1920, height: 1080 });
+        await page.goto('http://localhost:{{port}}', { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForFunction(() => {
+          const root = document.getElementById('root') || document.body;
+          return root.querySelectorAll('[data-testid], [role="button"], [tabindex], img, [data-focusable]').length > 3;
+        }, { timeout: 45000 }).catch(() => console.log('Warning: React render wait timed out'));
+        await new Promise(r => setTimeout(r, 3000));
+        await page.evaluate(() => document.title); // probe: throws if frame detached
+        return;
+      } catch (e) {
+        lastError = e;
+        console.log('gotoHome attempt ' + (attempt+1) + ' failed: ' + e.message.split('\n')[0]);
+      }
+    }
+    // Both attempts dead: throw so the section aborts instead of shooting
+    // about:blank — blank PNGs would be analyzed as real app defects.
+    throw lastError;
+  }
 
-    // Wait for React to actually render (not just the HTML shell)
-    await page.waitForFunction(() => {
-      const root = document.getElementById('root') || document.body;
-      return root.querySelectorAll('[data-testid], [role="button"], [tabindex], img, [data-focusable]').length > 3;
-    }, { timeout: 30000 }).catch(() => console.log('Warning: React render wait timed out'));
+  // Each section is independent: a crash (e.g. video playback killing the
+  // headless tab) recovers with a fresh page and moves on.
+  async function section(name, fn) {
+    try {
+      await fn();
+    } catch (e) {
+      console.log('Section "' + name + '" failed: ' + e.message.split('\n')[0]);
+      try { await gotoHome(); } catch {}
+    }
+  }
 
-    // Extra settle time for animations/transitions
-    await new Promise(r => setTimeout(r, 3000));
-    await page.click('body');
+  let cardSel = '[tabindex]';
+
+  await section('home', async () => {
+    await gotoHome();
+    await page.click('body').catch(() => {});
     await new Promise(r => setTimeout(r, 500));
 
-    const cardSel = await page.evaluate(() => {
+    cardSel = await page.evaluate(() => {
       for (const s of ['[data-focusable="true"]','[role="button"]','[tabindex="0"]']) {
         if (document.querySelectorAll(s).length > 2) return s;
       }
       return '[tabindex]';
     });
 
-    // Home screen states
     await shot('home-default');
     await focusNth(cardSel, 0);
     await shot('home-first-card-focused');
@@ -64,7 +107,6 @@ const fs = require('fs');
     await focusNth(cardSel, 3);
     await shot('home-mid-row-focused');
 
-    // Second row
     const row2 = await page.evaluate((s) => {
       const c = document.querySelectorAll(s);
       if (c.length < 4) return -1;
@@ -74,11 +116,11 @@ const fs = require('fs');
     }, cardSel);
     if (row2 > 0) { await focusNth(cardSel, row2); await shot('home-row2-focused'); }
 
-    // Scroll far
     const last = Math.min(await page.evaluate((s) => document.querySelectorAll(s).length-1, cardSel), 12);
     if (last > 5) { await focusNth(cardSel, last); await shot('home-far-scroll'); }
+  });
 
-    // Navigation
+  await section('navigation', async () => {
     const navOpened = await page.evaluate(() => {
       const t = document.querySelector('[data-testid*="menu"],[aria-label*="menu"],[aria-label*="Menu"]');
       if (t) { t.click(); return true; }
@@ -88,7 +130,6 @@ const fs = require('fs');
     });
     if (navOpened) { await new Promise(r => setTimeout(r, 800)); await shot('nav-open'); }
 
-    // Visit other screens
     const navItems = await page.evaluate(() =>
       document.querySelectorAll('[role="tab"],[role="menuitem"],[data-testid*="nav"],a[href]').length
     );
@@ -104,34 +145,31 @@ const fs = require('fs');
       await page.keyboard.press('Backspace');
       await new Promise(r => setTimeout(r, 800));
     }
+  });
 
-    // Detail view
-    await page.goto('http://localhost:{{port}}', { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.waitForFunction(() => document.querySelectorAll('[data-focusable], [role="button"], [tabindex]').length > 2, { timeout: 15000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 2000));
+  await section('detail-view', async () => {
+    await gotoHome();
     await page.evaluate((s) => { const c = document.querySelectorAll(s); if(c[0]) c[0].click(); }, cardSel);
     await new Promise(r => setTimeout(r, 1500));
     await shot('detail-view');
+  });
 
-    // 720p responsive
-    await page.setViewport({ width: 1280, height: 720 });
-    await page.goto('http://localhost:{{port}}', { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.waitForFunction(() => document.querySelectorAll('[data-focusable], [role="button"], [tabindex]').length > 2, { timeout: 15000 }).catch(() => {});
-    await new Promise(r => setTimeout(r, 2000));
+  await section('720p', async () => {
+    await gotoHome({ width: 1280, height: 720 });
     await shot('home-720p');
     await focusNth(cardSel, 0);
     await shot('home-720p-focused');
+  });
 
-    console.log('Total: ' + n + ' screenshots');
-  } catch(e) {
-    console.error('Error:', e.message);
-    await shot('error-state');
-  }
-  await browser.close();
+  console.log('Total: ' + n + ' screenshots');
+  // browser.close() can hang forever on a crashed tab — never wait on it.
+  await Promise.race([browser.close(), new Promise(r => setTimeout(r, 10000))]);
+  // Any screenshots at all = usable run.
+  process.exit(n > 0 ? 0 : 1);
 })();
 
 Run: cd {{workdir}} && node capture-iter-{{iter}}.cjs 2>&1
 
-If puppeteer is not available:
+If (and only if) the script fails with "Cannot find module 'puppeteer'":
 Run: npm install --prefix {{workdir}} puppeteer 2>&1 | tail -3
-Then re-run the script.
+Then re-run the script once.
