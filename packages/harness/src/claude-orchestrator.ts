@@ -1,7 +1,9 @@
-import { execSync, spawn as spawnAsync, spawnSync } from "node:child_process";
+import { execSync, spawn as spawnAsync } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createServer } from "node:net";
 import type {
   AppSpec,
   BrandKit,
@@ -12,12 +14,17 @@ import type {
   RunConfig,
   SessionState,
 } from "./types.js";
-import { V1_PHASES, PHASE_DEPS, AppSpecSchema, ScreenTreeSchema } from "./types.js";
+import { AppSpecSchema, ScreenTreeSchema } from "./types.js";
 import type { ScreenTree } from "./types.js";
 import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
 import { generateScreenshotReport } from "./screenshot-report.js";
 import { PromptLoader } from "./prompt-loader.js";
+import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
+import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
+import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
+import { runVerifyChecks } from "./verification.js";
+import { saveCheckpoint, loadCheckpoint } from "./checkpoint.js";
 
 interface HarnessInput {
   prompt: string;
@@ -28,6 +35,12 @@ interface HarnessInput {
   screenTree?: ScreenTree;
   workdir: string;
   skillsDir: string;
+  harness?: HarnessConfig;
+}
+
+export interface RunOptions {
+  generateOnly?: boolean;
+  fromPhase?: string;
 }
 
 interface QADefect {
@@ -70,16 +83,25 @@ export class ClaudeOrchestrator {
   private log: RunLog;
   private input: HarnessInput;
   private events: HarnessEvents;
+  private harness: HarnessConfig;
   private lastPhaseCost: number = 0;
+  private totalCost: number = 0;
   private prompts: PromptLoader;
+  private webServer?: ChildProcess;
+  private resumedPhases: Set<string> = new Set();
+  // Last verification failure per phase — fed back into the next attempt's prompt.
+  private lastVerifyError: Map<string, string> = new Map();
 
   constructor(input: HarnessInput, events: HarnessEvents = {}) {
     this.skills = new SkillLibrary(input.skillsDir);
     this.input = input;
     this.events = events;
+    this.harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
 
-    const promptsDir = join(import.meta.dirname ?? __dirname, "..", "prompts");
-    this.prompts = new PromptLoader(promptsDir);
+    const builtinPrompts = join(import.meta.dirname ?? __dirname, "..", "prompts");
+    // Project-local prompts/ take precedence so custom phases (and overrides
+    // of built-in phase prompts) need no source changes.
+    this.prompts = new PromptLoader([join(input.workdir, "prompts"), builtinPrompts]);
 
     const runId = randomUUID().slice(0, 8);
     const outDir = join(input.workdir, "out", runId);
@@ -97,7 +119,7 @@ export class ClaudeOrchestrator {
       phaseResults: new Map(),
       iteration: 0,
       totalIterations: 0,
-      tokenBudget: 500_000,
+      tokenBudget: this.harness.tokenBudget,
       tokensUsed: 0,
       messages: [],
     };
@@ -117,6 +139,21 @@ export class ClaudeOrchestrator {
     return instance;
   }
 
+  /** Resumes a previous run from its checkpoint, skipping completed phases. */
+  static resume(outDir: string, input: HarnessInput, events: HarnessEvents = {}): ClaudeOrchestrator {
+    const instance = ClaudeOrchestrator.fromExistingRun(outDir, input, events);
+    const checkpoint = loadCheckpoint(outDir);
+    if (checkpoint) {
+      instance.resumedPhases = new Set(checkpoint.completedPhases);
+      instance.state.runId = checkpoint.runId;
+    }
+    return instance;
+  }
+
+  getResumedPhases(): Set<string> {
+    return this.resumedPhases;
+  }
+
   async runVisualQAOnly(): Promise<PhaseResult> {
     this.state.currentPhase = "visual_qa_loop";
     this.events.onPhaseStart?.("visual_qa_loop");
@@ -125,146 +162,120 @@ export class ClaudeOrchestrator {
     return result;
   }
 
-  async run(): Promise<{ state: SessionState; outDir: string }> {
-    const phases = this.getActivePhases();
-    const completed = new Set<Phase>();
-    const failed = new Set<Phase>();
-    const running = new Map<Phase, Promise<{ phase: Phase; result: PhaseResult }>>();
+  async run(options: RunOptions = {}): Promise<{ state: SessionState; outDir: string }> {
+    const { active, preCompleted } = selectActivePhases(this.harness.phases, {
+      platforms: this.state.config.platforms,
+      generateOnly: options.generateOnly,
+      fromPhase: options.fromPhase,
+    });
 
-    while (completed.size + failed.size < phases.length) {
-      const ready = phases.filter(p =>
-        !completed.has(p) && !failed.has(p) && !running.has(p) &&
-        PHASE_DEPS[p].every(dep => completed.has(dep) || !phases.includes(dep))
-      );
+    const completed = new Set([...this.resumedPhases, ...preCompleted]);
 
-      for (const phase of ready) {
-        this.state.currentPhase = phase;
-        this.log.phaseStart(phase, this.state.totalIterations);
-        this.events.onPhaseStart?.(phase);
-
-        if (!this.events.onLog) {
-          console.log(`\n  [${"=".repeat(40)}]`);
-          console.log(`  Phase: ${phase}`);
-          console.log(`  [${"=".repeat(40)}]\n`);
-        }
-
-        running.set(phase, this.executePhaseWithRetry(phase).then(result => ({ phase, result })));
-      }
-
-      if (running.size === 0) {
-        // Remaining phases are blocked by failed dependencies
-        for (const p of phases) {
-          if (!completed.has(p) && !failed.has(p)) {
-            failed.add(p);
-            const blockedResult: PhaseResult = { phase: p, status: "failed", iterations: 0, error: "Blocked by failed dependency" };
-            this.state.phaseResults.set(p, blockedResult);
-            this.events.onPhaseEnd?.(p, blockedResult, 0);
+    const results = await runPipeline({
+      phases: active,
+      maxRetries: this.state.config.max_retries_per_phase,
+      completed,
+      executor: (spec) => this.executePhase(spec),
+      hooks: {
+        onPhaseStart: (spec) => {
+          this.state.currentPhase = spec.name;
+          this.log.phaseStart(spec.name, this.state.totalIterations);
+          this.events.onPhaseStart?.(spec.name);
+          if (!this.events.onLog) {
+            console.log(`\n  [${"=".repeat(40)}]`);
+            console.log(`  Phase: ${spec.name}`);
+            console.log(`  [${"=".repeat(40)}]\n`);
           }
-        }
-        break;
-      }
+        },
+        onPhaseEnd: (spec, result) => {
+          this.state.phaseResults.set(spec.name, result);
+          this.log.phaseEnd(spec.name, this.state.totalIterations, result.status);
+          const phaseCost = this.lastPhaseCost;
+          this.lastPhaseCost = 0;
+          this.events.onPhaseEnd?.(spec.name, result, phaseCost);
 
-      const settled = await Promise.race(running.values());
-      running.delete(settled.phase);
+          const label = result.status === "failed" ? "FAILED" : result.status === "degraded" ? "DEGRADED" : result.status;
+          const detail = result.error ? `: ${result.error}` : "";
+          if (!this.events.onLog) console.log(`  Phase ${spec.name} ${label}${detail}`);
+          this.events.onLog?.(`Phase ${spec.name} ${label}${detail}`);
+        },
+        onPhaseSuccess: (spec) => {
+          this.commitAfterPhase(spec.name);
+          this.checkpoint();
+        },
+        onPhaseSkipped: (spec) => {
+          this.state.phaseResults.set(spec.name, { phase: spec.name, status: "success", iterations: 0 });
+          this.events.onLog?.(`Phase ${spec.name} skipped (already completed)`);
+        },
+        onRetry: (spec, attempt, max, result) => {
+          const msg = `Attempt ${attempt}/${max} ${result.status}: ${result.error}. Retrying...`;
+          if (!this.events.onLog) console.log(`  ${msg}`);
+          this.events.onLog?.(msg);
+        },
+        onLog: (msg) => {
+          if (!this.events.onLog) console.log(`  ${msg}`);
+          this.events.onLog?.(msg);
+        },
+        shouldStop: () =>
+          this.state.tokensUsed >= this.state.tokenBudget
+            ? `Token budget exhausted (${this.state.tokensUsed}/${this.state.tokenBudget})`
+            : null,
+      },
+    });
 
-      const { phase, result } = settled;
-      this.state.phaseResults.set(phase, result);
-      this.log.phaseEnd(phase, this.state.totalIterations, result.status);
-      const phaseCost = this.lastPhaseCost;
-      this.lastPhaseCost = 0;
-      this.events.onPhaseEnd?.(phase, result, phaseCost);
-
-      if (result.status === "failed") {
-        if (!this.events.onLog) console.log(`  Phase ${phase} FAILED: ${result.error}`);
-        this.events.onLog?.(`Phase ${phase} FAILED: ${result.error}`);
-        failed.add(phase);
-        if (phase === "plan") {
-          if (!this.events.onLog) console.log(`  Aborting: cannot continue without a valid AppSpec.`);
-          break;
-        }
-      } else if (result.status === "degraded") {
-        if (!this.events.onLog) console.log(`  Phase ${phase} DEGRADED: ${result.error}`);
-        this.events.onLog?.(`Phase ${phase} DEGRADED: ${result.error}`);
-        completed.add(phase);
-      } else {
-        if (!this.events.onLog) console.log(`  Phase ${phase}: ${result.status}`);
-        this.events.onLog?.(`Phase ${phase}: ${result.status}`);
-        completed.add(phase);
-        this.commitAfterPhase(phase);
-      }
+    for (const [name, result] of results) {
+      this.state.phaseResults.set(name, result);
     }
 
     this.writeReport();
     return { state: this.state, outDir: this.state.workdir };
   }
 
-  private getActivePhases(): Phase[] {
-    const { platforms } = this.state.config;
-
-    const generateOnly = process.argv.includes("--generate-only");
-    const buildPhases: Phase[] = ["build_loop", "vega_build_loop", "visual_correctness", "visual_qa_loop"];
-
-    return V1_PHASES.filter((phase) => {
-      if (generateOnly && buildPhases.includes(phase)) return false;
-      if (phase === "vega_build_loop") return platforms.includes("firetv-vega");
-      return true;
-    });
-  }
-
-  private async executePhaseWithRetry(phase: Phase): Promise<PhaseResult> {
-    // Phases with internal iteration logic should not be retried externally
-    const noRetryPhases: Phase[] = ["visual_qa_loop", "visual_correctness"];
-    if (noRetryPhases.includes(phase)) {
-      return this.executePhase(phase);
-    }
-
-    const maxRetries = this.state.config.max_retries_per_phase;
-
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const result = await this.executePhase(phase);
-
-      if (result.status === "success") {
-        return result;
-      }
-
-      if (result.status === "failed" && phase === "plan") {
-        return result;
-      }
-
-      if (attempt < maxRetries - 1) {
-        console.log(`  Attempt ${attempt + 1}/${maxRetries} ${result.status}: ${result.error}`);
-        console.log(`  Retrying...`);
-      } else {
-        return result;
+  private checkpoint(): void {
+    const completedPhases = [...this.resumedPhases];
+    for (const [name, result] of this.state.phaseResults) {
+      if ((result.status === "success" || result.status === "degraded") && !completedPhases.includes(name)) {
+        completedPhases.push(name);
       }
     }
-
-    return { phase, status: "failed", iterations: maxRetries, error: "Exhausted retries" };
+    saveCheckpoint(this.state.workdir, { runId: this.state.runId, completedPhases });
   }
 
-  private async executePhase(phase: Phase): Promise<PhaseResult> {
+  private async executePhase(spec: PhaseSpec): Promise<PhaseResult> {
     this.state.totalIterations++;
+    const phase = spec.name;
 
-    if (phase === "plan") {
+    if (spec.kind === "plan") {
       return this.executePlanPhase();
     }
 
-    if (phase === "visual_qa_loop") {
+    if (spec.kind === "visual_qa") {
       return this.executeVisualQALoop();
     }
 
-    const instructions = this.getPhaseInstructions(phase);
+    const instructions = this.getPhaseInstructions(spec);
     if (!instructions) {
       return { phase, status: "degraded", iterations: 1, error: `No instructions for phase: ${phase}` };
     }
 
-    const skillContext = this.buildSkillContext(phase);
+    const skillContext = this.buildSkillContext(spec);
 
+    const previousFailure = this.lastVerifyError.get(phase);
     const fullPrompt = [
       skillContext,
       "",
       "## Your Task",
       instructions,
+      ...(previousFailure
+        ? [
+            "",
+            "## Previous attempt failed verification",
+            "A prior attempt at this exact task did not pass the automated checks below.",
+            "Fix these specific issues FIRST, then complete the task:",
+            "",
+            previousFailure,
+          ]
+        : []),
     ].join("\n");
 
     // Log prompt for debugging
@@ -275,13 +286,10 @@ export class ClaudeOrchestrator {
 
     try {
       const appDir = join(this.state.workdir, "app");
-      const cwd = phase === "scaffold" ? this.state.workdir : appDir;
+      const cwd = spec.cwd === "out" ? this.state.workdir : appDir;
       mkdirSync(cwd, { recursive: true });
 
-      const buildPhases: Phase[] = ["build_loop", "vega_build_loop"];
-      const timeoutMs = buildPhases.includes(phase) ? 900_000 : 600_000;
-
-      const output = await this.invokeClaude(fullPrompt, cwd, timeoutMs);
+      const output = await this.invokeClaude(fullPrompt, cwd, spec.timeoutMs, spec.model);
 
       // Log full response
       writeFileSync(join(this.state.workdir, `response-${phase}.txt`), output);
@@ -293,12 +301,17 @@ export class ClaudeOrchestrator {
         message: output.slice(0, 500),
       });
 
-      const verification = this.verifyPhaseOutput(phase);
+      const verification = await runVerifyChecks(spec.verify, {
+        appDir,
+        vars: this.buildVerifyVars(),
+      });
       if (!verification.ok) {
         this.log.error(phase, this.state.totalIterations, verification.error!);
+        this.lastVerifyError.set(phase, verification.error!);
         return { phase, status: "degraded", iterations: 1, error: verification.error };
       }
 
+      this.lastVerifyError.delete(phase);
       return { phase, status: "success", iterations: 1 };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -307,15 +320,29 @@ export class ClaudeOrchestrator {
     }
   }
 
-  private getPhaseInstructions(phase: Phase): string | null {
+  private buildVerifyVars(): Record<string, string> {
+    return {
+      "brand.primary_color": this.input.brand.primary_color,
+      "brand.accent_color": this.input.brand.accent_color,
+      "brand.background_color": this.input.brand.background_color,
+      "brand.name": this.input.brand.name,
+      "content.title": this.input.content.title,
+      "app.name": this.state.spec?.app_name ?? this.input.content.title,
+    };
+  }
+
+  private getPhaseInstructions(phaseSpec: PhaseSpec): string | null {
     const appDir = join(this.state.workdir, "app");
     const spec = this.state.spec;
+    const phase = phaseSpec.prompt ?? phaseSpec.name;
 
     switch (phase) {
       case "scaffold":
         return this.prompts.load("scaffold", {
           appDir,
           appName: spec?.app_name ?? this.input.content.title,
+          templateRepo: this.harness.template.repo,
+          templateBranch: this.harness.template.branch ? ` --branch ${this.harness.template.branch}` : "",
         });
 
       case "branding": {
@@ -486,8 +513,25 @@ Steps for hidden navigation:
         });
       }
 
-      default:
-        return null;
+      default: {
+        // Custom config-defined phases: load their prompt file with the
+        // generic variable bag. No prompt file → no instructions.
+        try {
+          return this.prompts.load(phase, {
+            appDir,
+            outDir: this.state.workdir,
+            appName: spec?.app_name ?? this.input.content.title,
+            primaryColor: this.input.brand.primary_color,
+            accentColor: this.input.brand.accent_color,
+            backgroundColor: this.input.brand.background_color,
+            contentTitle: this.input.content.title,
+            platforms: this.input.config.platforms.join(", "),
+            templateRepo: this.harness.template.repo,
+          });
+        } catch {
+          return null;
+        }
+      }
     }
   }
 
@@ -542,9 +586,13 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
       // Log raw response
       writeFileSync(join(this.state.workdir, "plan-response.txt"), output);
 
+      if (!output.trim()) {
+        return { phase: "plan", status: "failed", iterations: 1, error: "Planner returned empty output (transient CLI/rate-limit error — will retry)" };
+      }
+
       const jsonMatch = output.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        return { phase: "plan", status: "failed", iterations: 1, error: "No JSON found in planner output" };
+        return { phase: "plan", status: "failed", iterations: 1, error: `No JSON found in planner output: ${output.slice(0, 120)}` };
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
@@ -567,7 +615,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     const threshold = this.input.config.visual_qa_pass_threshold ?? "normal";
     const appDir = join(this.state.workdir, "app");
     const screenshotDir = join(this.state.workdir, "screenshots");
-    const port = 19007;
+    const port = await this.getFreePort(19007);
 
     mkdirSync(screenshotDir, { recursive: true });
 
@@ -666,16 +714,10 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
   private async startWebServer(appDir: string, port: number): Promise<void> {
     const expoDir = join(appDir, "apps", "expo-multi-tv");
 
-    // Kill any lingering Metro/Expo servers from prior phases
-    try {
-      execSync(`lsof -ti:19006 | xargs kill -9 2>/dev/null || true`, { stdio: "pipe" });
-      execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`, { stdio: "pipe" });
-    } catch {}
     // Clear Metro's temp cache to avoid stale lockfiles
     try {
-      execSync(`rm -rf ${expoDir}/node_modules/.cache/metro 2>/dev/null || true`, { stdio: "pipe" });
+      execSync(`rm -rf "${join(expoDir, "node_modules", ".cache", "metro")}" 2>/dev/null || true`, { stdio: "pipe" });
     } catch {}
-    await new Promise(r => setTimeout(r, 2000));
 
     const child = spawnAsync("npx", ["expo", "start", "--web", "--port", String(port)], {
       cwd: expoDir,
@@ -694,8 +736,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
       }
     });
     child.unref();
-
-    (this as unknown as { _webServerPid?: number })._webServerPid = child.pid;
+    this.webServer = child;
 
     // Phase 1: Wait for server to respond at all
     for (let i = 0; i < 30; i++) {
@@ -731,9 +772,39 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
   }
 
   private async stopWebServer(port: number): Promise<void> {
+    const child = this.webServer;
+    this.webServer = undefined;
+    if (!child || child.killed) return;
+
     try {
-      execSync(`kill $(lsof -ti:${port}) 2>/dev/null || true`, { stdio: "pipe" });
-    } catch {}
+      if (child.pid) {
+        process.kill(-child.pid, "SIGTERM");
+      } else {
+        child.kill("SIGTERM");
+      }
+    } catch {
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+    }
+  }
+
+  private getFreePort(preferred: number): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const server = createServer();
+      server.once("error", () => {
+        const fallback = createServer();
+        fallback.once("error", reject);
+        fallback.listen(0, () => {
+          const address = fallback.address();
+          const port = typeof address === "object" && address ? address.port : preferred;
+          fallback.close(() => resolve(port));
+        });
+      });
+      server.listen(preferred, () => {
+        server.close(() => resolve(preferred));
+      });
+    });
   }
 
   private buildCapturePrompt(appDir: string, screenshotDir: string, port: number, iter: number): string {
@@ -925,9 +996,9 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     writeFileSync(join(this.state.workdir, "visual-qa-report.md"), lines.join("\n"));
   }
 
-  private buildSkillContext(phase: Phase): string {
+  private buildSkillContext(spec: PhaseSpec): string {
     const meta = this.skills.alwaysLoad();
-    const phaseSkills = this.skills.loadForPhase(phase);
+    const phaseSkills = this.skills.loadSkills(spec.skills);
 
     const parts = [
       "## Context: You are a TV app development agent.",
@@ -966,87 +1037,6 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     ].join("\n");
   }
 
-  private verifyPhaseOutput(phase: Phase): { ok: boolean; error?: string } {
-    const appDir = join(this.state.workdir, "app");
-
-    switch (phase) {
-      case "scaffold": {
-        if (!existsSync(join(appDir, "package.json"))) {
-          return { ok: false, error: "Template not cloned: package.json missing in app dir" };
-        }
-        return { ok: true };
-      }
-      case "branding": {
-        try {
-          const diff = execSync("git diff --stat", { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-          const untracked = execSync("git ls-files --others --exclude-standard", { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-          if (!diff.trim() && !untracked.trim()) {
-            return { ok: false, error: "Branding phase made no file changes — app is still the unmodified template" };
-          }
-        } catch {
-          // git not initialized yet — fall through to color check
-        }
-        try {
-          const grepResult = execSync(
-            `grep -r "${this.input.brand.primary_color}" packages/shared-ui/ 2>/dev/null | head -1`,
-            { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
-          );
-          if (!grepResult.trim()) {
-            return { ok: false, error: `Brand primary color ${this.input.brand.primary_color} not found in shared-ui — theme was not applied` };
-          }
-        } catch {
-          return { ok: false, error: `Brand primary color ${this.input.brand.primary_color} not found in shared-ui — theme was not applied` };
-        }
-        return { ok: true };
-      }
-      case "content": {
-        const candidates = [
-          join(appDir, "packages", "shared-ui", "src", "data"),
-          join(appDir, "packages", "shared-ui", "data"),
-        ];
-        const dataDir = candidates.find(d => existsSync(d));
-        if (!dataDir) {
-          return { ok: false, error: "Manifest wiring failed: no data/ directory found in shared-ui" };
-        }
-        try {
-          const grepResult = execSync(
-            `grep -r "${this.input.content.title}" packages/shared-ui/ 2>/dev/null | head -1`,
-            { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
-          );
-          if (!grepResult.trim()) {
-            return { ok: false, error: `Content title "${this.input.content.title}" not found in shared-ui — content was not injected` };
-          }
-        } catch {
-          return { ok: false, error: `Content title "${this.input.content.title}" not found in shared-ui — content was not injected` };
-        }
-        return { ok: true };
-      }
-      case "verify": {
-        try {
-          execSync("npx tsc --noEmit", {
-            cwd: appDir,
-            encoding: "utf-8",
-            stdio: ["pipe", "pipe", "pipe"],
-            timeout: 60_000,
-          });
-        } catch (err) {
-          const msg = err instanceof Error ? (err as { stdout?: string }).stdout ?? err.message : String(err);
-          return { ok: false, error: `TypeScript errors remain: ${msg.slice(0, 200)}` };
-        }
-        return { ok: true };
-      }
-      case "visual_correctness": {
-        const reportPath = join(this.state.workdir, "visual-correctness-report.txt");
-        if (!existsSync(reportPath)) {
-          return { ok: false, error: "Visual correctness report was not generated" };
-        }
-        return { ok: true };
-      }
-      default:
-        return { ok: true };
-    }
-  }
-
   private commitAfterPhase(phase: Phase): void {
     const appDir = join(this.state.workdir, "app");
     if (!existsSync(join(appDir, ".git"))) return;
@@ -1078,6 +1068,16 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
       `**App:** ${this.state.spec?.app_name ?? "Unknown"}`,
       `**Platforms:** ${this.state.config.platforms.join(", ")}`,
       `**Mode:** claude-run (CLI subprocess)`,
+      `**Template:** ${this.harness.template.repo}`,
+      ``,
+      `## Token Usage`,
+      ``,
+      `| Metric | Value |`,
+      `|--------|-------|`,
+      `| Total tokens | ${this.state.tokensUsed.toLocaleString()} |`,
+      `| Budget | ${this.state.tokenBudget.toLocaleString()} |`,
+      `| Utilization | ${Math.round((this.state.tokensUsed / this.state.tokenBudget) * 100)}% |`,
+      `| Total cost | $${this.totalCost.toFixed(4)} |`,
       ``,
       `## Phases`,
       ``,
@@ -1130,7 +1130,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     writeFileSync(join(this.state.workdir, "report.md"), lines.join("\n"));
   }
 
-  private invokeClaude(prompt: string, cwd: string, timeoutMs: number = 600_000): Promise<string> {
+  private invokeClaude(prompt: string, cwd: string, timeoutMs: number = 600_000, model?: string): Promise<string> {
     const claudePath = process.env.CLAUDE_PATH ?? findClaude();
     const phase = this.state.currentPhase;
 
@@ -1140,6 +1140,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
         "--allowedTools", "Bash,Read,Write,Edit",
         "--output-format", "stream-json",
         "--verbose",
+        ...(model ? ["--model", model] : []),
       ], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
@@ -1169,6 +1170,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
               }
               if (event.total_cost_usd) {
                 this.lastPhaseCost = event.total_cost_usd;
+                this.totalCost += event.total_cost_usd;
               }
             }
           } catch {}
@@ -1200,6 +1202,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
               }
               if (event.total_cost_usd) {
                 this.lastPhaseCost = event.total_cost_usd;
+                this.totalCost += event.total_cost_usd;
               }
             }
           } catch {}

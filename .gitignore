@@ -7,3 +7,6 @@ out/
 .claude-prompt.txt
 skills/.remote-cache/
 packages/harness/app/
+.DS_Store
+*.pkg
+.thumbnails/

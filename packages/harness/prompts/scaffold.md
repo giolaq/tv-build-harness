@@ -1,5 +1,5 @@
-Clone the react-native-multi-tv-app-sample template into "{{appDir}}":
-1. Run: git clone --depth 1 https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git "{{appDir}}"
+Clone the app template into "{{appDir}}":
+1. Run: git clone --depth 1{{templateBranch}} {{templateRepo}} "{{appDir}}"
 2. Run: rm -rf "{{appDir}}/.git"
 3. CRITICAL: Fix React/react-native duplicate resolution. The template has multiple workspaces that can each resolve their own React or react-native copy, causing "Invalid hook call" / "Cannot read properties of null (reading 'useEffect')" at runtime.
    Read {{appDir}}/package.json, then edit it to add resolutions that force a single copy of React AND react-native across ALL workspaces:

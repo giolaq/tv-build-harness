@@ -11,6 +11,6 @@
   "show_descriptions": true,
   "show_duration": true,
   "navigation_style": "drawer",
-  "focus_styl/Users/laquigi/Projects/your-harness-repo/examples/cooking-shows/brand.jsone": "border+scale",
+  "focus_style": "border+scale",
   "animation_speed": "normal"
 }

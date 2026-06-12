@@ -1,9 +1,13 @@
 import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 import {
   ContentManifestSchema,
   BrandKitSchema,
   RunConfigSchema,
   AppSpecSchema,
+  DesignTokensSchema,
+  ScreenTreeSchema,
   V1_PHASES,
 } from "../src/types.js";
 
@@ -12,9 +16,9 @@ describe("V1_PHASES", () => {
     expect(V1_PHASES).toHaveLength(10);
   });
 
-  it("starts with plan and ends with visual_smoke_test", () => {
+  it("starts with plan and ends with visual_qa_loop", () => {
     expect(V1_PHASES[0]).toBe("plan");
-    expect(V1_PHASES[V1_PHASES.length - 1]).toBe("visual_smoke_test");
+    expect(V1_PHASES[V1_PHASES.length - 1]).toBe("visual_qa_loop");
   });
 });
 
@@ -91,6 +95,25 @@ describe("RunConfigSchema", () => {
 
   it("rejects invalid platform", () => {
     expect(() => RunConfigSchema.parse({ platforms: ["roku"] })).toThrow();
+  });
+});
+
+describe("bundled examples", () => {
+  const examplesDir = resolve("..", "..", "examples");
+  const examples = readdirSync(examplesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(examplesDir, entry.name));
+
+  it.each(examples)("parses strict input files for %s", (dir) => {
+    ContentManifestSchema.parse(JSON.parse(readFileSync(join(dir, "content.json"), "utf-8")));
+    BrandKitSchema.parse(JSON.parse(readFileSync(join(dir, "brand.json"), "utf-8")));
+    RunConfigSchema.parse(JSON.parse(readFileSync(join(dir, "run.json"), "utf-8")));
+    DesignTokensSchema.parse(JSON.parse(readFileSync(join(dir, "design.json"), "utf-8")));
+
+    const screensPath = join(dir, "screens.json");
+    if (existsSync(screensPath)) {
+      ScreenTreeSchema.parse(JSON.parse(readFileSync(screensPath, "utf-8")));
+    }
   });
 });
 

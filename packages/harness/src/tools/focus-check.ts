@@ -123,8 +123,10 @@ function checkFile(filePath: string, workdir: string, issues: FocusIssue[]): voi
       });
     }
 
-    // Interactive element without focus styling
-    if (line.includes("<Pressable") && !contentHasNearby(lines, i, 8, "focused")) {
+    // Interactive element without focus styling. Matches both the bare
+    // Pressable `focused` state and the react-tv-space-navigation render-prop
+    // idiom (`isFocused`, `watchButtonFocused`, ...) — hence case-insensitive.
+    if (line.includes("<Pressable") && !contentHasNearbyRegex(lines, i, 10, /focused/i)) {
       issues.push({
         file: relPath,
         line: lineNum,
@@ -133,8 +135,15 @@ function checkFile(filePath: string, workdir: string, issues: FocusIssue[]): voi
       });
     }
 
-    // Image used as a button without Pressable wrapper
-    if (line.includes("<Image") && contentHasNearby(lines, i, 3, "onPress")) {
+    // Image used as a button without a focusable wrapper. An `onSelect` handler
+    // or a SpatialNavigationFocusableView/Pressable/TVFocusGuideView above means
+    // the spatial-navigation wrapper already owns focus — that's the correct
+    // pattern, not a defect.
+    if (
+      line.includes("<Image") &&
+      hasNakedOnPressNearby(lines, i, 3) &&
+      !contentHasNearbyRegex(lines, Math.max(0, i - 5), 10, /SpatialNavigationFocusableView|<Pressable|TVFocusGuideView/)
+    ) {
       issues.push({
         file: relPath,
         line: lineNum,
@@ -150,6 +159,26 @@ function contentHasNearby(lines: string[], index: number, range: number, keyword
   const end = Math.min(lines.length - 1, index + range);
   for (let i = start; i <= end; i++) {
     if (lines[i].includes(keyword)) return true;
+  }
+  return false;
+}
+
+function contentHasNearbyRegex(lines: string[], index: number, range: number, pattern: RegExp): boolean {
+  const start = Math.max(0, index - range);
+  const end = Math.min(lines.length - 1, index + range);
+  for (let i = start; i <= end; i++) {
+    if (pattern.test(lines[i])) return true;
+  }
+  return false;
+}
+
+// onPress on its own is a button signal; `onSelect={onPress}` is the
+// spatial-navigation wrapper forwarding the handler — not a naked press target.
+function hasNakedOnPressNearby(lines: string[], index: number, range: number): boolean {
+  const start = Math.max(0, index - range);
+  const end = Math.min(lines.length - 1, index + range);
+  for (let i = start; i <= end; i++) {
+    if (lines[i].includes("onPress") && !lines[i].includes("onSelect")) return true;
   }
   return false;
 }

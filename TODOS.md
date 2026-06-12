@@ -20,14 +20,26 @@
 - [x] spec.json output in both modes
 - [x] report.md generation in both modes
 - [x] Recorder integration (API mode records, replay command consumes)
-- [x] screen_customization + navigation_update phases
-- [x] static_checks phase (tsc + lint + focus)
+- [x] screens + navigation phases
+- [x] verify phase (tsc + lint + focus)
 - [x] git_commit tool + auto-commit after each successful phase
 - [x] add_screen / remove_screen API-mode tools
 - [x] install_dep tool (monorepo-aware yarn workspace add)
 - [x] run_focus_check tool (static focus lint)
 - [x] Screenshot comparison HTML report (screenshots.html)
 - [x] Token cost reporting (estimated cost in report.md)
+
+## Completed (v2 foundation — see IMPROVEMENT_PLAN.md)
+
+- [x] **M1: Unified pipeline engine** — `pipeline-engine.ts` owns ordering, dependency blocking, retry-with-context, plan abort, resume; both orchestrators are now thin executors behind it. Fully unit-tested with a fake executor (no model needed).
+- [x] **M1: Declarative phases** — `harness-config.ts`: the whole pipeline (prompts, skills, deps, models, timeouts, verify checks) is a `PhaseSpec[]` data structure; the built-in TV pipeline is just the default config.
+- [x] **M1: Declarative verification** — `verification.ts`: file_exists / grep / git_dirty / tsc / focus_check / command checks with `{{var}}` substitution, configured per phase.
+- [x] **M2: Checkpoint & resume** — `checkpoint.json` after every successful phase; `claude-run --resume [runId]` and `--from-phase <name>`.
+- [x] **M2: Friendly input validation** — field-level Zod errors for all input files before the run starts; preflight checks for the Claude CLI (claude-run) and API key (run).
+- [x] **M2: doctor --fix** — exact fix command per failing check; mode-aware (API key optional when Claude CLI present); Claude CLI check added.
+- [x] **M2: Root README** — quickstart, config reference, command table, harness philosophy.
+- [x] **M3: harness.config.json** — bring-your-own template repo/branch, per-phase skill lists, model routing (plan/execution + per-phase override), token budget, custom phases with insertAfter and project-local prompt files.
+- [x] **M4 (partial): Real cost reporting in claude-run** — token usage + total cost from the CLI's stream-json output now in report.md.
 
 ## Post-implementation (v2)
 

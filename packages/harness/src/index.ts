@@ -15,6 +15,10 @@ import { ClaudeOrchestrator } from "./claude-orchestrator.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { ReplayClient } from "./recorder.js";
 import { SkillLibrary } from "./skill-library.js";
+import { SkillFetcher } from "./skill-fetcher.js";
+import { loadHarnessConfig } from "./harness-config.js";
+import type { HarnessConfig } from "./harness-config.js";
+import { findResumableRun } from "./checkpoint.js";
 import {
   ContentManifestSchema,
   BrandKitSchema,
@@ -22,6 +26,7 @@ import {
   DesignTokensSchema,
   ScreenTreeSchema,
 } from "./types.js";
+import type { TypeOf, ZodError, ZodTypeAny } from "zod";
 
 loadEnvFile();
 
@@ -89,10 +94,61 @@ async function main() {
     case "visual-qa":
       await runVisualQA();
       break;
+    case "install-skills":
+      await installSkills();
+      break;
+    case "update-skills":
+      await updateSkills();
+      break;
     default:
       printUsage();
       break;
   }
+}
+
+function formatZodError(err: ZodError, file: string): string {
+  const lines = err.issues.slice(0, 10).map((issue) => {
+    const path = issue.path.length ? issue.path.join(".") : "(root)";
+    return `    - ${path}: ${issue.message}`;
+  });
+  const more = err.issues.length > 10 ? `\n    ... and ${err.issues.length - 10} more` : "";
+  return `  Invalid ${file}:\n${lines.join("\n")}${more}`;
+}
+
+function parseInputFile<S extends ZodTypeAny>(path: string, schema: S, label: string): TypeOf<S> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf-8"));
+  } catch (err) {
+    console.error(`  ${label} is not valid JSON: ${err instanceof Error ? err.message : err}\n  File: ${path}`);
+    process.exit(1);
+  }
+  const result = schema.safeParse(raw);
+  if (!result.success) {
+    console.error(formatZodError(result.error, label));
+    console.error(`  File: ${path}`);
+    process.exit(1);
+  }
+  return result.data;
+}
+
+// Flags that consume the next argument as their value.
+const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type"]);
+// --resume takes an optional value (a runId, never starting with --).
+const OPTIONAL_VALUE_FLAGS = new Set(["--resume"]);
+
+function positionalArgs(): string[] {
+  const positional: string[] = [];
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith("--")) {
+      if (VALUE_FLAGS.has(arg)) i++;
+      else if (OPTIONAL_VALUE_FLAGS.has(arg) && args[i + 1] && !args[i + 1].startsWith("--")) i++;
+      continue;
+    }
+    positional.push(arg);
+  }
+  return positional;
 }
 
 function loadInputs() {
@@ -105,8 +161,12 @@ function loadInputs() {
     if (!existsSync(inputDir)) {
       inputDir = resolve("..", "..", "examples", exampleName);
     }
+    if (!existsSync(inputDir)) {
+      console.error(`  Example "${exampleName}" not found. Bundled examples: ${listExamples().join(", ")}`);
+      process.exit(1);
+    }
   } else {
-    inputDir = resolve(args[1] ?? ".");
+    inputDir = resolve(positionalArgs()[0] ?? ".");
   }
 
   const contentPath = join(inputDir, "content.json");
@@ -116,46 +176,78 @@ function loadInputs() {
   const designPath = join(inputDir, "design.json");
 
   if (!existsSync(contentPath)) {
-    console.error(`Missing content.json at ${contentPath}`);
+    console.error(`  Missing content.json at ${contentPath}`);
+    console.error(`  The harness needs a content manifest. Start from an example: --example cooking-shows`);
     process.exit(1);
   }
 
-  const content = ContentManifestSchema.parse(
-    JSON.parse(readFileSync(contentPath, "utf-8"))
-  );
+  const content = parseInputFile(contentPath, ContentManifestSchema, "content.json");
 
   const brand = existsSync(brandPath)
-    ? BrandKitSchema.parse(JSON.parse(readFileSync(brandPath, "utf-8")))
+    ? parseInputFile(brandPath, BrandKitSchema, "brand.json")
     : { name: "App", primary_color: "#1a1a2e", accent_color: "#e94560", background_color: "#16213e", font_family: "System", logo_path: "", splash_path: "" };
 
   const config = existsSync(runConfigPath)
-    ? RunConfigSchema.parse(JSON.parse(readFileSync(runConfigPath, "utf-8")))
+    ? parseInputFile(runConfigPath, RunConfigSchema, "run.json")
     : RunConfigSchema.parse({ platforms: ["androidtv", "appletv", "web"] });
 
   const design = existsSync(designPath)
-    ? DesignTokensSchema.parse(JSON.parse(readFileSync(designPath, "utf-8")))
+    ? parseInputFile(designPath, DesignTokensSchema, "design.json")
     : DesignTokensSchema.parse({});
 
   const screensPath = join(inputDir, "screens.json");
   const screenTree = existsSync(screensPath)
-    ? ScreenTreeSchema.parse(JSON.parse(readFileSync(screensPath, "utf-8")))
+    ? parseInputFile(screensPath, ScreenTreeSchema, "screens.json")
     : undefined;
 
   const prompt = existsSync(promptPath)
     ? readFileSync(promptPath, "utf-8").trim()
     : `A streaming app called "${content.title}". ${content.description}`;
 
-  return { inputDir, content, brand, config, design, screenTree, prompt };
+  const harness = loadHarness(inputDir);
+
+  return { inputDir, content, brand, config, design, screenTree, prompt, harness };
+}
+
+function loadHarness(inputDir: string): HarnessConfig {
+  const configFlag = args.indexOf("--config");
+  const explicitPath = configFlag >= 0 && args[configFlag + 1] ? resolve(args[configFlag + 1]) : undefined;
+  try {
+    const { config, source } = loadHarnessConfig({ explicitPath, inputDir });
+    if (source !== "defaults") {
+      console.log(`  Using harness config: ${source}`);
+    }
+    return config;
+  } catch (err) {
+    console.error(`  Failed to load harness config: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+}
+
+function listExamples(): string[] {
+  for (const dir of [resolve("examples"), resolve("..", "..", "examples")]) {
+    if (existsSync(dir)) {
+      return readdirSync(dir).filter((e) => statSync(join(dir, e)).isDirectory());
+    }
+  }
+  return [];
 }
 
 async function runHarness() {
-  const { content, brand, config, design, screenTree, prompt } = loadInputs();
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error(`  ANTHROPIC_API_KEY is not set — API mode needs it.`);
+    console.error(`  Fix: export ANTHROPIC_API_KEY=sk-ant-... (or add it to .env)`);
+    console.error(`  Or use claude-run mode, which uses your local Claude CLI session instead.`);
+    process.exit(1);
+  }
+
+  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
 
   const harness = new TVAppHarness(
-    { prompt, content, brand, config, design, screenTree, workdir, skillsDir }
+    { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig }
   );
 
   console.log(`\n  TV App Harness — Agent SDK mode`);
@@ -164,7 +256,7 @@ async function runHarness() {
   console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);
   console.log(`  Skills dir: ${skillsDir}\n`);
 
-  const { state, outDir } = await harness.run();
+  const { state, outDir } = await harness.run({ generateOnly: args.includes("--generate-only") });
 
   console.log(`\n  Run complete.`);
   console.log(`  Output: ${outDir}`);
@@ -178,59 +270,94 @@ async function runHarness() {
 }
 
 async function runWithClaude() {
-  const { inputDir, content, brand, config, design, screenTree, prompt } = loadInputs();
+  const claudePath = process.env.CLAUDE_PATH ?? findClaudeBinary();
+  try {
+    execSync(`test -x "${claudePath}" || command -v "${claudePath}"`, { stdio: "pipe" });
+  } catch {
+    console.error(`  The "claude" CLI was not found on this machine — claude-run mode needs it.`);
+    console.error(`  Fix: npm install -g @anthropic-ai/claude-code   (or set CLAUDE_PATH=/path/to/claude)`);
+    console.error(`  Or use API mode instead: tv-harness run (requires ANTHROPIC_API_KEY).`);
+    process.exit(1);
+  }
+
+  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
+  const generateOnly = args.includes("--generate-only");
 
-  const useTui = !process.argv.includes("--no-tui");
+  const fromFlag = args.indexOf("--from-phase");
+  const fromPhase = fromFlag >= 0 ? args[fromFlag + 1] : undefined;
+
+  // --resume [runId]: pick up a previous run from its checkpoint.
+  let resumeDir: string | null = null;
+  const resumeFlag = args.indexOf("--resume");
+  if (resumeFlag >= 0) {
+    const runId = args[resumeFlag + 1]?.startsWith("--") ? undefined : args[resumeFlag + 1];
+    resumeDir = findResumableRun(workdir, runId);
+    if (!resumeDir) {
+      console.error(`  No resumable run found${runId ? ` for runId "${runId}"` : ""} under ${join(workdir, "out")}.`);
+      console.error(`  A run is resumable once at least one phase has completed (checkpoint.json exists).`);
+      process.exit(1);
+    }
+  }
+
+  const input = { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
+  const useTui = !args.includes("--no-tui");
+
+  const makeOrchestrator = (events: ConstructorParameters<typeof ClaudeOrchestrator>[1]) =>
+    resumeDir
+      ? ClaudeOrchestrator.resume(resumeDir, input, events)
+      : new ClaudeOrchestrator(input, events);
 
   if (useTui) {
     const { TUI } = await import("./tui.js");
-    const { V1_PHASES } = await import("./types.js");
+    const { selectActivePhases } = await import("./pipeline-engine.js");
 
-    const activePhases = V1_PHASES.filter((phase) => {
-      if (process.argv.includes("--generate-only") && ["build_loop", "vega_build_loop", "visual_smoke_test"].includes(phase)) return false;
-      if (phase === "vega_build_loop") return !config.platforms.includes("firetv-vega");
-      return true;
+    const { active } = selectActivePhases(harnessConfig.phases, {
+      platforms: config.platforms,
+      generateOnly,
     });
 
     const tui = new TUI(
       brand.name,
       config.platforms,
       { template: design.template, navigation_style: design.navigation_style },
-      activePhases
+      active.map((p) => p.name)
     );
     tui.start();
 
-    const harness = new ClaudeOrchestrator(
-      { prompt, content, brand, config, design, screenTree, workdir, skillsDir },
-      {
-        onPhaseStart: (phase) => tui.setPhase(phase),
-        onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
-        onTokens: (tokens) => tui.addTokens(tokens),
-        onIteration: (phase, current, max) => tui.setIteration(phase, current, max),
-        onLog: (msg) => tui.log(msg),
-        onPhaseMessage: (phase, msg) => tui.addPhaseMessage(phase, msg),
-      }
-    );
+    const harness = makeOrchestrator({
+      onPhaseStart: (phase) => tui.setPhase(phase),
+      onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
+      onTokens: (tokens) => tui.addTokens(tokens),
+      onIteration: (phase, current, max) => tui.setIteration(phase, current, max),
+      onLog: (msg) => tui.log(msg),
+      onPhaseMessage: (phase, msg) => tui.addPhaseMessage(phase, msg),
+    });
 
-    const { state, outDir } = await harness.run();
+    if (resumeDir) {
+      tui.log(`Resuming run from ${resumeDir} (skipping: ${[...harness.getResumedPhases()].join(", ") || "none"})`);
+    }
+
+    const { state, outDir } = await harness.run({ generateOnly, fromPhase });
     const failed = [...state.phaseResults.values()].some(r => r.status === "failed" && state.phaseResults.keys().next().value === "plan");
     tui.finish(failed ? "failed" : "done");
     tui.log(`Output: ${outDir}`);
   } else {
-    const harness = new ClaudeOrchestrator(
-      { prompt, content, brand, config, design, screenTree, workdir, skillsDir }
-    );
+    const harness = makeOrchestrator({});
 
     console.log(`\n  TV App Harness (Claude CLI mode)`);
     console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
     console.log(`  Platforms: ${config.platforms.join(", ")}`);
     console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);
-    console.log(`  Skills dir: ${skillsDir}\n`);
+    console.log(`  Skills dir: ${skillsDir}`);
+    if (resumeDir) {
+      console.log(`  Resuming: ${resumeDir} (skipping: ${[...harness.getResumedPhases()].join(", ") || "none"})`);
+    }
+    console.log();
 
-    const { state, outDir } = await harness.run();
+    const { state, outDir } = await harness.run({ generateOnly, fromPhase });
 
     console.log(`\n  Run complete.`);
     console.log(`  Output: ${outDir}`);
@@ -245,7 +372,7 @@ async function runWithClaude() {
 
 
 async function addScreen() {
-  const screenName = args[1];
+  const screenName = positionalArgs()[0];
   if (!screenName) {
     console.error("  Usage: tv-harness add-screen <ScreenName> --type=<layout>");
     console.error("  Types: hero+rails, grid, detail, player, settings, search");
@@ -297,7 +424,7 @@ async function reviewCode() {
     "template-anatomy", "shared-ui-catalog", "10ft-ui"
   ]);
 
-  const scope = args[1] ?? "";
+  const scope = positionalArgs()[0] ?? "";
   const scopeInstruction = scope
     ? `Focus your review on: ${scope}`
     : "Review the entire app for issues.";
@@ -426,11 +553,11 @@ function findClaudeBinary(): string {
 
 async function runDoctorCommand() {
   const results = await runDoctor();
-  printDoctorReport(results);
+  printDoctorReport(results, args.includes("--fix"));
 }
 
 async function runReplay() {
-  const recordingPath = resolve(args[1] ?? "recording.json");
+  const recordingPath = resolve(positionalArgs()[0] ?? "recording.json");
   if (!existsSync(recordingPath)) {
     console.error(`Recording not found: ${recordingPath}`);
     process.exit(1);
@@ -481,6 +608,32 @@ async function runVisualQA() {
   console.log();
 }
 
+async function installSkills() {
+  const skillsDir = resolveSkillsDir();
+  const fetcher = new SkillFetcher(skillsDir);
+  const result = await fetcher.fetchAll();
+  console.log(`\n  Skills installed into ${fetcher.getCacheDir()}`);
+  console.log(`  Fetched: ${result.fetched.length ? result.fetched.join(", ") : "none"}`);
+  if (result.failed.length) {
+    console.log(`  Failed: ${result.failed.join("; ")}`);
+    process.exitCode = 1;
+  }
+  console.log();
+}
+
+async function updateSkills() {
+  const skillsDir = resolveSkillsDir();
+  const fetcher = new SkillFetcher(skillsDir);
+  const result = await fetcher.update();
+  console.log(`\n  Skills updated in ${fetcher.getCacheDir()}`);
+  console.log(`  Updated: ${result.updated.length ? result.updated.join(", ") : "none"}`);
+  if (result.failed.length) {
+    console.log(`  Failed: ${result.failed.join("; ")}`);
+    process.exitCode = 1;
+  }
+  console.log();
+}
+
 function findOutDir(): string {
   const appFlag = args.find((a) => a.startsWith("--app="));
   if (appFlag) {
@@ -521,6 +674,8 @@ function printUsage() {
     run [dir]              Run full pipeline using Anthropic API (requires ANTHROPIC_API_KEY)
     test-ui                Open a visible browser and run the UI test sequence in real time
     visual-qa              Run only the visual QA loop on an existing generated app
+    install-skills         Fetch configured remote skills into the local cache
+    update-skills          Refresh configured remote skills
     add-screen <Name>      Add a screen to the generated app (--type=grid|hero+rails|detail|...)
     review [scope]         Review the generated app code for TV-specific issues
     doctor                 Check prerequisites
@@ -529,11 +684,30 @@ function printUsage() {
   Options:
     --example <name>       Use a bundled example (e.g. cooking-shows)
     --generate-only        Skip simulator build phases
+    --resume [runId]       Resume a previous run from its checkpoint (latest if no runId)
+    --from-phase <name>    Skip phases before <name> (use with --resume to rerun a phase)
+    --config <path>        Use a harness.config.json (custom template/phases/skills/models)
+    --no-tui               Plain console output instead of the TUI
     --app=<path>           Specify app directory for add-screen/review/test-ui
     --close                Close browser after test-ui completes (default: stay open)
+    --fix                  With doctor: print exact fix commands for failing checks
+
+  Customizing (harness.config.json — in your input dir or passed via --config):
+    {
+      "template": { "repo": "https://github.com/you/your-tv-template.git" },
+      "models": { "plan": "claude-opus-4-6", "execution": "claude-sonnet-4-6" },
+      "tokenBudget": 500000,
+      "phases": [
+        { "name": "branding", "skills": ["template-anatomy", "my-theming"] },
+        { "name": "my-phase", "prompt": "my-phase", "insertAfter": "content",
+          "verify": [{ "type": "grep", "pattern": "{{content.title}}", "path": "src/" }] }
+      ]
+    }
 
   Examples:
     npx tv-harness claude-run --example cooking-shows
+    npx tv-harness claude-run --resume
+    npx tv-harness claude-run --resume d811afcb --from-phase navigation
     npx tv-harness test-ui
     npx tv-harness test-ui --app=./my-app --close
     npx tv-harness visual-qa

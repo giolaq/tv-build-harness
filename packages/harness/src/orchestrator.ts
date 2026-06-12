@@ -15,10 +15,13 @@ import type {
   ScreenTree,
   SessionState,
 } from "./types.js";
-import { V1_PHASES, AppSpecSchema } from "./types.js";
+import { AppSpecSchema } from "./types.js";
 import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
 import { generateScreenshotReport } from "./screenshot-report.js";
+import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
+import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
+import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
 
 interface HarnessInput {
   prompt: string;
@@ -29,6 +32,11 @@ interface HarnessInput {
   screenTree?: ScreenTree;
   workdir: string;
   skillsDir: string;
+  harness?: HarnessConfig;
+}
+
+export interface RunOptions {
+  generateOnly?: boolean;
 }
 
 export class TVAppHarness {
@@ -36,11 +44,13 @@ export class TVAppHarness {
   private skills: SkillLibrary;
   private log: RunLog;
   private input: HarnessInput;
+  private harness: HarnessConfig;
   private phaseCosts: Map<Phase, number> = new Map();
 
   constructor(input: HarnessInput) {
     this.skills = new SkillLibrary(input.skillsDir);
     this.input = input;
+    this.harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
 
     const runId = randomUUID().slice(0, 8);
     const outDir = join(input.workdir, "out", runId);
@@ -58,67 +68,64 @@ export class TVAppHarness {
       phaseResults: new Map(),
       iteration: 0,
       totalIterations: 0,
-      tokenBudget: 500_000,
+      tokenBudget: this.harness.tokenBudget,
       tokensUsed: 0,
       messages: [],
     };
   }
 
-  async run(): Promise<{ state: SessionState; outDir: string }> {
-    const phases = this.getActivePhases();
+  async run(options: RunOptions = {}): Promise<{ state: SessionState; outDir: string }> {
+    const { active } = selectActivePhases(this.harness.phases, {
+      platforms: this.state.config.platforms,
+      generateOnly: options.generateOnly,
+    });
 
-    for (const phase of phases) {
-      this.state.currentPhase = phase;
-      this.log.phaseStart(phase, this.state.totalIterations);
+    const results = await runPipeline({
+      phases: active,
+      // The SDK's inner tool loop handles its own iteration; no outer retry.
+      maxRetries: 1,
+      executor: (spec) => this.executePhase(spec),
+      hooks: {
+        onPhaseStart: (spec) => {
+          this.state.currentPhase = spec.name;
+          this.log.phaseStart(spec.name, this.state.totalIterations);
+          console.log(`\n  [${"=".repeat(40)}]`);
+          console.log(`  Phase: ${spec.name}`);
+          console.log(`  [${"=".repeat(40)}]\n`);
+        },
+        onPhaseEnd: (spec, result) => {
+          this.state.phaseResults.set(spec.name, result);
+          this.log.phaseEnd(spec.name, this.state.totalIterations, result.status);
+          if (result.status === "failed") {
+            console.log(`  Phase ${spec.name} FAILED: ${result.error}`);
+          } else {
+            console.log(`  Phase ${spec.name}: ${result.status}`);
+            if (this.phaseCosts.has(spec.name)) {
+              console.log(`  Cost: $${this.phaseCosts.get(spec.name)!.toFixed(4)}`);
+            }
+          }
+        },
+        onLog: (msg) => console.log(`  ${msg}`),
+        shouldStop: () =>
+          this.state.tokensUsed >= this.state.tokenBudget
+            ? `Token budget exhausted (${this.state.tokensUsed}/${this.state.tokenBudget})`
+            : null,
+      },
+    });
 
-      console.log(`\n  [${"=".repeat(40)}]`);
-      console.log(`  Phase: ${phase}`);
-      console.log(`  [${"=".repeat(40)}]\n`);
-
-      const result = await this.executePhase(phase);
-      this.state.phaseResults.set(phase, result);
-
-      this.log.phaseEnd(phase, this.state.totalIterations, result.status);
-
-      if (result.status === "failed") {
-        console.log(`  Phase ${phase} FAILED: ${result.error}`);
-        if (phase === "plan") {
-          console.log(`  Aborting: cannot continue without a valid AppSpec.`);
-          break;
-        }
-      } else {
-        console.log(`  Phase ${phase}: ${result.status}`);
-        if (this.phaseCosts.has(phase)) {
-          console.log(`  Cost: $${this.phaseCosts.get(phase)!.toFixed(4)}`);
-        }
-      }
-
-      if (this.state.tokensUsed >= this.state.tokenBudget) {
-        console.error(`  Token budget exhausted (${this.state.tokensUsed}/${this.state.tokenBudget}). Stopping.`);
-        break;
-      }
+    for (const [name, result] of results) {
+      this.state.phaseResults.set(name, result);
     }
 
     this.writeReport();
     return { state: this.state, outDir: this.state.workdir };
   }
 
-  private getActivePhases(): Phase[] {
-    const { platforms } = this.state.config;
-    const generateOnly = process.argv.includes("--generate-only");
-    const buildPhases: Phase[] = ["build_loop", "vega_build_loop", "visual_smoke_test"];
-
-    return V1_PHASES.filter((phase) => {
-      if (generateOnly && buildPhases.includes(phase)) return false;
-      if (phase === "vega_build_loop") return platforms.includes("firetv-vega");
-      return true;
-    });
-  }
-
-  private async executePhase(phase: Phase): Promise<PhaseResult> {
+  private async executePhase(spec: PhaseSpec): Promise<PhaseResult> {
     this.state.totalIterations++;
+    const phase = spec.name;
 
-    if (phase === "plan") {
+    if (spec.kind === "plan") {
       return this.executePlanPhase();
     }
 
@@ -129,7 +136,7 @@ export class TVAppHarness {
     const appDir = join(this.state.workdir, "app");
     mkdirSync(appDir, { recursive: true });
 
-    const systemPrompt = this.buildSystemPrompt(phase);
+    const systemPrompt = this.buildSystemPrompt(spec);
     const userMessage = this.buildPhaseUserMessage(phase);
 
     const mcpServer = this.createToolServer(appDir);
@@ -142,7 +149,7 @@ export class TVAppHarness {
       const q = query({
         prompt: userMessage,
         options: {
-          model: "claude-sonnet-4-6",
+          model: spec.model ?? this.harness.models.execution,
           maxTurns: this.getMaxTurns(phase),
           systemPrompt: systemPrompt,
           cwd: appDir,
@@ -353,8 +360,9 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
 
     try {
       console.log("  Cloning template...");
+      const branchFlag = this.harness.template.branch ? ` --branch ${this.harness.template.branch}` : "";
       execSync(
-        `git clone --depth 1 https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git "${appDir}"`,
+        `git clone --depth 1${branchFlag} ${this.harness.template.repo} "${appDir}"`,
         { stdio: "pipe", timeout: 60_000 }
       );
       execSync(`rm -rf "${join(appDir, ".git")}"`, { stdio: "pipe" });
@@ -395,7 +403,7 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
       const q = query({
         prompt: userMessage,
         options: {
-          model: "claude-opus-4-6",
+          model: this.harness.models.plan,
           maxTurns: 1,
           systemPrompt: systemPrompt,
           cwd: this.state.workdir,
@@ -454,15 +462,16 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
   private createToolServer(appDir: string) {
     const skills = this.skills;
 
+    const templateRepo = this.harness.template.repo;
     const cloneTemplateTool = tool(
       "scaffold",
-      "Clone the react-native-multi-tv-app-sample template, strip git history, install deps",
+      "Clone the app template, strip git history, install deps",
       { target_dir: z.string(), app_name: z.string() },
       async ({ target_dir, app_name }) => {
         if (existsSync(join(target_dir, "package.json"))) {
           return { content: [{ type: "text" as const, text: `Template already exists at ${target_dir}` }] };
         }
-        execSync(`git clone --depth 1 https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git "${target_dir}"`, { stdio: "pipe", timeout: 60_000 });
+        execSync(`git clone --depth 1 ${templateRepo} "${target_dir}"`, { stdio: "pipe", timeout: 60_000 });
         execSync(`rm -rf "${join(target_dir, ".git")}"`, { stdio: "pipe" });
         execSync(`git init && git add -A && git commit -m "initial template"`, { cwd: target_dir, stdio: "pipe" });
         execSync("yarn install", { cwd: target_dir, stdio: "pipe", timeout: 120_000 });
@@ -657,9 +666,9 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
     });
   }
 
-  private buildSystemPrompt(phase: Phase): string {
+  private buildSystemPrompt(spec: PhaseSpec): string {
     const metaSkill = this.skills.alwaysLoad();
-    const phaseSkills = this.skills.loadForPhase(phase);
+    const phaseSkills = this.skills.loadSkills(spec.skills);
 
     const parts = [
       "You are a TV app development agent. You have access to specialized TV app tools and standard file tools (Bash, Read, Write, Edit).",

@@ -9,11 +9,21 @@ Runs the full pipeline using the Claude CLI as a subprocess per phase. Each phas
 npx tsx src/index.ts claude-run --example cooking-shows
 npx tsx src/index.ts claude-run ./my-inputs
 npx tsx src/index.ts claude-run --example music-videos --generate-only
+npx tsx src/index.ts claude-run --resume                      # pick up the latest checkpointed run
+npx tsx src/index.ts claude-run --resume d811afcb --from-phase navigation
 ```
 
 Options:
-- `--example <name>` — use a bundled example (cooking-shows, music-videos)
+- `--example <name>` — use a bundled example (cooking-shows, music-videos, fitness-tv, sports-live)
 - `--generate-only` — skip build/simulator phases, only generate code
+- `--resume [runId]` — resume from a previous run's checkpoint (latest run if no runId)
+- `--from-phase <name>` — treat phases before `<name>` as completed
+- `--config <path>` — use a harness.config.json (custom template/phases/skills/models)
+- `--no-tui` — plain console output
+
+### Customizing the pipeline: `harness.config.json`
+
+Place it in your input directory (or pass `--config`). Override the template repo, models, token budget, and any field of any phase by name — or add entirely new phases with their own prompt files and verify checks. See the root README for the full reference.
 
 ### `run [dir]`
 Runs the full pipeline using the Anthropic Messages API directly. Requires `ANTHROPIC_API_KEY`. Uses Opus for planning, Sonnet for execution. Records all API turns for replay.
@@ -42,10 +52,11 @@ npx tsx src/index.ts review --app=./out/abc123/app
 ```
 
 ### `doctor`
-Pre-flight check for all prerequisites: Node, Yarn, Git, Expo, Xcode, Android SDK, tvOS simulators, Android TV AVDs, disk space, API key.
+Pre-flight check for all prerequisites: Node, Yarn, Git, Claude CLI, API key, Expo, Xcode, Android SDK, tvOS simulators, Android TV AVDs, disk space. Mode-aware: the API key is optional when the Claude CLI is installed. `--fix` prints the exact command that fixes each failing check.
 
 ```bash
 npx tsx src/index.ts doctor
+npx tsx src/index.ts doctor --fix
 ```
 
 ### `replay <file>`
@@ -72,15 +83,15 @@ The pipeline runs these 10 phases in order. Each phase has its own retry budget,
 | # | Phase | What it does | Skills loaded |
 |---|-------|-------------|--------------|
 | 1 | `plan` | Produces an AppSpec JSON from prompt + manifest + brand | (none) |
-| 2 | `clone_template` | Clones the AmazonAppDev template, strips git, installs deps | template-anatomy, rntv-project-setup |
-| 3 | `metadata_branding` | Applies app name, colors, fonts to existing theme files | template-anatomy, theming, firetv-leanback |
-| 4 | `manifest_wiring` | Injects content.json, creates/updates data hooks, wires screens | template-anatomy, manifest-wiring |
-| 5 | `screen_customization` | Adds/modifies screens per AppSpec (reuse-first) | template-anatomy, shared-ui-catalog, rntv-focus-navigation, 10ft-ui |
-| 6 | `navigation_update` | Updates drawer/route table to match AppSpec routes | template-anatomy, shared-ui-catalog |
-| 7 | `static_checks` | Runs tsc + lint, fixes errors | rntv-focus-navigation, rntv-platform-detection |
-| 8 | `simulator_build` | Expo prebuild for each target platform | rntv-build-config |
-| 9 | `vega_build` | Builds the Vega OS app (only if firetv-vega targeted) | vega-sdk |
-| 10 | `visual_smoke_test` | Verifies build artifacts, captures screenshots if simulators running | 10ft-ui, rntv-third-party |
+| 2 | `scaffold` | Clones the AmazonAppDev template, strips git, installs deps, normalizes workspace deps | template-anatomy |
+| 3 | `branding` | Applies app name, colors, fonts to existing theme files | template-anatomy, theming, firetv-leanback |
+| 4 | `content` | Injects content.json, creates/updates data hooks, wires screens | template-anatomy, manifest-wiring |
+| 5 | `screens` | Adds/modifies screens per AppSpec (reuse-first) | template-anatomy, shared-ui-catalog, 10ft-ui |
+| 6 | `navigation` | Updates drawer/tab/hidden route table to match AppSpec routes | template-anatomy, shared-ui-catalog, spatial-navigation |
+| 7 | `verify` | Runs static checks, fixes TypeScript and TV-focus regressions | (prompt-driven static checks) |
+| 8 | `build_loop` | Verifies web build, then runs native prebuilds for requested platforms | (prompt-driven build checks) |
+| 9 | `vega_build_loop` | Builds the Vega OS app, only when firetv-vega is targeted | vega-sdk |
+| 10 | `visual_qa_loop` | Captures browser screenshots, analyzes 10-foot UI defects, and applies fixes | 10ft-ui, theming, spatial-navigation |
 
 ---
 
@@ -99,19 +110,19 @@ After each phase completes, automated checks run:
 
 | Phase | Verification |
 |-------|-------------|
-| `clone_template` | `package.json` exists in app dir |
-| `metadata_branding` | git diff shows changes AND brand primary color grep-matches in shared-ui |
-| `manifest_wiring` | data/ directory exists AND content title found in shared-ui files |
-| `static_checks` | `npx tsc --noEmit` exits cleanly |
+| `scaffold` | `package.json` exists in app dir |
+| `branding` | git diff shows changes AND brand primary color grep-matches in shared-ui |
+| `content` | data/ directory exists AND content title found in shared-ui files |
+| `verify` | `npx tsc --noEmit` exits cleanly |
 
 ### Auto-commit after phases (Task 8)
 After each successful phase in claude-run mode, the harness runs `git add -A && git commit -m "harness: complete phase <name>"` in the app directory. This gives a clean audit trail:
 
 ```
 $ cd out/<runId>/app && git log --oneline
-abc1234 harness: complete phase static_checks
-def5678 harness: complete phase navigation_update
-9012345 harness: complete phase screen_customization
+abc1234 harness: complete phase verify
+def5678 harness: complete phase navigation
+9012345 harness: complete phase screens
 ...
 1234abc initial template
 ```

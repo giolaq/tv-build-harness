@@ -1,24 +1,7 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, basename } from "node:path";
 import type { Phase, SkillMeta } from "./types.js";
-
-const PHASE_SKILL_MAP: Record<Phase, string[]> = {
-  plan: [],
-  scaffold: ["template-anatomy"],
-  branding: ["template-anatomy", "theming", "firetv-leanback"],
-  content: ["template-anatomy", "manifest-wiring"],
-  screens: ["template-anatomy", "shared-ui-catalog", "10ft-ui"],
-  navigation: ["template-anatomy", "shared-ui-catalog", "spatial-navigation"],
-  prebuild: ["firetv-leanback"],
-  verify: [],
-  build_loop: [],
-  vega_build_loop: ["vega-sdk"],
-  visual_correctness: ["10ft-ui", "theming"],
-  visual_qa_loop: ["10ft-ui", "theming", "spatial-navigation"],
-  visual_smoke_test: ["10ft-ui"],
-  eas_build: ["eas-build"],
-  package: [],
-};
+import { DEFAULT_PHASE_SKILLS } from "./harness-config.js";
 
 export class SkillLibrary {
   private skillsDir: string;
@@ -71,14 +54,15 @@ export class SkillLibrary {
   }
 
   loadForPhase(phase: Phase): string[] {
-    const skillNames = PHASE_SKILL_MAP[phase] ?? [];
-    const contents: string[] = [];
+    return this.loadSkills(DEFAULT_PHASE_SKILLS[phase] ?? []);
+  }
 
-    for (const name of skillNames) {
+  loadSkills(names: string[]): string[] {
+    const contents: string[] = [];
+    for (const name of names) {
       const content = this.loadSkill(name);
       if (content) contents.push(content);
     }
-
     return contents;
   }
 

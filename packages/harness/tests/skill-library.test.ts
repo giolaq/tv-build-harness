@@ -16,12 +16,12 @@ beforeEach(() => {
 
   writeFileSync(
     join(TEST_SKILLS_DIR, "theming.md"),
-    `---\nname: theming\napplies_to: [metadata_branding]\n---\n\n# Theming\nBrand tokens.`
+    `---\nname: theming\napplies_to: [branding]\n---\n\n# Theming\nBrand tokens.`
   );
 
   writeFileSync(
     join(TEST_SKILLS_DIR, "template-anatomy.md"),
-    `---\nname: template-anatomy\napplies_to: [clone_template, metadata_branding]\n---\n\n# Template Anatomy\nMonorepo layout.`
+    `---\nname: template-anatomy\napplies_to: [scaffold, branding]\n---\n\n# Template Anatomy\nMonorepo layout.`
   );
 });
 
@@ -34,7 +34,7 @@ describe("SkillLibrary", () => {
 
   it("loads skills for a specific phase", () => {
     const lib = new SkillLibrary(TEST_SKILLS_DIR);
-    const skills = lib.loadForPhase("metadata_branding");
+    const skills = lib.loadForPhase("branding");
     expect(skills.length).toBeGreaterThan(0);
     expect(skills.some((s) => s.includes("Template Anatomy"))).toBe(true);
     expect(skills.some((s) => s.includes("Theming"))).toBe(true);

@@ -1,20 +1,29 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 interface CheckResult {
   name: string;
   ok: boolean;
   detail: string;
+  // Exact command (or instruction) that fixes a failing check.
+  fix?: string;
+  // Optional checks don't fail the report — they limit what the harness can do.
+  optional?: boolean;
 }
 
 export async function runDoctor(): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
-  results.push(checkCommand("node", "node --version", "Node.js"));
-  results.push(checkCommand("yarn", "yarn --version", "Yarn"));
-  results.push(checkCommand("git", "git --version", "Git"));
-  results.push(checkEnvVar("ANTHROPIC_API_KEY", "Anthropic API key"));
-  results.push(checkCommand("expo", "npx expo --version", "Expo CLI"));
+  results.push(checkCommand("node", "node --version", "Node.js", "Install Node 20+: https://nodejs.org or `brew install node`"));
+  results.push(checkCommand("yarn", "yarn --version", "Yarn", "corepack enable && corepack prepare yarn@1.22.21 --activate"));
+  results.push(checkCommand("git", "git --version", "Git", "xcode-select --install (macOS) or `brew install git`"));
+
+  const claude = checkClaudeCli();
+  results.push(claude);
+  results.push(checkApiKey(claude.ok));
+
+  results.push(checkCommand("expo", "npx expo --version", "Expo CLI", "npx handles this automatically; ensure network access for first run"));
   results.push(checkPuppeteer());
   results.push(checkXcode());
   results.push(checkAndroidSDK());
@@ -25,40 +34,87 @@ export async function runDoctor(): Promise<CheckResult[]> {
   return results;
 }
 
-export function printDoctorReport(results: CheckResult[]): void {
+export function printDoctorReport(results: CheckResult[], showFixes = false): void {
   console.log("\n  TV App Harness — Pre-flight Check\n");
 
   for (const r of results) {
-    const icon = r.ok ? "✓" : "✗";
-    const color = r.ok ? "\x1b[32m" : "\x1b[31m";
+    const icon = r.ok ? "✓" : r.optional ? "~" : "✗";
+    const color = r.ok ? "\x1b[32m" : r.optional ? "\x1b[33m" : "\x1b[31m";
     console.log(`  ${color}${icon}\x1b[0m ${r.name}: ${r.detail}`);
+    if (!r.ok && r.fix && showFixes) {
+      console.log(`      fix: ${r.fix}`);
+    }
   }
 
-  const passed = results.filter((r) => r.ok).length;
-  const total = results.length;
-  console.log(`\n  ${passed}/${total} checks passed.\n`);
+  const required = results.filter((r) => !r.optional);
+  const passed = required.filter((r) => r.ok).length;
+  console.log(`\n  ${passed}/${required.length} required checks passed.`);
 
-  if (passed < total) {
-    console.log("  Fix the issues above before running the harness.");
+  const failures = results.filter((r) => !r.ok);
+  if (failures.length > 0 && !showFixes) {
+    console.log(`  Run "tv-harness doctor --fix" to see the exact fix for each failing check.`);
+  }
+  console.log();
+
+  if (passed < required.length) {
+    console.log("  Fix the required issues above before running the harness.\n");
     process.exitCode = 1;
   }
 }
 
-function checkCommand(name: string, command: string, label: string): CheckResult {
+function checkCommand(name: string, command: string, label: string, fix?: string): CheckResult {
   try {
     const version = execSync(command, { stdio: "pipe", timeout: 10_000 }).toString().trim();
     return { name: label, ok: true, detail: version };
   } catch {
-    return { name: label, ok: false, detail: "Not found. Install it first." };
+    return { name: label, ok: false, detail: "Not found.", fix };
   }
 }
 
-function checkEnvVar(name: string, label: string): CheckResult {
-  const value = process.env[name];
-  if (value && value.length > 0) {
-    return { name: label, ok: true, detail: `Set (${value.slice(0, 8)}...)` };
+function checkClaudeCli(): CheckResult {
+  const candidates = [
+    process.env.CLAUDE_PATH,
+    join(process.env.HOME ?? "", ".toolbox", "bin", "claude"),
+    join(process.env.HOME ?? "", ".local", "bin", "claude"),
+    "/usr/local/bin/claude",
+    "/opt/homebrew/bin/claude",
+  ].filter(Boolean) as string[];
+
+  for (const p of candidates) {
+    try {
+      execSync(`test -x "${p}"`, { stdio: "pipe" });
+      return { name: "Claude CLI", ok: true, detail: p };
+    } catch {}
   }
-  return { name: label, ok: false, detail: `${name} environment variable not set.` };
+
+  try {
+    const p = execSync("command -v claude", { stdio: "pipe", timeout: 5_000 }).toString().trim();
+    if (p) return { name: "Claude CLI", ok: true, detail: p };
+  } catch {}
+
+  return {
+    name: "Claude CLI",
+    ok: false,
+    detail: "Not found (needed for claude-run mode).",
+    fix: "npm install -g @anthropic-ai/claude-code   # or set CLAUDE_PATH=/path/to/claude",
+  };
+}
+
+function checkApiKey(claudeCliAvailable: boolean): CheckResult {
+  const value = process.env.ANTHROPIC_API_KEY;
+  if (value && value.length > 0) {
+    return { name: "Anthropic API key", ok: true, detail: `Set (${value.slice(0, 8)}...)` };
+  }
+  return {
+    name: "Anthropic API key",
+    ok: false,
+    // Only one of (claude CLI, API key) is needed; if the CLI is present this is optional.
+    optional: claudeCliAvailable,
+    detail: claudeCliAvailable
+      ? "Not set — API mode (run) unavailable, claude-run mode works."
+      : "ANTHROPIC_API_KEY environment variable not set.",
+    fix: "export ANTHROPIC_API_KEY=sk-ant-...   # or add it to .env",
+  };
 }
 
 function checkXcode(): CheckResult {
@@ -66,7 +122,11 @@ function checkXcode(): CheckResult {
     const version = execSync("xcodebuild -version", { stdio: "pipe", timeout: 10_000 }).toString().trim().split("\n")[0];
     return { name: "Xcode", ok: true, detail: version };
   } catch {
-    return { name: "Xcode", ok: false, detail: "Not found. Install from the App Store." };
+    return {
+      name: "Xcode", ok: false, optional: true,
+      detail: "Not found (needed for Apple TV builds only).",
+      fix: "Install Xcode from the App Store, then: sudo xcode-select -s /Applications/Xcode.app",
+    };
   }
 }
 
@@ -75,23 +135,40 @@ function checkAndroidSDK(): CheckResult {
   if (androidHome && existsSync(androidHome)) {
     return { name: "Android SDK", ok: true, detail: androidHome };
   }
-  return { name: "Android SDK", ok: false, detail: "ANDROID_HOME not set or directory doesn't exist." };
+  return {
+    name: "Android SDK", ok: false, optional: true,
+    detail: "ANDROID_HOME not set (needed for Android TV builds only).",
+    fix: 'Install Android Studio, then: export ANDROID_HOME="$HOME/Library/Android/sdk"',
+  };
 }
 
 function checkEmulators(): CheckResult {
   try {
     const avds = execSync("emulator -list-avds", { stdio: "pipe", timeout: 10_000 }).toString().trim();
-    const list = avds.split("\n").filter(Boolean);
-    const tvAvd = list.find((a) => a.toLowerCase().includes("tv"));
+    // emulator prints INFO/WARNING noise on stdout — AVD names never contain spaces
+    const list = avds.split("\n").filter((line) => line.trim() && !line.includes(" "));
+    const tvAvd = list.find((a) => /(^|[^a-z])tv|television/i.test(a));
     if (tvAvd) {
       return { name: "Android TV AVD", ok: true, detail: tvAvd };
     }
     if (list.length > 0) {
-      return { name: "Android TV AVD", ok: false, detail: `Found AVDs but none with 'TV' in name: ${list.join(", ")}` };
+      return {
+        name: "Android TV AVD", ok: false, optional: true,
+        detail: `Found AVDs but none with 'TV' in name: ${list.join(", ")}`,
+        fix: 'avdmanager create avd -n TV_API_34 -k "system-images;android-34;android-tv;x86" -d tv_1080p',
+      };
     }
-    return { name: "Android TV AVD", ok: false, detail: "No AVDs found. Create one in Android Studio." };
+    return {
+      name: "Android TV AVD", ok: false, optional: true,
+      detail: "No AVDs found.",
+      fix: "Create an Android TV device in Android Studio > Device Manager",
+    };
   } catch {
-    return { name: "Android TV AVD", ok: false, detail: "emulator command not found." };
+    return {
+      name: "Android TV AVD", ok: false, optional: true,
+      detail: "emulator command not found.",
+      fix: 'export PATH="$PATH:$ANDROID_HOME/emulator" after installing the Android SDK',
+    };
   }
 }
 
@@ -103,18 +180,30 @@ function checkTvOSSimulator(): CheckResult {
     if (tvos) {
       return { name: "tvOS Runtime", ok: true, detail: tvos.name };
     }
-    return { name: "tvOS Runtime", ok: false, detail: "No tvOS runtime installed. Add it in Xcode > Settings > Platforms." };
+    return {
+      name: "tvOS Runtime", ok: false, optional: true,
+      detail: "No tvOS runtime installed.",
+      fix: "Xcode > Settings > Platforms > add tvOS",
+    };
   } catch {
-    return { name: "tvOS Runtime", ok: false, detail: "xcrun simctl not available." };
+    return {
+      name: "tvOS Runtime", ok: false, optional: true,
+      detail: "xcrun simctl not available.",
+      fix: "Install Xcode command line tools: xcode-select --install",
+    };
   }
 }
 
 function checkPuppeteer(): CheckResult {
   try {
-    const result = execSync('node -e "require(\'puppeteer\')"', { stdio: "pipe", timeout: 10_000 });
+    execSync('node -e "require(\'puppeteer\')"', { stdio: "pipe", timeout: 10_000 });
     return { name: "Puppeteer", ok: true, detail: "Installed (web screenshots enabled)" };
   } catch {
-    return { name: "Puppeteer", ok: false, detail: "Not found. Install with: npm install -g puppeteer" };
+    return {
+      name: "Puppeteer", ok: false, optional: true,
+      detail: "Not found (visual QA screenshots disabled).",
+      fix: "yarn add puppeteer   # in packages/harness",
+    };
   }
 }
 
@@ -126,7 +215,11 @@ function checkDiskSpace(): CheckResult {
     if (availGB >= 10) {
       return { name: "Disk Space", ok: true, detail: `${availGB} GB available` };
     }
-    return { name: "Disk Space", ok: false, detail: `Only ${availGB} GB free. Need at least 10 GB.` };
+    return {
+      name: "Disk Space", ok: false,
+      detail: `Only ${availGB} GB free. Need at least 10 GB.`,
+      fix: "Free up disk space — each run clones a template and installs node_modules (~2 GB)",
+    };
   } catch {
     return { name: "Disk Space", ok: true, detail: "Could not check (non-critical)." };
   }

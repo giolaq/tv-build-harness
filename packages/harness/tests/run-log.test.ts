@@ -34,24 +34,24 @@ describe("RunLog", () => {
 
   it("logs tool calls with input", () => {
     const log = new RunLog(TEST_LOG_PATH);
-    log.toolCall("clone_template", 1, "clone_template", { target_dir: "/tmp" });
+    log.toolCall("scaffold", 1, "scaffold", { target_dir: "/tmp" });
 
     const lines = readFileSync(TEST_LOG_PATH, "utf-8").trim().split("\n");
     const entry = JSON.parse(lines[0]);
-    expect(entry.tool).toBe("clone_template");
+    expect(entry.tool).toBe("scaffold");
     expect(entry.input).toEqual({ target_dir: "/tmp" });
   });
 
   it("getLastNLines returns correct subset", () => {
     const log = new RunLog(TEST_LOG_PATH);
     log.phaseStart("plan", 1);
-    log.phaseStart("clone_template", 2);
-    log.phaseStart("metadata_branding", 3);
+    log.phaseStart("scaffold", 2);
+    log.phaseStart("branding", 3);
 
     const last2 = log.getLastNLines(2);
     expect(last2).toHaveLength(2);
-    expect(last2[0].phase).toBe("clone_template");
-    expect(last2[1].phase).toBe("metadata_branding");
+    expect(last2[0].phase).toBe("scaffold");
+    expect(last2[1].phase).toBe("branding");
   });
 
   it("includes ISO timestamp on every entry", () => {

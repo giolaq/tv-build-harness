@@ -12,7 +12,9 @@
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify": "yarn typecheck && yarn test",
+    "verify:examples": "vitest run tests/types.test.ts -t \"bundled examples\""
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.162",

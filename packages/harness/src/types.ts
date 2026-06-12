@@ -20,9 +20,12 @@ export const PHASES = [
   "package",
 ] as const;
 
-export type Phase = (typeof PHASES)[number];
+export type BuiltinPhase = (typeof PHASES)[number];
 
-export const PHASE_DEPS: Record<Phase, Phase[]> = {
+// Phases are config-driven: custom pipelines may define phases beyond the built-ins.
+export type Phase = string;
+
+export const PHASE_DEPS: Record<string, Phase[]> = {
   plan: [],
   scaffold: ["plan"],
   branding: ["scaffold"],
@@ -88,14 +91,14 @@ export const ScreenNodeSchema: z.ZodType<ScreenNode> = z.lazy(() =>
     data_source: z.string().nullish(),
     icon: z.string().nullish(),
     children: z.array(ScreenNodeSchema).optional(),
-  })
+  }).strict()
 ) as z.ZodType<ScreenNode>;
 
 export const ScreenTreeSchema = z.object({
   navigation_type: z.enum(["drawer", "tabs"]),
   home: ScreenNodeSchema,
   screens: z.array(ScreenNodeSchema),
-});
+}).strict();
 
 export interface ScreenTree {
   navigation_type: "drawer" | "tabs";
@@ -183,13 +186,13 @@ export const VideoSchema = z.object({
   stream_url: z.string(),
   stream_type: z.enum(["hls", "dash", "mp4"]),
   tags: z.array(z.string()),
-});
+}).strict();
 
 export const CategorySchema = z.object({
   id: z.string(),
   name: z.string(),
   items: z.array(z.string()),
-});
+}).strict();
 
 export const ContentManifestSchema = z.object({
   title: z.string(),
@@ -197,7 +200,7 @@ export const ContentManifestSchema = z.object({
   categories: z.array(CategorySchema),
   videos: z.array(VideoSchema),
   featured: z.array(z.string()),
-});
+}).strict();
 
 export type ContentManifest = z.infer<typeof ContentManifestSchema>;
 
@@ -211,7 +214,7 @@ export const BrandKitSchema = z.object({
   font_family: z.string(),
   logo_path: z.string(),
   splash_path: z.string(),
-});
+}).strict();
 
 export type BrandKit = z.infer<typeof BrandKitSchema>;
 
@@ -240,7 +243,7 @@ export const DesignTokensSchema = z.object({
   navigation_style: z.enum(["drawer", "tabs", "hidden"]).default("drawer"),
   focus_style: z.enum(["border", "glow", "scale", "border+scale"]).default("border+scale"),
   animation_speed: z.enum(["none", "subtle", "normal", "energetic"]).default("normal"),
-});
+}).strict();
 
 export type DesignTokens = z.infer<typeof DesignTokensSchema>;
 export type ScreenTemplate = z.infer<typeof ScreenTemplateSchema>;
@@ -265,7 +268,7 @@ export const RunConfigSchema = z.object({
   eas_profile: z.string().default("preview"),
   visual_qa_max_iterations: z.number().default(3),
   visual_qa_pass_threshold: z.enum(["strict", "normal"]).default("normal"),
-});
+}).strict();
 
 export type RunConfig = z.infer<typeof RunConfigSchema>;
 
