@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { HarnessConfig } from "./harness-config.js";
 
 // ─── Phase Machine ───────────────────────────────────────────────────────────
 
@@ -314,4 +315,18 @@ export interface SkillMeta {
   name: string;
   applies_to: string[];
   filePath: string;
+}
+
+// ─── Harness Input (shared by both orchestrators) ────────────────────────────
+
+export interface HarnessInput {
+  prompt: string;
+  content: ContentManifest;
+  brand: BrandKit;
+  config: RunConfig;
+  design: DesignTokens;
+  screenTree?: ScreenTree;
+  workdir: string;
+  skillsDir: string;
+  harness?: HarnessConfig;
 }

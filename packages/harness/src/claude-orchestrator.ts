@@ -11,12 +11,12 @@ import type {
   PhaseResult,
   RunConfig,
   SessionState,
+  HarnessInput,
 } from "./types.js";
 import { AppSpecSchema, ScreenTreeSchema } from "./types.js";
 import type { ScreenTree } from "./types.js";
 import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
-import { generateScreenshotReport } from "./screenshot-report.js";
 import { PromptLoader } from "./prompt-loader.js";
 import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
@@ -25,18 +25,7 @@ import { runVerifyChecks } from "./verification.js";
 import { saveCheckpoint, loadCheckpoint } from "./checkpoint.js";
 import { invokeClaude, ClaudeCliError } from "./claude-cli.js";
 import { runVisualQALoop } from "./visual-qa.js";
-
-interface HarnessInput {
-  prompt: string;
-  content: ContentManifest;
-  brand: BrandKit;
-  config: RunConfig;
-  design: DesignTokens;
-  screenTree?: ScreenTree;
-  workdir: string;
-  skillsDir: string;
-  harness?: HarnessConfig;
-}
+import { writeRunReport } from "./run-report.js";
 
 export interface RunOptions {
   generateOnly?: boolean;
@@ -67,6 +56,7 @@ export class ClaudeOrchestrator {
   private harness: HarnessConfig;
   private lastPhaseCost: number = 0;
   private totalCost: number = 0;
+  private phaseCosts: Map<string, number> = new Map();
   private prompts: PromptLoader;
   private resumedPhases: Set<string> = new Set();
   // Resolved by the engine at run start; checkpoints are built from this.
@@ -177,6 +167,7 @@ export class ClaudeOrchestrator {
           this.log.phaseEnd(spec.name, this.state.totalIterations, result.status);
           const phaseCost = this.lastPhaseCost;
           this.lastPhaseCost = 0;
+          if (phaseCost) this.phaseCosts.set(spec.name, (this.phaseCosts.get(spec.name) ?? 0) + phaseCost);
           this.events.onPhaseEnd?.(spec.name, result, phaseCost);
 
           const label = result.status === "failed" ? "FAILED" : result.status === "degraded" ? "DEGRADED" : result.status;
@@ -679,74 +670,20 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
   }
 
   private writeReport(): void {
-    const lines: string[] = [
-      `# Run Report`,
-      ``,
-      `**Run ID:** ${this.state.runId}`,
-      `**Date:** ${new Date().toISOString()}`,
-      `**App:** ${this.state.spec?.app_name ?? "Unknown"}`,
-      `**Platforms:** ${this.state.config.platforms.join(", ")}`,
-      `**Mode:** claude-run (CLI subprocess)`,
-      `**Template:** ${this.harness.template.repo}`,
-      ``,
-      `## Token Usage`,
-      ``,
-      `| Metric | Value |`,
-      `|--------|-------|`,
-      `| Total tokens | ${this.state.tokensUsed.toLocaleString()} |`,
-      `| Budget | ${this.state.tokenBudget.toLocaleString()} |`,
-      `| Utilization | ${Math.round((this.state.tokensUsed / this.state.tokenBudget) * 100)}% |`,
-      `| Total cost | $${this.totalCost.toFixed(4)} |`,
-      ``,
-      `## Phases`,
-      ``,
-      `| Phase | Status | Iterations |`,
-      `|-------|--------|------------|`,
-    ];
-
-    for (const [phase, result] of this.state.phaseResults) {
-      const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
-      lines.push(`| ${icon} ${phase} | ${result.status} | ${result.iterations} |`);
-      if (result.error) {
-        lines.push(`| | Error: ${result.error.slice(0, 100)} | |`);
-      }
-    }
-
-    const succeeded = [...this.state.phaseResults.values()].filter(r => r.status === "success").length;
-    const total = this.state.phaseResults.size;
-    lines.push("");
-    lines.push(`**Result:** ${succeeded}/${total} phases succeeded`);
-
-    lines.push("");
-    lines.push("## AppSpec Summary");
-    lines.push("");
-    if (this.state.spec) {
-      lines.push(`- **Navigation:** ${this.state.spec.navigation.type}`);
-      lines.push(`- **Screens:** ${this.state.spec.screens.map(s => s.id).join(", ")}`);
-      lines.push(`- **Theme mode:** ${this.state.spec.theme.mode}`);
-      lines.push(`- **Brand:** ${this.input.brand.name} (${this.input.brand.primary_color} / ${this.input.brand.accent_color})`);
-    } else {
-      lines.push("*Plan phase failed — no AppSpec generated.*");
-    }
-
-    lines.push("");
-    lines.push("## Artifacts");
-    lines.push("");
-    lines.push("- `spec.json` — Planner output");
-    lines.push("- `run.log` — NDJSON audit trail");
-    lines.push("- `app/` — Generated application source");
-
-    const screenshotReportPath = generateScreenshotReport(
-      this.state.workdir,
-      this.state.spec?.app_name ?? "TV App"
-    );
-    if (screenshotReportPath) {
-      lines.push("- `screenshots.html` — Visual comparison report");
-    }
-
-    lines.push("");
-
-    writeFileSync(join(this.state.workdir, "report.md"), lines.join("\n"));
+    writeRunReport({
+      outDir: this.state.workdir,
+      runId: this.state.runId,
+      mode: "claude-run (CLI subprocess)",
+      platforms: this.state.config.platforms,
+      templateRepo: this.harness.template.repo,
+      tokensUsed: this.state.tokensUsed,
+      tokenBudget: this.state.tokenBudget,
+      totalCost: this.totalCost,
+      phaseResults: this.state.phaseResults,
+      phaseCosts: this.phaseCosts,
+      spec: this.state.spec,
+      brand: this.input.brand,
+    });
   }
 
   private async runClaude(prompt: string, cwd: string, timeoutMs?: number, model?: string): Promise<string> {
@@ -775,7 +712,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
       this.events.onTokens?.(result.tokensUsed);
     }
     if (result.costUsd) {
-      this.lastPhaseCost = result.costUsd;
+      this.lastPhaseCost += result.costUsd; // accumulates across a phase's CLI calls; zeroed in onPhaseEnd
       this.totalCost += result.costUsd;
     }
   }

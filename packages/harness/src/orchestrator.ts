@@ -14,26 +14,15 @@ import type {
   RunConfig,
   ScreenTree,
   SessionState,
+  HarnessInput,
 } from "./types.js";
 import { AppSpecSchema } from "./types.js";
 import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
-import { generateScreenshotReport } from "./screenshot-report.js";
+import { writeRunReport } from "./run-report.js";
 import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
-
-interface HarnessInput {
-  prompt: string;
-  content: ContentManifest;
-  brand: BrandKit;
-  config: RunConfig;
-  design: DesignTokens;
-  screenTree?: ScreenTree;
-  workdir: string;
-  skillsDir: string;
-  harness?: HarnessConfig;
-}
 
 export interface RunOptions {
   generateOnly?: boolean;
@@ -715,66 +704,20 @@ ${JSON.stringify(this.input.content, null, 2)}`,
   }
 
   private writeReport(): void {
-    const totalCost = [...this.phaseCosts.values()].reduce((sum, c) => sum + c, 0);
-
-    const lines: string[] = [
-      `# Run Report`,
-      ``,
-      `**Run ID:** ${this.state.runId}`,
-      `**Date:** ${new Date().toISOString()}`,
-      `**App:** ${this.state.spec?.app_name ?? "Unknown"}`,
-      `**Platforms:** ${this.state.config.platforms.join(", ")}`,
-      `**Mode:** Agent SDK`,
-      ``,
-      `## Token Usage`,
-      ``,
-      `| Metric | Value |`,
-      `|--------|-------|`,
-      `| Total tokens | ${this.state.tokensUsed.toLocaleString()} |`,
-      `| Budget | ${this.state.tokenBudget.toLocaleString()} |`,
-      `| Utilization | ${Math.round((this.state.tokensUsed / this.state.tokenBudget) * 100)}% |`,
-      `| Total cost | $${totalCost.toFixed(4)} |`,
-      ``,
-      `## Phase Costs`,
-      ``,
-      `| Phase | Status | Cost |`,
-      `|-------|--------|------|`,
-    ];
-
-    for (const [phase, result] of this.state.phaseResults) {
-      const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
-      const cost = this.phaseCosts.get(phase);
-      lines.push(`| ${icon} ${phase} | ${result.status} | ${cost ? `$${cost.toFixed(4)}` : "—"} |`);
-    }
-
-    lines.push("");
-    lines.push("## AppSpec Summary");
-    lines.push("");
-    if (this.state.spec) {
-      lines.push(`- **Navigation:** ${this.state.spec.navigation.type}`);
-      lines.push(`- **Screens:** ${this.state.spec.screens.map(s => s.id).join(", ")}`);
-      lines.push(`- **Theme mode:** ${this.state.spec.theme.mode}`);
-    } else {
-      lines.push("*Plan phase failed — no AppSpec generated.*");
-    }
-
-    lines.push("");
-    lines.push("## Artifacts");
-    lines.push("");
-    lines.push("- `spec.json` — Planner output");
-    lines.push("- `run.log` — NDJSON audit trail");
-    lines.push("- `app/` — Generated application source");
-
-    const screenshotReportPath = generateScreenshotReport(
-      this.state.workdir,
-      this.state.spec?.app_name ?? "TV App"
-    );
-    if (screenshotReportPath) {
-      lines.push("- `screenshots.html` — Visual comparison report");
-    }
-
-    lines.push("");
-    writeFileSync(join(this.state.workdir, "report.md"), lines.join("\n"));
+    writeRunReport({
+      outDir: this.state.workdir,
+      runId: this.state.runId,
+      mode: "Agent SDK (Messages API)",
+      platforms: this.state.config.platforms,
+      templateRepo: this.harness.template.repo,
+      tokensUsed: this.state.tokensUsed,
+      tokenBudget: this.state.tokenBudget,
+      totalCost: [...this.phaseCosts.values()].reduce((sum, c) => sum + c, 0),
+      phaseResults: this.state.phaseResults,
+      phaseCosts: this.phaseCosts,
+      spec: this.state.spec,
+      brand: this.input.brand,
+    });
   }
 
   getState(): SessionState {
