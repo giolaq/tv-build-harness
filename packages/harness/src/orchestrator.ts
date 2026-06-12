@@ -23,6 +23,7 @@ import { writeRunReport } from "./run-report.js";
 import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
+import { buildDesignContext } from "./phase-prompts.js";
 
 export interface RunOptions {
   generateOnly?: boolean;
@@ -276,34 +277,6 @@ ${routesList}
 IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/shared-ui/src/screens/ to check. Do NOT import non-existent screens. After edits, run: npx tsc --noEmit to confirm it compiles.`;
   }
 
-  private buildDesignContext(): string {
-    const d = this.input.design;
-    const templateDescriptions: Record<string, string> = {
-      "netflix-style": "Large hero banner at top, horizontal content rails below. Immersive, content-forward. Hero auto-advances through featured items.",
-      "grid-first": "No hero banner. Full-screen grid of tiles. Content density is the priority. Good for large catalogs.",
-      "spotlight": "Single focused item takes 60% of screen. Minimal surrounding UI. One item at a time, cinematic feel.",
-      "minimal": "Clean, lots of whitespace. Small tiles, subtle animations. Typography-driven hierarchy.",
-      "classic": "Standard TV app layout. Left-side navigation, content area on right. Familiar and predictable.",
-    };
-
-    return [
-      `Template baseline: "${d.template}" — ${templateDescriptions[d.template] ?? "standard layout"}`,
-      ``,
-      `Layout tokens:`,
-      `- Hero: ${d.show_hero ? `visible, ${d.hero_height}px tall` : "hidden (no hero banner)"}`,
-      `- Tiles: ${d.tile_size} size, ${d.tile_ratio} aspect ratio, ${d.corner_radius}px corner radius`,
-      `- Spacing: ${d.spacing} (${d.spacing === "compact" ? "8-12px gaps" : d.spacing === "relaxed" ? "24-32px gaps" : "16-20px gaps"})`,
-      `- Rails per screen: ${d.rails_per_screen}`,
-      `- Font scale: ${d.font_scale}x (${d.font_scale > 1.1 ? "larger than default" : d.font_scale < 0.9 ? "smaller than default" : "standard"})`,
-      `- Show descriptions on tiles: ${d.show_descriptions}`,
-      `- Show duration badges: ${d.show_duration}`,
-      ``,
-      `Interaction:`,
-      `- Navigation style: ${d.navigation_style}`,
-      `- Focus style: ${d.focus_style}`,
-      `- Animation speed: ${d.animation_speed}`,
-    ].join("\n");
-  }
 
   private summarizeMessage(message: unknown): Record<string, unknown> {
     const msg = message as Record<string, unknown>;
@@ -371,7 +344,7 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
   private async executePlanPhase(): Promise<PhaseResult> {
     const systemPrompt = `You are a TV app planner. Given a user brief, content manifest, brand kit, and design tokens, produce an AppSpec JSON object. Output ONLY valid JSON matching the AppSpec schema. Do not include markdown fencing or explanation.`;
 
-    const designContext = this.buildDesignContext();
+    const designContext = buildDesignContext(this.input.design);
 
     const userMessage = `Brief: ${this.input.prompt}\n\nContent manifest: ${JSON.stringify(this.input.content)}\n\nBrand kit: ${JSON.stringify(this.input.brand)}\n\nDesign tokens:\n${designContext}\n\nProduce an AppSpec JSON object matching this schema:
 - app_name: string
@@ -667,7 +640,7 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
       JSON.stringify(this.state.spec, null, 2),
       "",
       "## Design System",
-      this.buildDesignContext(),
+      buildDesignContext(this.input.design),
       "",
       "## Skills (domain knowledge)",
       metaSkill,

@@ -26,6 +26,8 @@ import { saveCheckpoint, loadCheckpoint } from "./checkpoint.js";
 import { invokeClaude, ClaudeCliError } from "./claude-cli.js";
 import { runVisualQALoop } from "./visual-qa.js";
 import { writeRunReport } from "./run-report.js";
+import { buildPhaseInstructions, buildPlanPrompt, buildDesignContext } from "./phase-prompts.js";
+import type { PhasePromptContext } from "./phase-prompts.js";
 
 export interface RunOptions {
   generateOnly?: boolean;
@@ -311,247 +313,21 @@ export class ClaudeOrchestrator {
   }
 
   private getPhaseInstructions(phaseSpec: PhaseSpec): string | null {
-    const appDir = join(this.state.workdir, "app");
-    const spec = this.state.spec;
-    const phase = phaseSpec.prompt ?? phaseSpec.name;
+    return buildPhaseInstructions(phaseSpec, this.promptContext());
+  }
 
-    switch (phase) {
-      case "scaffold":
-        return this.prompts.load("scaffold", {
-          appDir,
-          appName: spec?.app_name ?? this.input.content.title,
-          templateRepo: this.harness.template.repo,
-          templateBranch: this.harness.template.branch ? ` --branch ${this.harness.template.branch}` : "",
-        });
-
-      case "branding": {
-        const appName = spec?.app_name ?? this.input.content.title;
-        const slug = appName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        const bundleId = "com.tvharness." + appName.toLowerCase().replace(/[^a-z0-9]/g, "");
-        return this.prompts.load("branding", {
-          appDir,
-          appName,
-          slug,
-          bundleId,
-          primaryColor: this.input.brand.primary_color,
-          accentColor: this.input.brand.accent_color,
-          backgroundColor: this.input.brand.background_color,
-          fontFamily: this.input.brand.font_family || "System (no change needed)",
-        });
-      }
-
-      case "content":
-        return this.prompts.load("content", {
-          appDir,
-          contentManifest: JSON.stringify(this.input.content, null, 2),
-          featuredIds: JSON.stringify(this.input.content.featured),
-          categoryNames: JSON.stringify(this.input.content.categories.map(c => c.name)),
-          videoCount: String(this.input.content.videos.length),
-          contentTitle: this.input.content.title,
-        });
-
-      case "screens": {
-        if (!spec) return "No AppSpec available. Skip this phase.";
-        const screensList = spec.screens.map(s =>
-          `- ${s.id}: layout="${s.layout}", route="${s.route}"${s.uses_template_screen ? `, reuses="${s.uses_template_screen}"` : ""}`
-        ).join("\n");
-        const navType = spec.navigation.type;
-        const isDrawer = navType === "drawer";
-        return this.prompts.load("screens", {
-          appDir,
-          screensList,
-          hasDrawer: isDrawer ? "true" : "",
-          noDrawer: isDrawer ? "" : "true",
-        });
-      }
-
-      case "navigation": {
-        if (!spec) return "No AppSpec available. Skip this phase.";
-        const navType = spec.navigation.type;
-        const navStyle = this.input.design.navigation_style;
-        const resolvedType = navStyle === "hidden" ? "hidden" : navType;
-
-        const routesList = spec.navigation.routes.map(r =>
-          `- id="${r.id}", label="${r.label}"${r.icon ? `, icon="${r.icon}"` : ""}`
-        ).join("\n");
-
-        const typeInstructions: Record<string, string> = {
-          drawer: `
-The template already uses a drawer navigator. Keep it. Update the drawer items to match these routes.
-Edit the DrawerNavigator file to:
-- Map each route to its screen component
-- Set the correct labels and icons
-- Remove any routes not in the list above
-- KEEP any existing focus trapping logic (SpatialNavigationNode with captureFocus) in the drawer content`,
-
-          tabs: `
-The template uses a drawer navigator — you MUST REPLACE it with a top tab bar.
-
-IMPORTANT: Do NOT install @react-navigation/bottom-tabs or @react-navigation/material-top-tabs. These packages have version conflicts with the template's @react-navigation/native and WILL crash with "createScreenFactory is not a function".
-
-Instead, implement tabs using the EXISTING drawer navigator infrastructure with a CUSTOM top tab bar:
-
-Steps:
-1. Keep the drawer navigator but set drawerType: 'permanent' and drawerStyle: { width: 0, height: 0 } (invisible drawer)
-   OR replace the drawer with a simple Stack navigator that renders a custom top tab bar + screen content
-2. Create a custom TopTabBar component at packages/shared-ui/src/components/TopTabBar.tsx:
-   - Renders a horizontal row of tab items at the top of the screen
-   - Each tab is a SpatialNavigationFocusableView (for D-pad navigation)
-   - Active tab is highlighted with accent color
-   - Use SpatialNavigationNode with orientation="horizontal" to wrap the tab row
-   - Tab labels must be scaledPixels(22) minimum for TV readability
-3. The TopTabBar receives the current route and an onTabPress callback
-4. Wrap screens in a View with the TopTabBar at top and screen content below:
-   <View style={{flex:1}}>
-     <TopTabBar routes={routes} activeRoute={currentRoute} onTabPress={navigate} />
-     <View style={{flex:1}}>{/* screen content */}</View>
-   </View>
-5. Remove the drawer-related imports, CustomDrawerContent component, and MenuContext/MenuProvider (not needed for tabs)
-6. Remove any menu toggle buttons or hamburger icons
-7. Since there is no drawer, screens do NOT need isMenuOpen — just use isActive={isFocused} with useIsFocused()`,
-
-          hidden: `
-The template uses a drawer navigator — you MUST REMOVE visible navigation chrome.
-
-Steps for hidden navigation:
-1. Find the DrawerNavigator file
-2. Replace it with a simple Stack navigator (no visible tabs or drawer)
-3. The user navigates between screens via content interaction only (tapping tiles navigates to detail/player)
-4. Keep a root stack with all screens registered, but no visible navigation bar
-5. Remove drawer toggle buttons, hamburger icons, and the CustomDrawerContent component
-6. The home screen is the entry point — other screens are reached by selecting content items`,
-        };
-
-        const instructions = typeInstructions[resolvedType] ?? typeInstructions["drawer"];
-
-        return this.prompts.load("navigation", {
-          appDir,
-          resolvedType,
-          routesList,
-          typeInstructions: instructions,
-        });
-      }
-
-      case "verify": {
-        const isDrawerNav = spec?.navigation.type === "drawer";
-        return this.prompts.load("verify", {
-          appDir,
-          hasDrawer: isDrawerNav ? "true" : "",
-          noDrawer: isDrawerNav ? "" : "true",
-        });
-      }
-
-      case "build_loop": {
-        const platforms = this.input.config.platforms;
-        const wantsAndroid = platforms.includes("androidtv") || platforms.includes("firetv-fos");
-        const wantsIos = platforms.includes("appletv");
-        return this.prompts.load("build_loop", {
-          appDir,
-          platforms: platforms.join(", "),
-          wantsAndroid: wantsAndroid ? "true" : "",
-          wantsIos: wantsIos ? "true" : "",
-          iosStepNumber: wantsAndroid ? "4" : "3",
-        });
-      }
-
-      case "vega_build_loop":
-        return this.prompts.load("vega_build_loop", {
-          appDir,
-        });
-
-      case "visual_correctness": {
-        const brand = this.input.brand;
-        const design = this.input.design;
-        const screenshotDir = `${this.state.workdir}/screenshots`;
-        const routes = spec?.navigation.routes ?? [];
-        const routeCount = routes.length;
-        return this.prompts.load("visual_correctness", {
-          appDir,
-          outDir: this.state.workdir,
-          screenshotDir,
-          primaryColor: brand.primary_color,
-          accentColor: brand.accent_color,
-          backgroundColor: brand.background_color,
-          navigationStyle: design.navigation_style,
-          template: design.template,
-          heroExpected: design.show_hero ? "EXPECTED" : "SHOULD BE HIDDEN",
-          tileSize: design.tile_size,
-          maxScreensToVisit: String(Math.min(routeCount, 4)),
-        });
-      }
-
-      case "visual_smoke_test": {
-        const routes = spec?.navigation.routes ?? [];
-        const routeNames = routes.map(r => r.id).join(", ");
-        return this.prompts.load("visual_smoke_test", {
-          appDir,
-          outDir: this.state.workdir,
-          screenshotDir: `${this.state.workdir}/screenshots`,
-          appName: spec?.app_name ?? "App",
-          routeNames,
-        });
-      }
-
-      default: {
-        // Custom config-defined phases: load their prompt file with the
-        // generic variable bag. No prompt file → no instructions.
-        try {
-          return this.prompts.load(phase, {
-            appDir,
-            outDir: this.state.workdir,
-            appName: spec?.app_name ?? this.input.content.title,
-            primaryColor: this.input.brand.primary_color,
-            accentColor: this.input.brand.accent_color,
-            backgroundColor: this.input.brand.background_color,
-            contentTitle: this.input.content.title,
-            platforms: this.input.config.platforms.join(", "),
-            templateRepo: this.harness.template.repo,
-          });
-        } catch {
-          return null;
-        }
-      }
-    }
+  private promptContext(): PhasePromptContext {
+    return {
+      outDir: this.state.workdir,
+      input: this.input,
+      spec: this.state.spec,
+      harness: this.harness,
+      prompts: this.prompts,
+    };
   }
 
   private async executePlanPhase(): Promise<PhaseResult> {
-    const navStyle = this.input.design.navigation_style;
-    const navTypeConstraint = navStyle === "hidden" ? "single" : navStyle === "tabs" ? "tabs" : "drawer";
-
-    let screenTreeSection = "";
-    if (this.input.screenTree) {
-      const st = this.input.screenTree;
-      const screenLines = st.screens.map(s =>
-        `  - ${s.name} (layout: ${s.layout}${s.data_source ? `, data: ${s.data_source}` : ""}${s.icon ? `, icon: ${s.icon}` : ""}${s.children?.length ? `, children: [${s.children.map(c => `${c.name}(${c.layout})`).join(", ")}]` : ""})`
-      ).join("\n");
-      const allScreenNames = [st.home, ...st.screens].map(s => s.name).join(", ");
-
-      screenTreeSection = `
-SCREEN TREE (developer-specified — you MUST follow this exactly):
-Navigation type: ${st.navigation_type}
-Home screen: ${st.home.name} (layout: ${st.home.layout})
-Sibling screens (${st.navigation_type === "drawer" ? "drawer items" : "tab items"}):
-${screenLines}
-
-The navigation.routes MUST include exactly these screens: [${allScreenNames}]
-The screens array MUST include all screens from the tree plus any child screens.
-Each screen's layout MUST match what is specified above. Do NOT change layouts.`;
-    }
-
-    const planPrompt = this.prompts.load("plan", {
-      navTypeConstraint,
-      screenTreeSection,
-      brief: this.input.prompt,
-      contentSummary: `${this.input.content.categories.length} categories, ${this.input.content.videos.length} videos, ${this.input.content.featured.length} featured`,
-      brandName: this.input.brand.name,
-      primaryColor: this.input.brand.primary_color,
-      accentColor: this.input.brand.accent_color,
-      backgroundColor: this.input.brand.background_color,
-      template: this.input.design.template,
-      navStyle,
-      heroVisibility: this.input.design.show_hero ? "visible" : "hidden",
-      tileSize: this.input.design.tile_size,
-    });
+    const planPrompt = buildPlanPrompt(this.promptContext());
 
     // Log plan prompt
     writeFileSync(
@@ -617,7 +393,7 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
       JSON.stringify(this.state.spec, null, 2),
       "",
       "## Design System",
-      this.buildDesignContext(),
+      buildDesignContext(this.input.design),
       "",
       "## Skills (domain knowledge for this phase)",
       meta,
@@ -627,25 +403,6 @@ Each screen's layout MUST match what is specified above. Do NOT change layouts.`
     return parts.join("\n");
   }
 
-  private buildDesignContext(): string {
-    const d = this.input.design;
-    const templateDescriptions: Record<string, string> = {
-      "netflix-style": "Large hero banner at top, horizontal content rails below. Immersive, content-forward.",
-      "grid-first": "No hero banner. Full-screen grid of tiles. Content density is the priority.",
-      "spotlight": "Single focused item takes 60% of screen. Minimal surrounding UI. Cinematic feel.",
-      "minimal": "Clean, lots of whitespace. Small tiles, subtle animations. Typography-driven.",
-      "classic": "Standard TV app layout. Left-side navigation, content area on right.",
-    };
-
-    return [
-      `Template: "${d.template}" — ${templateDescriptions[d.template] ?? "standard layout"}`,
-      `Hero: ${d.show_hero ? `visible, ${d.hero_height}px` : "hidden"}`,
-      `Tiles: ${d.tile_size}, ${d.tile_ratio}, ${d.corner_radius}px radius`,
-      `Spacing: ${d.spacing} | Rails: ${d.rails_per_screen} | Font scale: ${d.font_scale}x`,
-      `Navigation: ${d.navigation_style} | Focus: ${d.focus_style} | Animation: ${d.animation_speed}`,
-      `Show descriptions: ${d.show_descriptions} | Show duration: ${d.show_duration}`,
-    ].join("\n");
-  }
 
   private commitAfterPhase(phase: Phase): void {
     const appDir = join(this.state.workdir, "app");
