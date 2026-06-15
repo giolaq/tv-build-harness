@@ -95,6 +95,9 @@ async function main() {
     case "visual-qa":
       await runVisualQA();
       break;
+    case "serve":
+      await startServe();
+      break;
     case "install-skills":
       await installSkills();
       break;
@@ -616,6 +619,16 @@ async function testUI() {
   const appDir = findAppDir();
   const { runUITests } = await import("./ui-test-runner.js");
   await runUITests(appDir, { keepOpen: !process.argv.includes("--close") });
+}
+
+async function startServe() {
+  const portFlag = args.find((a) => a.startsWith("--port="));
+  const port = portFlag ? parseInt(portFlag.split("=")[1]) : 3001;
+  const skillsDir = resolveSkillsDir();
+  const examplesDir = existsSync(resolve("examples")) ? resolve("examples") : resolve("..", "..", "examples");
+
+  const { startServer } = await import("./server.js");
+  startServer({ port, workdir: resolve("."), skillsDir, examplesDir });
 }
 
 function printUsage() {
