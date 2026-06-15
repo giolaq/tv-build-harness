@@ -138,9 +138,16 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
     internalLoop: false, abortOnFailure: false, cwd: "app", verify: [],
   },
   {
+    name: "creative_ui", kind: "agent", prompt: "creative_ui",
+    skills: ["template-anatomy", "shared-ui-catalog", "10ft-ui", "creative-tv-ui"],
+    deps: ["screens"], timeoutMs: 600_000, buildPhase: false, internalLoop: false,
+    abortOnFailure: false, cwd: "app",
+    verify: [{ type: "tsc" }],
+  },
+  {
     name: "navigation", kind: "agent", prompt: "navigation",
     skills: ["template-anatomy", "shared-ui-catalog", "spatial-navigation"],
-    deps: ["screens"], timeoutMs: 600_000, buildPhase: false, internalLoop: false,
+    deps: ["creative_ui"], timeoutMs: 600_000, buildPhase: false, internalLoop: false,
     abortOnFailure: false, cwd: "app", verify: [],
   },
   {

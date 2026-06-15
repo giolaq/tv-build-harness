@@ -70,6 +70,16 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
       });
     }
 
+    case "creative_ui":
+      return prompts.load("creative_ui", {
+        appDir,
+        appName: spec?.app_name ?? input.content.title,
+        prompt: input.prompt.slice(0, 200),
+        primaryColor: input.brand.primary_color,
+        accentColor: input.brand.accent_color,
+        backgroundColor: input.brand.background_color,
+      });
+
     case "navigation": {
       if (!spec) return "No AppSpec available. Skip this phase.";
       const navStyle = input.design.navigation_style;
