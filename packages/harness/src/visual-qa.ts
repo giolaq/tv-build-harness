@@ -280,12 +280,15 @@ function buildCapturePrompt(deps: VisualQADeps, screenshotDir: string, port: num
 
   const promptName = deps.useDevtools ? "visual_qa_capture_devtools" : "visual_qa_capture";
 
+  const routesList = routes.map(r => r.label || r.id).join(", ");
+
   return deps.prompts.load(promptName, {
     iterDir,
     workdir: deps.outDir,
     iter: String(iter),
     port: String(port),
     routeCount: String(routeCount),
+    routesList,
   });
 }
 

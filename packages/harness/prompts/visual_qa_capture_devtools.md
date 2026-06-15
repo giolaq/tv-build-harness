@@ -59,21 +59,31 @@ Now test D-pad navigation using press_key — this sends REAL keyboard events th
 1. Press ArrowDown 3 more times (with 300ms waits between each)
 2. Call `take_screenshot` with filePath "{{iterDir}}/07-home-scrolled.png"
 
-## STEP 5: Open navigation (drawer or tab)
+## STEP 5: Navigate to EVERY screen
+
+The app has these routes: {{routesList}}
+
+You MUST visit and screenshot EACH screen. Use the navigation (drawer/tabs) to reach them:
 
 1. Call `press_key` with key "ArrowLeft" (opens drawer in drawer-nav apps)
 2. Wait 800ms
 3. Call `take_screenshot` with filePath "{{iterDir}}/08-nav-open.png"
 
-If the drawer opened (you can verify with `take_snapshot` and check for menu items):
-4. Press ArrowDown to move to the second nav item
-5. Wait 500ms
-6. Call `take_screenshot` with filePath "{{iterDir}}/09-nav-item-focused.png"
-7. Press Enter to navigate to that screen
-8. Wait 1500ms
-9. Call `take_screenshot` with filePath "{{iterDir}}/10-screen-2.png"
-10. Press Backspace to go back
-11. Wait 1000ms
+Now iterate through each nav item to visit every screen:
+
+For EACH screen (up to {{routeCount}} screens):
+  a. Use `take_snapshot` to see the current nav items and their UIDs
+  b. Press ArrowDown to move to the next nav item (or click its UID directly)
+  c. Wait 500ms
+  d. Call `take_screenshot` with filePath "{{iterDir}}/09-nav-item-N-focused.png" (replace N with the item number)
+  e. Press Enter to navigate to that screen
+  f. Wait 1500ms
+  g. Call `take_screenshot` with filePath "{{iterDir}}/10-screen-N.png"
+  h. Test focus on this screen: Press Tab, then ArrowRight, wait 500ms
+  i. Call `take_screenshot` with filePath "{{iterDir}}/11-screen-N-focused.png"
+  j. Open the drawer again: Press ArrowLeft, wait 800ms
+
+After visiting all screens, press Backspace to return to home. Wait 1000ms.
 
 ## STEP 6: Detail view
 
