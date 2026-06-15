@@ -272,6 +272,7 @@ export const RunConfigSchema = z.object({
   eas_profile: z.string().default("preview"),
   visual_qa_max_iterations: z.number().default(3),
   visual_qa_pass_threshold: z.enum(["strict", "normal"]).default("normal"),
+  use_devtools: z.boolean().default(false),
 }).strict();
 
 export type RunConfig = z.infer<typeof RunConfigSchema>;

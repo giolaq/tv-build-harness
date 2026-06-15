@@ -376,7 +376,8 @@ export class ClaudeOrchestrator {
       spec: this.state.spec,
       platforms: this.input.config.platforms,
       prompts: this.prompts,
-      runClaude: (prompt: string, cwd: string, timeoutMs?: number) => this.runClaude(prompt, cwd, timeoutMs),
+      useDevtools: this.input.config.use_devtools ?? false,
+      runClaude: (prompt: string, cwd: string, timeoutMs?: number, allowedTools?: string) => this.runClaude(prompt, cwd, timeoutMs, undefined, allowedTools),
       onLog: (msg: string) => this.events.onLog?.(msg),
       onIteration: (current: number, max: number) => this.events.onIteration?.("visual_qa_loop", current, max),
     });
@@ -443,7 +444,7 @@ export class ClaudeOrchestrator {
     });
   }
 
-  private async runClaude(prompt: string, cwd: string, timeoutMs?: number, model?: string): Promise<string> {
+  private async runClaude(prompt: string, cwd: string, timeoutMs?: number, model?: string, allowedTools?: string): Promise<string> {
     const phase = this.state.currentPhase;
     try {
       const result = await invokeClaude({
@@ -451,6 +452,7 @@ export class ClaudeOrchestrator {
         cwd,
         timeoutMs,
         model,
+        allowedTools,
         onEvent: (event) => this.handleStreamEvent(phase, event),
       });
       this.bookUsage(result);

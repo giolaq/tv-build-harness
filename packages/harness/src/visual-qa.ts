@@ -37,8 +37,10 @@ export interface VisualQADeps {
   spec: AppSpec | null;
   platforms: string[];
   prompts: PromptLoader;
+  /** Use chrome-devtools MCP for capture instead of Puppeteer script. */
+  useDevtools?: boolean;
   /** Agent invocation — supplied by the orchestrator so usage accounting stays there. */
-  runClaude: (prompt: string, cwd: string, timeoutMs?: number) => Promise<string>;
+  runClaude: (prompt: string, cwd: string, timeoutMs?: number, allowedTools?: string) => Promise<string>;
   onLog?: (message: string) => void;
   onIteration?: (current: number, max: number) => void;
 }
@@ -75,9 +77,10 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
       writeFileSync(join(outDir, `visual-qa-capture-${iter}.md`), capturePrompt);
 
       try {
-        // Headroom for the script's bounded worst case (multiple gotoHome
-        // render-waits) plus agent overhead.
-        await runClaude(capturePrompt, appDir, 480_000);
+        const captureTools = deps.useDevtools
+          ? "Bash,Read,Write,Edit,mcp__chrome-devtools__navigate_page,mcp__chrome-devtools__take_screenshot,mcp__chrome-devtools__press_key,mcp__chrome-devtools__evaluate_script,mcp__chrome-devtools__emulate,mcp__chrome-devtools__take_snapshot,mcp__chrome-devtools__click"
+          : undefined;
+        await runClaude(capturePrompt, appDir, 480_000, captureTools);
       } catch (err) {
         deps.onLog?.(`Capture failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
         continue;
@@ -275,7 +278,9 @@ function buildCapturePrompt(deps: VisualQADeps, screenshotDir: string, port: num
   const routeCount = Math.min(routes.length, 4);
   const iterDir = join(screenshotDir, `iter-${iter}`);
 
-  return deps.prompts.load("visual_qa_capture", {
+  const promptName = deps.useDevtools ? "visual_qa_capture_devtools" : "visual_qa_capture";
+
+  return deps.prompts.load(promptName, {
     iterDir,
     workdir: deps.outDir,
     iter: String(iter),
