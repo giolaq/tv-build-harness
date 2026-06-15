@@ -294,6 +294,8 @@ function buildCapturePrompt(deps: VisualQADeps, screenshotDir: string, port: num
 
 function buildAnalysisPrompt(deps: VisualQADeps, screenshotDir: string, iter: number): string {
   const iterDir = join(screenshotDir, `iter-${iter}`);
+  const routes = deps.spec?.navigation.routes ?? [];
+  const routesList = routes.map(r => r.label || r.id).join(", ");
 
   return deps.prompts.load("visual_qa_analysis", {
     iterDir,
@@ -302,6 +304,7 @@ function buildAnalysisPrompt(deps: VisualQADeps, screenshotDir: string, iter: nu
     backgroundColor: deps.brand.background_color,
     template: deps.design.template,
     focusStyle: deps.design.focus_style,
+    routesList,
     verdictExtra: deps.threshold === "strict" ? " AND majorDefects is empty" : "",
   });
 }

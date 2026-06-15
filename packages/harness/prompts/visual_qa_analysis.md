@@ -49,7 +49,17 @@ For each screenshot, check ALL of the following:
 - Navigation UI properly themed (not default/unstyled)
 - Active/focused nav item clearly distinguishable
 
-### 8. Responsive (MINOR)
+### 8. Screen Identity (CRITICAL)
+The app has these screens: {{routesList}}
+For EACH screenshot labeled "screen-N" or with a screen name in its filename:
+- Verify the screenshot actually shows DIFFERENT content from the home screen
+- If a "screen-2" screenshot looks IDENTICAL to the home screen, this means navigation failed — the app did not actually switch screens
+- If multiple screen screenshots all show the same content, report it as a CRITICAL defect: "Navigation broken — selecting screen X does not navigate away from home"
+- Each screen should have distinct content, headings, or layout that identifies it
+
+This is a REAL bug (not a test limitation): it means the navigation routing is broken, the drawer items aren't wired to their screens, or focus is not reaching the nav items.
+
+### 9. Responsive (MINOR)
 - 720p screenshots should maintain readability and layout integrity
 - No elements collapsing or overlapping at smaller viewport
 
@@ -78,6 +88,7 @@ You MUST output valid JSON (no markdown fencing, no explanation before or after)
     "alignment": <0-10>,
     "scrollAccess": <0-10>,
     "navigation": <0-10>,
+    "screenIdentity": <0-10>,
     "responsive": <0-10>
   },
   "summary": "<one-line overall assessment>"
