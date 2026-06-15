@@ -2,5 +2,6 @@
   "platforms": ["androidtv", "appletv", "web"],
   "max_iterations": 90,
   "max_retries_per_phase": 5,
-  "build_locally": true
+  "build_locally": true,
+  "use_devtools": true
 }
