@@ -65,7 +65,7 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
     return { phase: "visual_qa_loop", status: "failed", iterations: 0, error: `Web server failed: ${msg}` };
   }
 
-  const devtoolsActive = deps.useDevtools && process.env.HARNESS_DEVTOOLS_ACTIVE === "1";
+  const devtoolsActive = !!deps.useDevtools;
 
   try {
     let lastVerdict: QAVerdict | null = null;
@@ -280,8 +280,7 @@ function buildCapturePrompt(deps: VisualQADeps, screenshotDir: string, port: num
   const routeCount = Math.min(routes.length, 4);
   const iterDir = join(screenshotDir, `iter-${iter}`);
 
-  const useDevtoolsPrompt = deps.useDevtools && process.env.HARNESS_DEVTOOLS_ACTIVE === "1";
-  const promptName = useDevtoolsPrompt ? "visual_qa_capture_devtools" : "visual_qa_capture";
+  const promptName = deps.useDevtools ? "visual_qa_capture_devtools" : "visual_qa_capture";
 
   const routesList = routes.map(r => r.label || r.id).join(", ");
 

@@ -1,12 +1,12 @@
-You are a mobile QA engineer AND developer. You test a TV app on an Android TV emulator using agent-device, and if you find issues, you FIX them in the source code, rebuild, and retest. Iterate until the app passes or you've tried 3 times.
+You are a mobile QA engineer AND developer. You test a TV app on an Android TV emulator using npx agent-device, and if you find issues, you FIX them in the source code, rebuild, and retest. Iterate until the app passes or you've tried 3 times.
 
 ## Prerequisites Check
 
 Run these checks first. If any fail, report the failure and skip the rest:
 
-1. Check agent-device is installed:
-Run: agent-device --version
-If "command not found": report "agent-device not installed. Run: npm install -g agent-device" and STOP.
+1. Check npx agent-device is installed:
+Run: npx agent-device --version
+If "command not found": report "npx agent-device not installed. Run: npm install -g npx agent-device" and STOP.
 
 2. Check Android SDK:
 Run: echo $ANDROID_HOME
@@ -57,7 +57,7 @@ Run: adb uninstall {{bundleId}} && adb install -r <apk-path>
 
 ### C. Open the App
 
-Run: agent-device open {{bundleId}} --platform android
+Run: npx agent-device open {{bundleId}} --platform android
 Run: sleep 5
 
 ### D. Test the App
@@ -65,66 +65,66 @@ Run: sleep 5
 Perform ALL of the following checks. Track which ones PASS and which FAIL:
 
 **Check 1: Home Screen Loads**
-Run: agent-device snapshot -i
+Run: npx agent-device snapshot -i
 PASS if: output contains 3+ interactive elements (refs like @e1, @e2, @e3)
 FAIL if: empty output, crash, or only 1-2 elements
-Run: agent-device screenshot {{screenshotDir}}/android-iter<ITER>-01-home.png
+Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-01-home.png
 
 **Check 2: D-Pad Focus Moves Right**
-Run: agent-device key dpad_right
+Run: npx agent-device key dpad_right
 Run: sleep 1
-Run: agent-device snapshot -i
+Run: npx agent-device snapshot -i
 PASS if: the focused element changed from the previous snapshot
 FAIL if: same element still focused
-Run: agent-device screenshot {{screenshotDir}}/android-iter<ITER>-02-right.png
+Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-02-right.png
 
 **Check 3: D-Pad Focus Moves Down**
-Run: agent-device key dpad_down
+Run: npx agent-device key dpad_down
 Run: sleep 1
-Run: agent-device snapshot -i
+Run: npx agent-device snapshot -i
 PASS if: focused element is in a different row/section
 FAIL if: focus didn't move
-Run: agent-device screenshot {{screenshotDir}}/android-iter<ITER>-03-down.png
+Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-03-down.png
 
 **Check 4: Drawer/Nav Opens**
-Run: agent-device key dpad_left
-Run: agent-device key dpad_left
-Run: agent-device key dpad_left
+Run: npx agent-device key dpad_left
+Run: npx agent-device key dpad_left
+Run: npx agent-device key dpad_left
 Run: sleep 1
-Run: agent-device snapshot -i
+Run: npx agent-device snapshot -i
 PASS if: drawer/nav items visible (menu items, route labels)
 FAIL if: no navigation UI appeared
-Run: agent-device screenshot {{screenshotDir}}/android-iter<ITER>-04-nav.png
+Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-04-nav.png
 
 **Check 5: Screen Navigation Works**
 The app has these routes: {{routesList}}
 Navigate to the SECOND screen:
-Run: agent-device key dpad_down
-Run: agent-device key dpad_center
+Run: npx agent-device key dpad_down
+Run: npx agent-device key dpad_center
 Run: sleep 2
-Run: agent-device snapshot -i
+Run: npx agent-device snapshot -i
 PASS if: elements are DIFFERENT from the home screen snapshot
 FAIL if: same elements as home (navigation broken)
-Run: agent-device screenshot {{screenshotDir}}/android-iter<ITER>-05-screen2.png
-Run: agent-device key back
+Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-05-screen2.png
+Run: npx agent-device key back
 Run: sleep 1
 
 **Check 6: Detail View Opens**
 Go home first:
-Run: agent-device key back
+Run: npx agent-device key back
 Run: sleep 1
 Select the first card:
-Run: agent-device key dpad_center
+Run: npx agent-device key dpad_center
 Run: sleep 2
-Run: agent-device snapshot -i
+Run: npx agent-device snapshot -i
 PASS if: content differs from home (detail/player view loaded)
 FAIL if: still on home screen
-Run: agent-device screenshot {{screenshotDir}}/android-iter<ITER>-06-detail.png
-Run: agent-device key back
+Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-06-detail.png
+Run: npx agent-device key back
 
 ### E. Close Session
 
-Run: agent-device close
+Run: npx agent-device close
 
 ### F. Evaluate Results
 
@@ -174,7 +174,7 @@ After the loop ends (pass or 3 iterations exhausted), output:
 ## CONSTRAINTS
 
 - Maximum 3 iterations (build + test cycles)
-- If agent-device commands fail with "no session", re-run `agent-device open {{bundleId}} --platform android`
+- If npx agent-device commands fail with "no session", re-run `npx agent-device open {{bundleId}} --platform android`
 - If the emulator crashes, skip remaining tests and report what was captured
 - Screenshots go in {{screenshotDir}}/ with "android-iterN-" prefix
 - Keep the emulator running after tests (for manual inspection)

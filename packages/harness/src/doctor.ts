@@ -28,6 +28,7 @@ export async function runDoctor(): Promise<CheckResult[]> {
   results.push(checkXcode());
   results.push(checkAndroidSDK());
   results.push(checkEmulators());
+  results.push(checkAgentDevice());
   results.push(checkTvOSSimulator());
   results.push(checkDiskSpace());
 
@@ -187,6 +188,19 @@ function checkPuppeteer(): CheckResult {
       name: "Puppeteer", ok: false, optional: true,
       detail: "Not found (visual QA screenshots disabled).",
       fix: "yarn add puppeteer   # in packages/harness",
+    };
+  }
+}
+
+function checkAgentDevice(): CheckResult {
+  try {
+    const version = execSync("npx agent-device --version", { stdio: "pipe", timeout: 15_000 }).toString().trim();
+    return { name: "agent-device", ok: true, detail: `v${version} (Android TV emulator testing enabled)` };
+  } catch {
+    return {
+      name: "agent-device", ok: false, optional: true,
+      detail: "Not found (android_test_loop phase will be skipped).",
+      fix: "npm install -g agent-device",
     };
   }
 }
