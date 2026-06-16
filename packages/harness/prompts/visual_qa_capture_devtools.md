@@ -116,6 +116,56 @@ After visiting all screens, press Backspace to return to home. Wait 1000ms.
 
 1. Call `emulate` with viewport "1920x1080x1"
 
+## STEP 9: Write expected eval criteria
+
+After capturing all screenshots, write a file `{{iterDir}}/eval.json` that describes what EACH screenshot should show. This gives the analysis model concrete pass/fail criteria.
+
+Write the file with this structure:
+```json
+{
+  "screenshots": [
+    {
+      "file": "01-home-default.png",
+      "expected": "Home screen with hero banner, at least one horizontal rail of cards visible, dark theme background, brand colors applied, no element focused yet"
+    },
+    {
+      "file": "02-home-first-focus.png",
+      "expected": "First card in the first rail has a visible focus indicator (green border/glow, scale 1.08x). No other card is focused."
+    },
+    {
+      "file": "03-home-arrow-right.png",
+      "expected": "Focus has moved RIGHT to the second card. The previously focused card no longer has the indicator. The second card now shows border/glow."
+    },
+    {
+      "file": "04-home-arrow-right-2.png",
+      "expected": "Focus on the third card in the rail. First two cards unfocused."
+    },
+    {
+      "file": "05-home-arrow-down.png",
+      "expected": "Focus has moved DOWN — either to a card in the second row/rail, or the view has scrolled to show a new section with focus on it."
+    },
+    {
+      "file": "06-home-row2.png",
+      "expected": "Focus is in row 2 or lower. The screen may have scrolled. A different section title should be visible."
+    },
+    {
+      "file": "07-home-scrolled.png",
+      "expected": "Screen has scrolled significantly. Content from the bottom of the page is visible that wasn't in screenshot 01."
+    },
+    {
+      "file": "08-nav-open.png",
+      "expected": "Navigation drawer or tab bar is visible/open. Menu items for app routes are shown."
+    }
+  ]
+}
+```
+
+Add entries for EVERY screenshot you captured (screens, detail view, 720p, etc.) with specific expected states:
+- For screen navigation screenshots: "Shows <route-name> screen content, visually different from home"
+- For detail view: "Detail/player view with content info, NOT the home screen"
+- For 720p: "Same layout as 1080p but scaled, all text still readable, no overflow"
+- For focused states: describe WHICH element should be focused and HOW (border color, scale, glow)
+
 ## Summary
 
 After all steps, report how many screenshots were captured. The screenshots in {{iterDir}}/ will be analyzed by the next step.
