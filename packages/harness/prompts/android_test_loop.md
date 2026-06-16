@@ -16,10 +16,10 @@ If empty: report "ANDROID_HOME not set" and STOP.
 Run: adb devices
 If fails: report "ADB not on PATH" and STOP.
 
-4. Check for Android TV AVD:
+4. Find the Android TV AVD:
 Run: $ANDROID_HOME/emulator/emulator -list-avds
-Look for an AVD with "tv" or "TV" in the name. If none found:
-Report "No Android TV AVD found. Create one with: avdmanager create avd -n TV_API_34 -k 'system-images;android-34;android-tv;x86_64' -d tv_1080p" and STOP.
+Look for an AVD with "tv" or "TV" in the name (case-insensitive). Save the EXACT name for later.
+If none found: report "No Android TV AVD found. Create one with: avdmanager create avd -n TV_API_34 -k 'system-images;android-34;android-tv;x86_64' -d tv_1080p" and STOP.
 
 ## STEP 1: Build the Android APK
 
@@ -43,8 +43,8 @@ Save the path for the next step.
 Check if an emulator is already running:
 Run: adb devices | grep emulator
 
-If no emulator is running, start one:
-Run: $ANDROID_HOME/emulator/emulator -avd {{avdName}} -no-snapshot-load -no-audio -gpu swiftshader_indirect &
+If no emulator is running, start the TV AVD you found in the prerequisite check (use the EXACT name from `emulator -list-avds`):
+Run: $ANDROID_HOME/emulator/emulator -avd <TV_AVD_NAME> -no-snapshot-load -no-audio -gpu swiftshader_indirect &
 Run: adb wait-for-device
 
 Wait for full boot:
