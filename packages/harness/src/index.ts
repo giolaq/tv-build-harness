@@ -104,6 +104,12 @@ async function main() {
     case "update-skills":
       await updateSkills();
       break;
+    case "prune-skills":
+      await pruneSkills();
+      break;
+    case "consolidate-skills":
+      await consolidateSkills();
+      break;
     default:
       printUsage();
       break;
@@ -588,6 +594,95 @@ async function updateSkills() {
     process.exitCode = 1;
   }
   console.log();
+}
+
+async function pruneSkills() {
+  const skillsDir = resolveSkillsDir();
+  const lib = new SkillLibrary(skillsDir);
+  const stats = lib.getAutoSkillStats();
+
+  if (stats.length === 0) {
+    console.log("\n  No auto-skills found in skills/auto/\n");
+    return;
+  }
+
+  console.log("\n  Auto-Skill Effectiveness Report\n");
+  console.log("  Name                          Loaded  Recurred  Status");
+  console.log("  " + "─".repeat(65));
+
+  const flagged: typeof stats = [];
+
+  for (const s of stats) {
+    const ratio = s.timesLoaded > 0 ? s.timesRecurred / s.timesLoaded : 0;
+    let status = "✓ effective";
+    if (s.timesLoaded === 0) {
+      status = "○ unused";
+      flagged.push(s);
+    } else if (ratio > 0.5) {
+      status = "✗ ineffective";
+      flagged.push(s);
+    } else if (s.timesLoaded >= 3 && s.timesRecurred === 0) {
+      status = "★ promote candidate";
+    }
+    console.log(`  ${s.name.padEnd(30)} ${String(s.timesLoaded).padEnd(8)} ${String(s.timesRecurred).padEnd(10)} ${status}`);
+  }
+
+  console.log();
+  if (flagged.length > 0) {
+    console.log(`  ${flagged.length} skill(s) flagged for review.`);
+    if (process.argv.includes("--auto")) {
+      for (const s of flagged) {
+        const { unlinkSync } = await import("node:fs");
+        unlinkSync(s.filePath);
+        console.log(`  Deleted: ${s.name}`);
+      }
+    } else {
+      console.log("  Run with --auto to delete flagged skills automatically.");
+    }
+  } else {
+    console.log("  All skills are performing well.");
+  }
+  console.log();
+}
+
+async function consolidateSkills() {
+  const skillsDir = resolveSkillsDir();
+  const lib = new SkillLibrary(skillsDir);
+  const autoSkills = lib.listSkills("auto");
+
+  if (autoSkills.length < 3) {
+    console.log("\n  Need at least 3 auto-skills to consolidate. Currently: " + autoSkills.length + "\n");
+    return;
+  }
+
+  // Group by applies_to overlap
+  const groups: Map<string, typeof autoSkills> = new Map();
+  for (const skill of autoSkills) {
+    const key = skill.applies_to.sort().join(",") || "general";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(skill);
+  }
+
+  const dryRun = process.argv.includes("--dry-run");
+
+  console.log("\n  Skill Consolidation" + (dryRun ? " (dry run)" : "") + "\n");
+
+  for (const [group, skills] of groups) {
+    if (skills.length < 3) continue;
+    console.log(`  Group [${group}]: ${skills.length} skills`);
+    for (const s of skills) {
+      console.log(`    - ${s.name}`);
+    }
+    if (!dryRun) {
+      console.log(`    → Merge these ${skills.length} skills using: npx tv-harness claude-run with a merge prompt`);
+      console.log(`    (Automatic LLM merging not yet implemented — manual review recommended)`);
+    }
+    console.log();
+  }
+
+  if (dryRun) {
+    console.log("  Run without --dry-run to perform consolidation.\n");
+  }
 }
 
 function findOutDir(): string {

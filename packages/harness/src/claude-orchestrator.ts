@@ -209,7 +209,18 @@ export class ClaudeOrchestrator {
     }
 
     this.writeReport();
+    this.checkSkillPromotions();
     return { state: this.state, outDir: this.state.workdir };
+  }
+
+  private checkSkillPromotions(): void {
+    const stats = this.skills.getAutoSkillStats();
+    for (const s of stats) {
+      if (s.timesLoaded >= 3 && s.timesRecurred === 0) {
+        const msg = `★ Skill "${s.name}" has prevented defects across ${s.timesLoaded}+ runs. Consider promoting to a core prompt.`;
+        this.events.onLog?.(msg);
+      }
+    }
   }
 
   private checkpoint(): void {
@@ -386,6 +397,7 @@ export class ClaudeOrchestrator {
   private buildSkillContext(spec: PhaseSpec): string {
     const meta = this.skills.alwaysLoad();
     const phaseSkills = this.skills.loadSkills(spec.skills);
+    const skillsDir = this.input.skillsDir;
 
     const parts = [
       "## Context: You are a TV app development agent.",
@@ -399,6 +411,58 @@ export class ClaudeOrchestrator {
       "## Skills (domain knowledge for this phase)",
       meta,
       ...phaseSkills,
+      "",
+      "## Auto-Skillify",
+      "",
+      "After completing your task, check: did you fix or discover a REUSABLE PATTERN that would prevent the same issue in future TV app generations?",
+      "",
+      "Rate the fix on reusability (1-5):",
+      "1 = only applies to this exact app",
+      "2 = might apply to similar apps",
+      "3 = applies to most TV apps with this nav style",
+      "4 = applies to ANY TV app using react-tv-space-navigation",
+      "5 = universal React Native TV pattern",
+      "",
+      "Only skillify if score >= 4.",
+      "",
+      "Before creating, check for duplicates:",
+      `Run: grep -rl "<main-keyword-of-your-fix>" ${skillsDir}/auto/ ${skillsDir}/ 2>/dev/null | head -5`,
+      "If a similar skill exists, UPDATE it instead of creating a duplicate.",
+      "",
+      "If no duplicate and score >= 4, create:",
+      `Run: mkdir -p ${skillsDir}/auto`,
+      `Then write a file at ${skillsDir}/auto/<pattern-name>.md:`,
+      "",
+      "```",
+      "---",
+      "name: <kebab-case-name>",
+      `applies_to: [${spec.name}]`,
+      "meta:",
+      `  created_by_run: ${this.state.runId}`,
+      `  created_at: ${new Date().toISOString().slice(0, 10)}`,
+      "  times_loaded: 0",
+      "  times_defect_recurred: 0",
+      "---",
+      "",
+      "# <Pattern Title>",
+      "",
+      "## Problem",
+      "<What goes wrong and why>",
+      "",
+      "## Fix Pattern",
+      "```typescript",
+      "// BEFORE (broken)",
+      "<code>",
+      "",
+      "// AFTER (fixed)",
+      "<code>",
+      "```",
+      "",
+      "## Gotchas",
+      "- <Edge case or look-alike>",
+      "```",
+      "",
+      "Do NOT skillify: app-specific content, one-off typos, issues already in loaded skills.",
     ];
 
     return parts.join("\n");
@@ -492,6 +556,19 @@ export class ClaudeOrchestrator {
             content: input,
             toolName: block.name,
           });
+
+          // Detect skill creation: Write/Edit to skills/auto/*.md
+          if (block.name === "Write" || block.name === "Edit") {
+            const filePath = typeof block.input === "object" ? (block.input?.file_path ?? "") : "";
+            if (filePath.includes("skills/auto/") && filePath.endsWith(".md")) {
+              const skillName = filePath.split("/").pop()?.replace(".md", "") ?? "unknown";
+              this.events.onPhaseMessage(phase, {
+                type: "text",
+                content: `⚡ Skill created: ${skillName}`,
+              });
+              this.events.onLog?.(`⚡ Auto-skill created: ${skillName} (phase: ${phase})`);
+            }
+          }
         }
       }
     } else if (event.type === "tool_result" || (event.type === "user" && event.message?.content)) {

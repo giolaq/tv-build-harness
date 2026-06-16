@@ -78,7 +78,51 @@ export class SkillLibrary {
 
     const content = readFileSync(meta.filePath, "utf-8");
     this.loaded.set(name, content);
+
+    // Track effectiveness: bump times_loaded for auto-skills
+    if (meta.filePath.includes("/auto/") && content.includes("times_loaded:")) {
+      this.incrementMeta(meta.filePath, content, "times_loaded");
+    }
+
     return content;
+  }
+
+  incrementDefectRecurred(skillName: string): void {
+    const meta = this.index.get(skillName);
+    if (!meta || !meta.filePath.includes("/auto/")) return;
+    const content = readFileSync(meta.filePath, "utf-8");
+    if (content.includes("times_defect_recurred:")) {
+      this.incrementMeta(meta.filePath, content, "times_defect_recurred");
+    }
+  }
+
+  private incrementMeta(filePath: string, content: string, field: string): void {
+    try {
+      const updated = content.replace(
+        new RegExp(`(${field}:\\s*)(\\d+)`),
+        (_, prefix, num) => `${prefix}${parseInt(num) + 1}`
+      );
+      if (updated !== content) {
+        writeFileSync(filePath, updated);
+      }
+    } catch {}
+  }
+
+  getAutoSkillStats(): Array<{ name: string; timesLoaded: number; timesRecurred: number; filePath: string }> {
+    const stats: Array<{ name: string; timesLoaded: number; timesRecurred: number; filePath: string }> = [];
+    for (const meta of this.index.values()) {
+      if (!meta.filePath.includes("/auto/")) continue;
+      const content = readFileSync(meta.filePath, "utf-8");
+      const loadedMatch = content.match(/times_loaded:\s*(\d+)/);
+      const recurredMatch = content.match(/times_defect_recurred:\s*(\d+)/);
+      stats.push({
+        name: meta.name,
+        timesLoaded: loadedMatch ? parseInt(loadedMatch[1]) : 0,
+        timesRecurred: recurredMatch ? parseInt(recurredMatch[1]) : 0,
+        filePath: meta.filePath,
+      });
+    }
+    return stats;
   }
 
   loadOnDemand(name: string): { ok: boolean; content?: string; error?: string; suggested?: string[] } {
