@@ -14,10 +14,10 @@ export const PHASES = [
   "prebuild",
   "verify",
   "build_loop",
-  "android_test_loop",
   "vega_build_loop",
   "visual_correctness",
   "visual_qa_loop",
+  "android_test_loop",
   "visual_smoke_test",
   "eas_build",
   "package",
@@ -58,9 +58,9 @@ export const V1_PHASES: Phase[] = [
   "navigation",
   "verify",
   "build_loop",
-  "android_test_loop",
   "vega_build_loop",
   "visual_qa_loop",
+  "android_test_loop",
 ];
 
 export interface PhaseConfig {
