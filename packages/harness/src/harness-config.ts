@@ -162,6 +162,12 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
     abortOnFailure: false, cwd: "app", verify: [],
   },
   {
+    name: "android_test_loop", kind: "agent", prompt: "android_test_loop",
+    skills: ["android-tv-testing"],
+    deps: ["build_loop"], timeoutMs: 900_000, requiresPlatform: "androidtv",
+    buildPhase: true, internalLoop: false, abortOnFailure: false, cwd: "app", verify: [],
+  },
+  {
     name: "vega_build_loop", kind: "agent", prompt: "vega_build_loop", skills: ["vega-sdk"],
     deps: ["verify"], timeoutMs: 900_000, requiresPlatform: "firetv-vega",
     buildPhase: true, internalLoop: false, abortOnFailure: false, cwd: "app", verify: [],

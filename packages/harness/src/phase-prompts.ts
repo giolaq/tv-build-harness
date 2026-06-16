@@ -124,6 +124,21 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
       });
     }
 
+    case "android_test_loop": {
+      const bundleId = "com.tvharness." + (spec?.app_name ?? input.content.title).toLowerCase().replace(/[^a-z0-9]/g, "");
+      const atRoutes = spec?.navigation.routes ?? [];
+      const routesList = atRoutes.map(r => r.label || r.id).join(", ");
+      const screenshotDir = join(ctx.outDir, "screenshots");
+      const avdName = "TV_API_34";
+      return prompts.load("android_test_loop", {
+        appDir,
+        bundleId,
+        routesList,
+        screenshotDir,
+        avdName,
+      });
+    }
+
     case "vega_build_loop":
       return prompts.load("vega_build_loop", { appDir });
 

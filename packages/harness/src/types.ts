@@ -14,6 +14,7 @@ export const PHASES = [
   "prebuild",
   "verify",
   "build_loop",
+  "android_test_loop",
   "vega_build_loop",
   "visual_correctness",
   "visual_qa_loop",
@@ -39,6 +40,7 @@ export const PHASE_DEPS: Record<string, Phase[]> = {
   verify: ["navigation"],
   build_loop: ["verify"],
   vega_build_loop: ["verify"],
+  android_test_loop: ["build_loop"],
   visual_correctness: ["build_loop"],
   visual_qa_loop: ["build_loop"],
   visual_smoke_test: ["build_loop"],
@@ -56,6 +58,7 @@ export const V1_PHASES: Phase[] = [
   "navigation",
   "verify",
   "build_loop",
+  "android_test_loop",
   "vega_build_loop",
   "visual_qa_loop",
 ];
