@@ -65,6 +65,8 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
     return { phase: "visual_qa_loop", status: "failed", iterations: 0, error: `Web server failed: ${msg}` };
   }
 
+  const devtoolsActive = deps.useDevtools && process.env.HARNESS_DEVTOOLS_ACTIVE === "1";
+
   try {
     let lastVerdict: QAVerdict | null = null;
 
@@ -77,10 +79,10 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
       writeFileSync(join(outDir, `visual-qa-capture-${iter}.md`), capturePrompt);
 
       try {
-        // chrome-devtools MCP tools are only available in interactive Claude sessions,
-        // NOT in `claude -p` subprocess mode. The subprocess doesn't inherit MCP connections.
-        // Always use the Puppeteer-based capture for CLI subprocess invocations.
-        await runClaude(capturePrompt, appDir, 480_000);
+        const captureTools = devtoolsActive
+          ? "Bash,Read,Write,Edit,mcp__chrome-devtools__navigate_page,mcp__chrome-devtools__take_screenshot,mcp__chrome-devtools__press_key,mcp__chrome-devtools__evaluate_script,mcp__chrome-devtools__emulate,mcp__chrome-devtools__take_snapshot,mcp__chrome-devtools__click,mcp__chrome-devtools__list_pages,mcp__chrome-devtools__select_page"
+          : undefined;
+        await runClaude(capturePrompt, appDir, 480_000, captureTools);
       } catch (err) {
         deps.onLog?.(`Capture failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
         continue;
@@ -278,10 +280,8 @@ function buildCapturePrompt(deps: VisualQADeps, screenshotDir: string, port: num
   const routeCount = Math.min(routes.length, 4);
   const iterDir = join(screenshotDir, `iter-${iter}`);
 
-  // The devtools prompt requires chrome-devtools MCP which is only available in
-  // interactive Claude sessions (not in `claude -p` subprocess). Always use Puppeteer
-  // for CLI-driven runs. The devtools prompt is reserved for web UI / interactive use.
-  const promptName = "visual_qa_capture";
+  const useDevtoolsPrompt = deps.useDevtools && process.env.HARNESS_DEVTOOLS_ACTIVE === "1";
+  const promptName = useDevtoolsPrompt ? "visual_qa_capture_devtools" : "visual_qa_capture";
 
   const routesList = routes.map(r => r.label || r.id).join(", ");
 
