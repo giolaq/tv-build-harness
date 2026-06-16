@@ -11,8 +11,10 @@ Use the chrome-devtools MCP tools to navigate, interact, and capture screenshots
 
 ## STEP 1: Set viewport and navigate
 
-1. Call `emulate` with viewport "1920x1080x1"
-2. Call `navigate_page` with type "url" and url "http://localhost:{{port}}"
+1. First check if a page is open: call `list_pages`
+2. If no page is open, call `new_page` with url "http://localhost:{{port}}"
+   If a page IS open, call `navigate_page` with type "url" and url "http://localhost:{{port}}"
+3. Call `emulate` with viewport "1920x1080x1"
 3. Wait for the app to render — call `evaluate_script` with:
    ```
    async () => {

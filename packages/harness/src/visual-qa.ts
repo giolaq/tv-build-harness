@@ -80,7 +80,7 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
 
       try {
         const captureTools = devtoolsActive
-          ? "Bash,Read,Write,Edit,mcp__chrome-devtools__navigate_page,mcp__chrome-devtools__take_screenshot,mcp__chrome-devtools__press_key,mcp__chrome-devtools__evaluate_script,mcp__chrome-devtools__emulate,mcp__chrome-devtools__take_snapshot,mcp__chrome-devtools__click,mcp__chrome-devtools__list_pages,mcp__chrome-devtools__select_page"
+          ? "Bash,Read,Write,Edit,mcp__chrome-devtools__new_page,mcp__chrome-devtools__navigate_page,mcp__chrome-devtools__take_screenshot,mcp__chrome-devtools__press_key,mcp__chrome-devtools__evaluate_script,mcp__chrome-devtools__emulate,mcp__chrome-devtools__take_snapshot,mcp__chrome-devtools__click,mcp__chrome-devtools__list_pages,mcp__chrome-devtools__select_page,mcp__chrome-devtools__close_page"
           : undefined;
         await runClaude(capturePrompt, appDir, 480_000, captureTools);
       } catch (err) {
