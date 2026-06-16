@@ -463,6 +463,13 @@ export class ClaudeOrchestrator {
       "```",
       "",
       "Do NOT skillify: app-specific content, one-off typos, issues already in loaded skills.",
+      "",
+      "⚠️ FILE WRITE RESTRICTIONS: You may ONLY write/edit files in:",
+      "1. The generated app directory (where you are working)",
+      `2. ${skillsDir}/auto/ (for new skills ONLY)`,
+      "NEVER modify files in src/, prompts/, or any harness source code.",
+      "NEVER modify the harness package.json, tsconfig, or build files.",
+      "You are testing and improving the GENERATED APP, not the harness itself.",
     ];
 
     return parts.join("\n");
