@@ -40,7 +40,7 @@ export const PHASE_DEPS: Record<string, Phase[]> = {
   verify: ["navigation"],
   build_loop: ["verify"],
   vega_build_loop: ["verify"],
-  android_test_loop: ["visual_qa_loop"],
+  android_test_loop: ["build_loop"],
   visual_correctness: ["build_loop"],
   visual_qa_loop: ["build_loop"],
   visual_smoke_test: ["build_loop"],

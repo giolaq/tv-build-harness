@@ -175,7 +175,7 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
   {
     name: "android_test_loop", kind: "agent", prompt: "android_test_loop",
     skills: ["android-tv-testing"],
-    deps: ["visual_qa_loop"], timeoutMs: 900_000, requiresPlatform: "androidtv",
+    deps: ["build_loop"], timeoutMs: 900_000, requiresPlatform: "androidtv",
     buildPhase: true, internalLoop: true, abortOnFailure: false, cwd: "app", verify: [],
   },
 ];
