@@ -1,6 +1,6 @@
 import { execSync, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createServer } from "node:net";
 import type { AppSpec, BrandKit, DesignTokens, PhaseResult } from "./types.js";
@@ -85,6 +85,27 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
         await runClaude(capturePrompt, appDir, 480_000, captureTools);
       } catch (err) {
         deps.onLog?.(`Capture failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
+      }
+
+      // If the capture produced no screenshots (e.g. devtools MCP not connected),
+      // fall back to Puppeteer-based capture.
+      const iterDir = join(screenshotDir, `iter-${iter}`);
+      mkdirSync(iterDir, { recursive: true });
+      const captured = readdirSync(iterDir).filter(f => f.endsWith(".png"));
+      if (captured.length === 0 && devtoolsActive) {
+        deps.onLog?.(`Devtools capture produced no screenshots — falling back to Puppeteer`);
+        const fallbackPrompt = buildCapturePrompt({ ...deps, useDevtools: false }, screenshotDir, port, iter);
+        try {
+          await runClaude(fallbackPrompt, appDir, 480_000);
+        } catch (err) {
+          deps.onLog?.(`Puppeteer fallback capture failed iter ${iter}: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+
+      // If still no screenshots after fallback, skip analysis for this iteration
+      const finalCaptures = readdirSync(iterDir).filter(f => f.endsWith(".png"));
+      if (finalCaptures.length === 0) {
+        deps.onLog?.(`No screenshots captured in iter ${iter} — skipping analysis`);
         continue;
       }
 
