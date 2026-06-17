@@ -33,6 +33,13 @@ Only add:
 
 DO NOT add: onKeyDown, addEventListener('keydown'), manual focus management with useEffect, or any code that calls setFocus/moveFocus in response to arrow keys.
 
+⚠️ DO NOT MODIFY RemoteControlManager.ts or RemoteControlManager.android.ts.
+The `addKeydownListener` method MUST return the listener function itself (not a cleanup function).
+The return type MUST be `(event: SupportedKeys) => void` — the SAME function that was passed in.
+This is critical: `removeKeydownListener` uses the returned reference to unsubscribe. If you return
+a wrapper/cleanup function instead, `removeKeydownListener` can never find the original listener
+to remove it, causing listener accumulation and double/triple navigation on every key press.
+
 {{#if hasDrawer}}
 ⚠️ DRAWER FOCUS ISOLATION — EVERY screen must deactivate its SpatialNavigationRoot when the drawer is open.
 Without this, D-pad input moves focus on BOTH the drawer AND the screen behind it simultaneously.

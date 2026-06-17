@@ -113,4 +113,28 @@ Also verify the container wrapping the list has sufficient paddingTop and paddin
   padding = (cardHeight * (scale - 1) / 2) + borderWidth
   Example: card 260px, scale 1.1, border 6px → (260 * 0.1 / 2) + 6 = 19px → use scaledPixels(20)
 
+STEP 9: Verify RemoteControlManager.addKeydownListener return type (CAUSES DOUBLE NAVIGATION).
+Run: grep -A 3 "addKeydownListener" {{appDir}}/packages/shared-ui/src/app/remote-control/RemoteControlManager.ts
+
+The `addKeydownListener` method MUST return the listener function itself — the SAME function reference that was passed in. It must NOT return a cleanup/wrapper function.
+
+CORRECT:
+  addKeydownListener = (listener: (event: SupportedKeys) => void): ((event: SupportedKeys) => void) => {
+    this.eventEmitter.on('keyDown', listener);
+    return listener;
+  };
+
+BROKEN (causes accumulated listeners → double/triple navigation):
+  addKeydownListener = (listener): (() => void) => {
+    this.eventEmitter.on('keyDown', listener);
+    return () => { this.eventEmitter.off('keyDown', listener); };
+  };
+
+WHY: `removeKeydownListener` uses the returned reference to unsubscribe via `mitt.off()`. If you return a wrapper function, `mitt.off(wrapperFn)` can't find the original listener — it's never removed. Listeners accumulate across navigation cycles, causing every key press to fire 2-3+ times.
+
+Also check RemoteControlManager.android.ts has the same pattern:
+Run: grep -A 3 "addKeydownListener" {{appDir}}/packages/shared-ui/src/app/remote-control/RemoteControlManager.android.ts
+
+If either file returns a cleanup function instead of the listener, FIX IT to match the correct pattern above.
+
 Report: how many errors found, how many fixed, any remaining.
