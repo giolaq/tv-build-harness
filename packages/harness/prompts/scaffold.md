@@ -21,6 +21,11 @@ Clone the app template into "{{appDir}}":
    Add to config.resolver:
      blockList: [/packages\/shared-ui\/node_modules\/.*/]
    This prevents Metro from ever bundling packages from shared-ui/node_modules even if they get installed there accidentally. All imports must resolve from expo-multi-tv/node_modules.
-5. Run: cd "{{appDir}}" && yarn install
-6. Run: cd "{{appDir}}" && git init && git add -A && git commit -m "initial template"
+5. Force LTR layout (prevents RTL issues on emulators with RTL locale):
+   Read {{appDir}}/apps/expo-multi-tv/App.tsx. At the very top (before any component), add:
+     import { I18nManager } from 'react-native';
+     I18nManager.allowRTL(false);
+     I18nManager.forceRTL(false);
+6. Run: cd "{{appDir}}" && yarn install
+7. Run: cd "{{appDir}}" && git init && git add -A && git commit -m "initial template"
 App name: {{appName}}
