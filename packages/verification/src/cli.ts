@@ -2,10 +2,19 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { VerifyConfig, GoldenSpec } from "@tv-harness/shared-types";
+import type { VerifyConfig, GoldenSpec, RunRecord } from "@tv-harness/shared-types";
 import { runSuite } from "./runner.js";
 import { aggregate } from "./report/aggregate.js";
-import { compare, formatVerdictTable } from "./report/compare.js";
+import { compare } from "./report/compare.js";
+import {
+  renderHeader,
+  renderRunResult,
+  renderSummaryTable,
+  renderVerdict,
+  renderComparisonTable,
+  renderReportHeader,
+  startLiveProgress,
+} from "./tui.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -56,19 +65,51 @@ async function main() {
         process.exit(1);
       }
 
-      console.log(`Running ${specs.length} spec(s), N=${config.n} per spec`);
-      const records = await runSuite({
-        specs,
-        config,
-        onProgress: (specId, run, total) => {
-          console.log(`  [${specId}] run ${run}/${total}`);
-        },
-      });
+      // For each spec, run suite and display live progress
+      const allRecords: RunRecord[] = [];
 
-      const metrics = aggregate(records);
-      console.log("\n=== Aggregated Metrics ===");
-      for (const m of metrics) {
-        console.log(`  ${m.metric}: ${m.rate.toFixed(3)} [${m.ci95Lower.toFixed(3)}, ${m.ci95Upper.toFixed(3)}] (n=${m.n})`);
+      for (const spec of specs) {
+        // Render header
+        console.log("");
+        console.log(renderHeader(spec, config));
+        console.log("");
+
+        // Start live progress timer
+        const progress = startLiveProgress();
+
+        const records = await runSuite({
+          specs: [spec],
+          config,
+          onProgress: (_specId, run, total) => {
+            progress.update(run, total);
+          },
+        });
+
+        progress.stop();
+        console.log(""); // newline after progress cleared
+
+        // Display run results
+        for (let i = 0; i < records.length; i++) {
+          const lines = renderRunResult(records[i], i + 1);
+          for (const line of lines) {
+            console.log(line);
+          }
+        }
+
+        allRecords.push(...records);
+      }
+
+      // Aggregate and display summary
+      const metrics = aggregate(allRecords);
+      console.log("");
+      console.log(renderSummaryTable(metrics));
+
+      // Determine overall verdict
+      const hasRegression = allRecords.some(r => r.outcome === "harness_failure");
+      console.log(renderVerdict(hasRegression));
+
+      if (hasRegression) {
+        process.exit(1);
       }
       break;
     }
@@ -82,19 +123,20 @@ async function main() {
         process.exit(1);
       }
 
-      const baseRecords = JSON.parse(readFileSync(resolve(basePath), "utf-8"));
-      const headRecords = JSON.parse(readFileSync(resolve(headPath), "utf-8"));
+      const baseRecords = JSON.parse(readFileSync(resolve(basePath), "utf-8")) as RunRecord[];
+      const headRecords = JSON.parse(readFileSync(resolve(headPath), "utf-8")) as RunRecord[];
 
       const baseMetrics = aggregate(baseRecords);
       const headMetrics = aggregate(headRecords);
       const verdicts = compare(baseMetrics, headMetrics);
 
-      console.log("\n=== Comparison Verdicts ===");
-      console.log(formatVerdictTable(verdicts));
+      console.log("");
+      console.log(renderComparisonTable(verdicts));
 
       const hasRegression = verdicts.some(v => v.regression);
+      console.log(renderVerdict(hasRegression));
+
       if (hasRegression) {
-        console.error("\nREGRESSION DETECTED");
         process.exit(1);
       }
       break;
@@ -106,12 +148,16 @@ async function main() {
         console.error("Usage: verify report <bundle.json>");
         process.exit(1);
       }
-      const records = JSON.parse(readFileSync(resolve(bundlePath), "utf-8"));
+      const records = JSON.parse(readFileSync(resolve(bundlePath), "utf-8")) as RunRecord[];
       const metrics = aggregate(records);
-      console.log("=== Report ===");
-      for (const m of metrics) {
-        console.log(`  ${m.metric}: ${m.rate.toFixed(3)} [${m.ci95Lower.toFixed(3)}, ${m.ci95Upper.toFixed(3)}] (n=${m.n})`);
-      }
+
+      console.log("");
+      console.log(renderReportHeader(bundlePath, records.length));
+      console.log("");
+      console.log(renderSummaryTable(metrics));
+
+      const hasFailures = records.some(r => r.outcome === "harness_failure");
+      console.log(renderVerdict(hasFailures));
       break;
     }
 

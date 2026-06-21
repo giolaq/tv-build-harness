@@ -391,6 +391,7 @@ __metadata:
   dependencies:
     "@tv-harness/shared-types": "file:../shared-types"
     "@types/node": "npm:^20.0.0"
+    chalk: "npm:^5.3.0"
     typescript: "npm:^5.6.0"
     vitest: "npm:^3.0.0"
   bin:
@@ -545,6 +546,13 @@ __metadata:
     loupe: "npm:^3.1.0"
     pathval: "npm:^2.0.0"
   checksum: 10c0/b360fd4d38861622e5010c2f709736988b05c7f31042305fa3f4e9911f6adb80ccfb4e302068bf8ed10e835c2e2520cba0f5edc13d878b886987e5aa62483f53
+  languageName: node
+  linkType: hard
+
+"chalk@npm:^5.3.0":
+  version: 5.6.2
+  resolution: "chalk@npm:5.6.2"
+  checksum: 10c0/99a4b0f0e7991796b1e7e3f52dceb9137cae2a9dfc8fc0784a550dc4c558e15ab32ed70b14b21b52beb2679b4892b41a0aa44249bcb996f01e125d58477c6976
   languageName: node
   linkType: hard
 
