@@ -83,7 +83,7 @@ export function renderHeader(spec: GoldenSpec, config: VerifyConfig): string {
 // ─── Progress Line (for live updating with \r) ─────────────────────────────────
 
 export function renderProgressLine(run: number, total: number, elapsedS: number): string {
-  const bar = progressBar(run - 1, total); // run-1 because current is in-progress
+  const bar = progressBar(run, total);
   const elapsed = chalk.dim(formatElapsed(elapsedS));
   return `  Run ${run}/${total}  ${bar}  ${elapsed} elapsed`;
 }
