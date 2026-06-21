@@ -36,7 +36,7 @@ export function runHarness(
     encoding: "utf-8",
     cwd: HARNESS_DIR,
     stdio: ["pipe", "pipe", "pipe"],
-    timeout: 600_000,
+    timeout: 1_800_000, // 30 minutes — full generation can take 15-20min
   });
 
   const endTime = Date.now();

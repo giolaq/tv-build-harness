@@ -1,5 +1,5 @@
 {
-  "n": 1,
+  "n": 3,
   "infraRetryMax": 2,
   "tierLevelMap": {
     "easy": [1, 2],

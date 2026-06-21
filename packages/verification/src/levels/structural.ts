@@ -126,20 +126,19 @@ export function runStructuralChecks(appPath: string, expected: Expected): CheckR
     }
   }
 
-  // TypeScript compilation check
-  const tsconfigPath = join(appPath, "packages/shared-ui/tsconfig.json");
-  if (existsSync(tsconfigPath)) {
-    try {
-      execSync(`npx tsc --noEmit --project "${tsconfigPath}"`, {
-        cwd: appPath,
-        stdio: ["pipe", "pipe", "pipe"],
-        timeout: 60_000,
-      });
-      results.push({ level: 1, name: "tsc", severity: "pass", message: "TypeScript compilation passed" });
-    } catch (err: unknown) {
-      const stderr = err && typeof err === "object" && "stderr" in err ? String((err as {stderr: unknown}).stderr) : "unknown error";
-      results.push({ level: 1, name: "tsc", severity: "fail", message: `TypeScript compilation failed`, details: stderr.slice(0, 500) });
-    }
+  // TypeScript compilation check — run from app root (mirrors harness verify phase: cd appDir && npx tsc --noEmit)
+  try {
+    execSync(`npx tsc --noEmit`, {
+      cwd: appPath,
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 60_000,
+    });
+    results.push({ level: 1, name: "tsc", severity: "pass", message: "TypeScript compilation passed" });
+  } catch (err: unknown) {
+    const stdout = err && typeof err === "object" && "stdout" in err ? String((err as {stdout: unknown}).stdout) : "";
+    const stderr = err && typeof err === "object" && "stderr" in err ? String((err as {stderr: unknown}).stderr) : "";
+    const details = (stdout + stderr).slice(0, 500);
+    results.push({ level: 1, name: "tsc", severity: "fail", message: `TypeScript compilation failed`, details });
   }
 
   return results;
