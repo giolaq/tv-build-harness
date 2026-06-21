@@ -3,7 +3,7 @@
   "name": "Simple cooking app",
   "description": "Single-screen cooking app with basic theme and content — easiest possible spec",
   "tier": "easy",
-  "inputDir": "../../examples/cooking-shows",
+  "inputDir": "../../../../../examples/cooking-shows",
   "expected": {
     "files_exist": [
       "packages/shared-ui/src/screens/HomeScreen.tsx",

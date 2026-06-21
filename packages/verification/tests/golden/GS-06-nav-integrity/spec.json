@@ -3,7 +3,7 @@
   "name": "Screen removal + nav-graph integrity",
   "description": "Cooking app with drawer navigation — verifies that removed screens don't leave dead routes, and that the navigation graph is internally consistent (no dangling references).",
   "tier": "medium",
-  "inputDir": "../../../examples/cooking-shows",
+  "inputDir": "../../../../../examples/cooking-shows",
   "expected": {
     "files_exist": [
       "packages/shared-ui/src/screens/HomeScreen.tsx",

@@ -3,7 +3,7 @@
   "name": "Full all-platform parity",
   "description": "Sports live app across all platforms with heavy content and focus navigation",
   "tier": "hard",
-  "inputDir": "../../examples/sports-live",
+  "inputDir": "../../../../../examples/sports-live",
   "expected": {
     "files_exist": [
       "packages/shared-ui/src/screens/HomeScreen.tsx",

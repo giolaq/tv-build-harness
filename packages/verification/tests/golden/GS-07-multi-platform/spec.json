@@ -3,7 +3,7 @@
   "name": "Multi-platform build parity (Android TV + Apple TV + Web)",
   "description": "Sports app built for all 3 core platforms. Tests that expo prebuild succeeds for Android and iOS, and web export works. Hard tier because it exercises the full build matrix.",
   "tier": "hard",
-  "inputDir": "../../../examples/sports-live",
+  "inputDir": "../../../../../examples/sports-live",
   "expected": {
     "files_exist": [
       "packages/shared-ui/src/screens/HomeScreen.tsx",

@@ -34,6 +34,8 @@ function loadSpecs(specFilter?: string): GoldenSpec[] {
     const specPath = join(specsDir, dir, "spec.json");
     if (existsSync(specPath)) {
       const spec = JSON.parse(readFileSync(specPath, "utf-8")) as GoldenSpec;
+      // Resolve inputDir relative to the spec file location
+      spec.inputDir = resolve(specsDir, dir, spec.inputDir);
       if (!specFilter || specFilter === "all" || spec.id === specFilter) {
         specs.push(spec);
       }

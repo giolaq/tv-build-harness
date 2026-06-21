@@ -3,7 +3,7 @@
   "name": "Multi-rail home + detail with shared-ui reuse",
   "description": "Cooking app with drawer navigation, multiple content rails on home, detail screen, and player. Tests shared-ui component reuse across screens.",
   "tier": "easy",
-  "inputDir": "../../../examples/cooking-shows",
+  "inputDir": "../../../../../examples/cooking-shows",
   "expected": {
     "files_exist": [
       "packages/shared-ui/src/screens/HomeScreen.tsx",

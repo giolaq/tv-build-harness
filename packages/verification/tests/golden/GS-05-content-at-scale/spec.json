@@ -3,7 +3,7 @@
   "name": "Content fidelity at scale",
   "description": "Fitness app with tabs navigation and 12 videos across 4 categories. Tests that all content items from the manifest appear in the generated data layer with correct titles and stream URLs.",
   "tier": "medium",
-  "inputDir": "../../../examples/fitness-tv",
+  "inputDir": "../../../../../examples/fitness-tv",
   "expected": {
     "files_exist": [
       "packages/shared-ui/src/screens/HomeScreen.tsx",

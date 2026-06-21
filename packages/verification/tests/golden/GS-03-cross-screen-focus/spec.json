@@ -3,7 +3,7 @@
   "name": "Add screens with cross-screen focus navigation",
   "description": "Sports app with drawer navigation and 4+ screens. Tests that focus isolation works across screen transitions — each screen's SpatialNavigationRoot deactivates when drawer opens.",
   "tier": "medium",
-  "inputDir": "../../../examples/sports-live",
+  "inputDir": "../../../../../examples/sports-live",
   "expected": {
     "files_exist": [
       "packages/shared-ui/src/screens/HomeScreen.tsx",

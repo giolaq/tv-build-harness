@@ -1,7 +1,13 @@
 import { execSync } from "node:child_process";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { PinnedEnv } from "@tv-harness/shared-types";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(__dirname, "../../..");
+const HARNESS_DIR = join(REPO_ROOT, "packages/harness");
+const HARNESS_OUT = join(HARNESS_DIR, "out");
 
 export interface HarnessResult {
   runId: string;
@@ -18,17 +24,19 @@ export function runHarness(
   inputDir: string,
   options?: { command?: string; extraArgs?: string[] },
 ): HarnessResult {
-  const command = options?.command ?? "npx tv-harness claude-run";
+  const command = options?.command ?? `npx tsx ${join(HARNESS_DIR, "src/index.ts")} claude-run`;
   const extraArgs = options?.extraArgs ?? [];
-  const args = ["--generate-only", "--no-tui", ...extraArgs, inputDir];
+  const resolvedInput = resolve(inputDir);
+  const args = ["--generate-only", "--no-tui", ...extraArgs, resolvedInput];
   const fullCommand = `${command} ${args.join(" ")}`;
 
   const startTime = Date.now();
 
   const stdout = execSync(fullCommand, {
     encoding: "utf-8",
+    cwd: HARNESS_DIR,
     stdio: ["pipe", "pipe", "pipe"],
-    timeout: 600_000, // 10 minute timeout
+    timeout: 600_000,
   });
 
   const endTime = Date.now();
@@ -37,7 +45,7 @@ export function runHarness(
   const runIdMatch = stdout.match(/out\/([a-zA-Z0-9_-]+)\//);
   const runId = runIdMatch?.[1] ?? findLatestRunId();
 
-  const harnessOutDir = join("packages", "harness", "out", runId);
+  const harnessOutDir = join(HARNESS_OUT, runId);
   const reportPath = join(harnessOutDir, "report.md");
   const logPath = join(harnessOutDir, "run.log");
   const appPath = join(harnessOutDir, "app");
@@ -55,7 +63,7 @@ export function runHarness(
     appPath,
     costUsd,
     latencyS,
-    specPath: inputDir,
+    specPath: resolvedInput,
     reportPath,
     logPath,
     env,
@@ -97,7 +105,7 @@ export function captureEnv(): PinnedEnv {
  * Find the most recently created run directory in packages/harness/out/.
  */
 function findLatestRunId(): string {
-  const outDir = join("packages", "harness", "out");
+  const outDir = HARNESS_OUT;
   if (!existsSync(outDir)) {
     throw new Error(`Harness output directory not found: ${outDir}`);
   }

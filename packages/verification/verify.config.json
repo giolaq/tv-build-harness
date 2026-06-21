@@ -1,5 +1,5 @@
 {
-  "n": 3,
+  "n": 1,
   "infraRetryMax": 2,
   "tierLevelMap": {
     "easy": [1, 2],
@@ -8,5 +8,5 @@
   },
   "regressionRule": "ci_below_point",
   "artifactsDir": "./artifacts",
-  "harnessCommand": "npx tv-harness claude-run"
+  "harnessCommand": "npx tsx ../harness/src/index.ts claude-run"
 }
