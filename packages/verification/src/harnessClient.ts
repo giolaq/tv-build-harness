@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,10 +20,10 @@ export interface HarnessResult {
   env: PinnedEnv;
 }
 
-export function runHarness(
+export async function runHarness(
   inputDir: string,
   options?: { command?: string; extraArgs?: string[] },
-): HarnessResult {
+): Promise<HarnessResult> {
   const command = options?.command ?? `npx tsx ${join(HARNESS_DIR, "src/index.ts")} claude-run`;
   const extraArgs = options?.extraArgs ?? [];
   const resolvedInput = resolve(inputDir);
@@ -32,11 +32,32 @@ export function runHarness(
 
   const startTime = Date.now();
 
-  const stdout = execSync(fullCommand, {
-    encoding: "utf-8",
-    cwd: HARNESS_DIR,
-    stdio: ["pipe", "pipe", "pipe"],
-    timeout: 1_800_000, // 30 minutes — full generation can take 15-20min
+  const stdout = await new Promise<string>((res, rej) => {
+    const child = spawn("sh", ["-c", fullCommand], {
+      cwd: HARNESS_DIR,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+    });
+
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d: Buffer) => { out += d.toString(); });
+    child.stderr.on("data", (d: Buffer) => { err += d.toString(); });
+
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      rej(new Error(`Harness timed out after 30 minutes`));
+    }, 1_800_000);
+
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code === 0) res(out);
+      else rej(new Error(err || out || `Harness exited with code ${code}`));
+    });
+    child.on("error", (e) => {
+      clearTimeout(timeout);
+      rej(e);
+    });
   });
 
   const endTime = Date.now();

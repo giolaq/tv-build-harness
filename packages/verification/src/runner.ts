@@ -80,7 +80,7 @@ async function runSingleSpec(
 
   try {
     const start = Date.now();
-    const result = runHarness(spec.inputDir, { command: config.harnessCommand });
+    const result = await runHarness(spec.inputDir, { command: config.harnessCommand });
     latencyS = (Date.now() - start) / 1000;
     costUsd = result.costUsd;
     appPath = result.appPath;
