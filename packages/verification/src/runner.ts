@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { RunRecord, GoldenSpec, VerifyConfig, CheckResult, RunOutcome, Platform, BuildErrorClass } from "@tv-harness/shared-types";
+import type { RunRecord, GoldenSpec, VerifyConfig, CheckResult, RunOutcome, Platform, BuildErrorClass, RubricScore } from "@tv-harness/shared-types";
 import { runHarness, captureEnv } from "./harnessClient.js";
 import { runStructuralChecks } from "./levels/structural.js";
 import { runBuildChecks } from "./levels/build.js";
+import { runSmokeChecks } from "./levels/smoke.js";
+import { runContentChecks } from "./levels/content.js";
+import { runRubricChecks } from "./levels/rubric.js";
 
 export interface RunnerOptions {
   specs: GoldenSpec[];
@@ -73,6 +76,7 @@ async function runSingleSpec(
   let outcome: RunOutcome = "pass";
   let appPath = "";
   let error: string | undefined;
+  let rubricScore: RubricScore | undefined;
 
   try {
     const start = Date.now();
@@ -93,9 +97,34 @@ async function runSingleSpec(
       checks.push(...buildChecks);
     }
 
-    // Level 3: Smoke/Focus (placeholder — requires Detox setup)
-    // Level 4: Content fidelity (placeholder)
-    // Level 5: Rubric/Judge (placeholder)
+    // Level 3: Smoke/Focus
+    if (levels.includes(3)) {
+      const smokeChecks = await runSmokeChecks({ appPath });
+      checks.push(...smokeChecks);
+    }
+
+    // Level 4: Content fidelity
+    if (levels.includes(4)) {
+      const contentChecks = runContentChecks(appPath, spec.inputDir, spec.expected);
+      checks.push(...contentChecks);
+    }
+
+    // Level 5: Rubric/Judge
+    if (levels.includes(5)) {
+      const judgeConfig = config.judge
+        ? { model: config.judge.model, validated: config.judge.validated, apiKey: process.env.ANTHROPIC_API_KEY }
+        : undefined;
+      const { checks: rubricChecks, rubric } = await runRubricChecks(
+        appPath,
+        spec.description,
+        spec.expected,
+        judgeConfig,
+      );
+      checks.push(...rubricChecks);
+      if (rubric) {
+        rubricScore = rubric;
+      }
+    }
 
     // Determine outcome from checks
     const hasFail = checks.some(c => c.severity === "fail");
@@ -129,6 +158,7 @@ async function runSingleSpec(
     latencyS,
     checks,
     buildResults,
+    rubric: rubricScore,
     artifactPath: appPath || undefined,
     error,
   };
