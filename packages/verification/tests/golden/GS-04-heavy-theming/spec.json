@@ -1,0 +1,29 @@
+{
+  "id": "GS-04-heavy-theming",
+  "name": "Heavy theming + glow focus style",
+  "description": "Music videos app with spotlight template, hidden navigation, glow focus style. Tests deep theme customization — brand colors must appear in colors.ts, focus must use glow not border.",
+  "tier": "medium",
+  "inputDir": "../../../examples/music-videos",
+  "expected": {
+    "files_exist": [
+      "packages/shared-ui/src/screens/HomeScreen.tsx",
+      "packages/shared-ui/src/theme/colors.ts",
+      "packages/shared-ui/src/theme/typography.ts",
+      "packages/shared-ui/src/data/moviesData.ts",
+      "apps/expo-multi-tv/App.tsx",
+      "package.json"
+    ],
+    "files_not_exist": [
+      "packages/shared-ui/src/navigation/DrawerNavigator.tsx"
+    ],
+    "nav_routes": ["Home"],
+    "theme_tokens": {
+      "primary": "#7B2FFF",
+      "background": "#0A0A0F"
+    },
+    "screen_count": 2,
+    "focus_nodes_min": 2,
+    "platforms_build": ["web"],
+    "content_items_expected": 10
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "GS-03-cross-screen-focus",
+  "name": "Add screens with cross-screen focus navigation",
+  "description": "Sports app with drawer navigation and 4+ screens. Tests that focus isolation works across screen transitions — each screen's SpatialNavigationRoot deactivates when drawer opens.",
+  "tier": "medium",
+  "inputDir": "../../../examples/sports-live",
+  "expected": {
+    "files_exist": [
+      "packages/shared-ui/src/screens/HomeScreen.tsx",
+      "packages/shared-ui/src/screens/DetailsScreen.tsx",
+      "packages/shared-ui/src/screens/SettingsScreen.tsx",
+      "packages/shared-ui/src/navigation/DrawerNavigator.tsx",
+      "packages/shared-ui/src/navigation/RootNavigator.tsx",
+      "packages/shared-ui/src/app/configureRemoteControl.ts",
+      "packages/shared-ui/src/app/remote-control/RemoteControlManager.ts",
+      "packages/shared-ui/src/components/MenuContext.tsx",
+      "apps/expo-multi-tv/App.tsx",
+      "package.json"
+    ],
+    "nav_routes": ["Home", "Live", "Scores", "Settings"],
+    "screen_count": 4,
+    "focus_nodes_min": 4,
+    "platforms_build": ["web", "androidtv"],
+    "content_items_expected": 8
+  }
+}

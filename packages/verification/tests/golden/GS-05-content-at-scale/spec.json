@@ -1,0 +1,27 @@
+{
+  "id": "GS-05-content-at-scale",
+  "name": "Content fidelity at scale",
+  "description": "Fitness app with tabs navigation and 12 videos across 4 categories. Tests that all content items from the manifest appear in the generated data layer with correct titles and stream URLs.",
+  "tier": "medium",
+  "inputDir": "../../../examples/fitness-tv",
+  "expected": {
+    "files_exist": [
+      "packages/shared-ui/src/screens/HomeScreen.tsx",
+      "packages/shared-ui/src/data/moviesData.ts",
+      "packages/shared-ui/src/theme/colors.ts",
+      "apps/expo-multi-tv/App.tsx",
+      "package.json"
+    ],
+    "nav_routes": ["Home"],
+    "screen_count": 2,
+    "focus_nodes_min": 2,
+    "platforms_build": ["web"],
+    "content_items_expected": 12,
+    "content_titles": [
+      "30-Min Fat Burn HIIT",
+      "Tabata Explosion",
+      "Dance Cardio Party",
+      "Full Body Dumbbell"
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "GS-02-multi-rail",
+  "name": "Multi-rail home + detail with shared-ui reuse",
+  "description": "Cooking app with drawer navigation, multiple content rails on home, detail screen, and player. Tests shared-ui component reuse across screens.",
+  "tier": "easy",
+  "inputDir": "../../../examples/cooking-shows",
+  "expected": {
+    "files_exist": [
+      "packages/shared-ui/src/screens/HomeScreen.tsx",
+      "packages/shared-ui/src/screens/DetailsScreen.tsx",
+      "packages/shared-ui/src/screens/PlayerScreen.tsx",
+      "packages/shared-ui/src/navigation/DrawerNavigator.tsx",
+      "packages/shared-ui/src/navigation/RootNavigator.tsx",
+      "packages/shared-ui/src/theme/colors.ts",
+      "packages/shared-ui/src/data/moviesData.ts",
+      "packages/shared-ui/src/components/CustomDrawerContent.tsx",
+      "apps/expo-multi-tv/App.tsx",
+      "package.json"
+    ],
+    "nav_routes": ["Home", "Categories", "Search", "Settings"],
+    "screen_count": 4,
+    "focus_nodes_min": 4,
+    "platforms_build": ["web"],
+    "content_items_expected": 8
+  }
+}

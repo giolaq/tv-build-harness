@@ -1,0 +1,33 @@
+{
+  "id": "GS-07-multi-platform",
+  "name": "Multi-platform build parity (Android TV + Apple TV + Web)",
+  "description": "Sports app built for all 3 core platforms. Tests that expo prebuild succeeds for Android and iOS, and web export works. Hard tier because it exercises the full build matrix.",
+  "tier": "hard",
+  "inputDir": "../../../examples/sports-live",
+  "expected": {
+    "files_exist": [
+      "packages/shared-ui/src/screens/HomeScreen.tsx",
+      "packages/shared-ui/src/screens/DetailsScreen.tsx",
+      "packages/shared-ui/src/screens/PlayerScreen.tsx",
+      "packages/shared-ui/src/screens/SettingsScreen.tsx",
+      "packages/shared-ui/src/navigation/DrawerNavigator.tsx",
+      "packages/shared-ui/src/navigation/RootNavigator.tsx",
+      "packages/shared-ui/src/theme/colors.ts",
+      "packages/shared-ui/src/data/moviesData.ts",
+      "apps/expo-multi-tv/App.tsx",
+      "apps/expo-multi-tv/app.json",
+      "package.json"
+    ],
+    "nav_routes": ["Home", "Live", "Scores", "Settings"],
+    "screen_count": 5,
+    "focus_nodes_min": 5,
+    "platforms_build": ["web", "androidtv", "appletv"],
+    "content_items_expected": 8,
+    "rubric_thresholds": {
+      "intent": 1.5,
+      "layout": 1.0,
+      "theme": 1.0,
+      "visual": 1.0
+    }
+  }
+}
