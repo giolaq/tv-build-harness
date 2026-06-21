@@ -1,0 +1,12 @@
+{
+  "n": 3,
+  "infraRetryMax": 2,
+  "tierLevelMap": {
+    "easy": [1, 2],
+    "medium": [1, 2, 3, 4],
+    "hard": [1, 2, 3, 4, 5]
+  },
+  "regressionRule": "ci_below_point",
+  "artifactsDir": "./artifacts",
+  "harnessCommand": "npx tv-harness claude-run"
+}

@@ -1,0 +1,21 @@
+{
+  "id": "GS-01-simple",
+  "name": "Simple cooking app",
+  "description": "Single-screen cooking app with basic theme and content — easiest possible spec",
+  "tier": "easy",
+  "inputDir": "../../examples/cooking-shows",
+  "expected": {
+    "files_exist": [
+      "packages/shared-ui/src/screens/HomeScreen.tsx",
+      "packages/shared-ui/src/navigation/DrawerNavigator.tsx",
+      "packages/shared-ui/src/theme/colors.ts",
+      "packages/shared-ui/src/data/moviesData.ts",
+      "apps/expo-multi-tv/App.tsx",
+      "package.json"
+    ],
+    "nav_routes": ["Home", "Categories", "Search", "Settings"],
+    "screen_count": 3,
+    "focus_nodes_min": 3,
+    "platforms_build": ["web"]
+  }
+}

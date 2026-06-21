@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "composite": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "paths": {
+      "@tv-harness/shared-types": ["../shared-types/src/index.ts"]
+    },
+    "typeRoots": [
+      "./node_modules/@types",
+      "../harness/app/apps/vega/node_modules/@types"
+    ]
+  },
+  "include": ["src"],
+  "references": [{ "path": "../shared-types" }]
+}

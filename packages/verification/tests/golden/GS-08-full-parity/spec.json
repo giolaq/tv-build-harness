@@ -1,0 +1,31 @@
+{
+  "id": "GS-08-full-parity",
+  "name": "Full all-platform parity",
+  "description": "Sports live app across all platforms with heavy content and focus navigation",
+  "tier": "hard",
+  "inputDir": "../../examples/sports-live",
+  "expected": {
+    "files_exist": [
+      "packages/shared-ui/src/screens/HomeScreen.tsx",
+      "packages/shared-ui/src/screens/DetailsScreen.tsx",
+      "packages/shared-ui/src/screens/PlayerScreen.tsx",
+      "packages/shared-ui/src/screens/SettingsScreen.tsx",
+      "packages/shared-ui/src/navigation/DrawerNavigator.tsx",
+      "packages/shared-ui/src/theme/colors.ts",
+      "apps/expo-multi-tv/App.tsx",
+      "apps/vega/src/App.tsx",
+      "package.json"
+    ],
+    "nav_routes": ["Home", "Live", "Scores", "Settings"],
+    "screen_count": 5,
+    "focus_nodes_min": 5,
+    "platforms_build": ["web", "androidtv", "firetv-vega"],
+    "content_items_expected": 10,
+    "rubric_thresholds": {
+      "intent": 1.5,
+      "layout": 1.0,
+      "theme": 1.0,
+      "visual": 1.0
+    }
+  }
+}

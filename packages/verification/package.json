@@ -1,0 +1,24 @@
+{
+  "name": "@tv-harness/verification",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "verify": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@tv-harness/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "workspace:*",
+    "vitest": "^3.0.0"
+  }
+}
