@@ -25,14 +25,31 @@ export function createModel(config: ModelProviderConfig): Model {
       const key = process.env.OPENROUTER_API_KEY;
       if (!key) throw new Error("OPENROUTER_API_KEY is not set");
       process.env.OPENAI_API_KEY = key;
-      return new OpenAIModel({
+      const model = new OpenAIModel({
         api: "chat",
         modelId: config.modelId,
-        clientConfig: { baseURL: "https://openrouter.ai/api/v1" },
-        params: { stream: false },
+        clientConfig: {
+          baseURL: "https://openrouter.ai/api/v1",
+          defaultHeaders: { "HTTP-Referer": "https://tv-harness.dev" },
+        },
         temperature: config.temperature,
         maxTokens: config.maxTokens ?? 8192,
       });
+      // Workaround: Strands SDK crashes on numeric error codes from OpenRouter
+      // (err.code?.toLowerCase is not a function). Patch the stream method to
+      // catch and re-throw with a string code.
+      const origStream = model.stream.bind(model);
+      model.stream = async function* (...args: Parameters<typeof model.stream>) {
+        try {
+          yield* origStream(...args);
+        } catch (err: unknown) {
+          if (err instanceof Error && err.message.includes("toLowerCase is not a function")) {
+            throw new Error(`OpenRouter API error (model: ${config.modelId}). Check model availability and API key.`);
+          }
+          throw err;
+        }
+      } as typeof model.stream;
+      return model;
     }
     case "openai":
       return new OpenAIModel({
