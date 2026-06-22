@@ -1,7 +1,8 @@
 import { Agent } from "@strands-agents/sdk";
+import { AgentSkills, Skill } from "@strands-agents/sdk/vended-plugins/skills";
 import type { AgentStreamEvent, AgentResult } from "@strands-agents/sdk";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import type {
@@ -149,11 +150,13 @@ export class StrandsOrchestrator {
       });
 
       const model = createModel(this.modelConfig);
+      const skillsPlugin = this.buildSkillsPlugin(spec);
 
       const agent = new Agent({
         model,
         tools,
         systemPrompt,
+        plugins: [skillsPlugin],
       });
 
       const maxTurns = this.getMaxTurns(phase);
@@ -362,26 +365,53 @@ export class StrandsOrchestrator {
     return limits[phase] ?? 15;
   }
 
-  private buildSystemPrompt(spec: PhaseSpec): string {
-    const metaSkill = this.skills.alwaysLoad();
-    const phaseSkills = this.skills.loadSkills(spec.skills);
-
+  private buildSystemPrompt(_spec: PhaseSpec): string {
     const parts = [
       "You are a TV app development agent. You have access to specialized TV app tools.",
       "Execute the current phase by using the appropriate tools.",
+      "Use the `skills` tool to load domain knowledge when needed — available skills are listed in <available_skills>.",
       "",
       "## App Spec",
       JSON.stringify(this.state.spec, null, 2),
       "",
       "## Design System",
       buildDesignContext(this.input.design),
-      "",
-      "## Skills (domain knowledge)",
-      metaSkill,
-      ...phaseSkills,
     ];
 
     return parts.join("\n");
+  }
+
+  private buildSkillsPlugin(spec: PhaseSpec): AgentSkills {
+    const skillSources: (string | Skill)[] = [];
+
+    // Always load the meta skill
+    const metaPath = join(this.input.skillsDir, "meta.md");
+    if (existsSync(metaPath)) {
+      const content = readFileSync(metaPath, "utf-8");
+      skillSources.push(Skill.fromContent(content, { path: metaPath }));
+    }
+
+    // Load phase-specific skills as Skill instances
+    for (const skillName of spec.skills) {
+      const skillPath = join(this.input.skillsDir, `${skillName}.md`);
+      if (existsSync(skillPath)) {
+        const content = readFileSync(skillPath, "utf-8");
+        skillSources.push(Skill.fromContent(content, { path: skillPath }));
+      }
+    }
+
+    // Also load auto-skills if they exist
+    const autoDir = join(this.input.skillsDir, "auto");
+    if (existsSync(autoDir)) {
+      const autoFiles = readdirSync(autoDir).filter(f => f.endsWith(".md"));
+      for (const file of autoFiles) {
+        const filePath = join(autoDir, file);
+        const content = readFileSync(filePath, "utf-8");
+        skillSources.push(Skill.fromContent(content, { path: filePath }));
+      }
+    }
+
+    return new AgentSkills({ skills: skillSources });
   }
 
   private buildPhaseUserMessage(phase: Phase): string {
