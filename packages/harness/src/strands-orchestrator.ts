@@ -148,6 +148,7 @@ export class StrandsOrchestrator {
         tools,
         systemPrompt,
         plugins: [skillsPlugin],
+        printer: false,
       });
 
       const maxTurns = this.getMaxTurns(phase);
@@ -265,6 +266,7 @@ export class StrandsOrchestrator {
         model,
         tools: [],
         systemPrompt,
+        printer: false,
       });
 
       const result = await agent.invoke(userMessage, {
