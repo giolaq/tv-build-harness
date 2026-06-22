@@ -67,6 +67,11 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
 
   const devtoolsActive = !!deps.useDevtools;
 
+  // Auto-launch Chrome with remote debugging if devtools mode is on and Chrome isn't already running with it
+  if (devtoolsActive) {
+    await ensureChromeWithDebugPort(deps.onLog);
+  }
+
   try {
     let lastVerdict: QAVerdict | null = null;
 
@@ -176,6 +181,78 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
   } finally {
     stopWebServer(webServer);
   }
+}
+
+const CHROME_DEBUG_PORT = 9222;
+
+async function ensureChromeWithDebugPort(onLog?: (message: string) => void): Promise<void> {
+  // Check if something is already listening on the debug port
+  const isOpen = await new Promise<boolean>((resolve) => {
+    const srv = createServer();
+    srv.once("error", () => resolve(true)); // port in use = Chrome likely running
+    srv.once("listening", () => { srv.close(); resolve(false); });
+    srv.listen(CHROME_DEBUG_PORT, "127.0.0.1");
+  });
+
+  if (isOpen) {
+    onLog?.(`Chrome remote debugging already active on port ${CHROME_DEBUG_PORT}`);
+    return;
+  }
+
+  onLog?.(`Launching Chrome with --remote-debugging-port=${CHROME_DEBUG_PORT}`);
+
+  const chromePaths = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "google-chrome",
+    "chromium",
+  ];
+
+  let chromeBin: string | undefined;
+  for (const p of chromePaths) {
+    try {
+      if (p.startsWith("/")) {
+        execSync(`test -f "${p}"`, { stdio: "pipe" });
+        chromeBin = p;
+      } else {
+        execSync(`which ${p}`, { stdio: "pipe" });
+        chromeBin = p;
+      }
+      break;
+    } catch { /* try next */ }
+  }
+
+  if (!chromeBin) {
+    onLog?.("Chrome not found — devtools capture may fail, will fall back to Puppeteer");
+    return;
+  }
+
+  // Launch Chrome detached — it stays open after the harness exits
+  spawn(chromeBin, [
+    `--remote-debugging-port=${CHROME_DEBUG_PORT}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+  ], {
+    detached: true,
+    stdio: "ignore",
+  }).unref();
+
+  // Wait briefly for the debug port to open
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    const ready = await new Promise<boolean>((resolve) => {
+      const srv = createServer();
+      srv.once("error", () => resolve(true));
+      srv.once("listening", () => { srv.close(); resolve(false); });
+      srv.listen(CHROME_DEBUG_PORT, "127.0.0.1");
+    });
+    if (ready) {
+      onLog?.("Chrome launched with remote debugging");
+      return;
+    }
+  }
+
+  onLog?.("Chrome launched but debug port not ready — devtools capture may fail");
 }
 
 async function startWebServer(
