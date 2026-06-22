@@ -1,16 +1,19 @@
 {
   "template": "netflix-style",
-  "hero_height": 500,
+  "hero_height": 600,
   "show_hero": true,
   "tile_size": "large",
   "tile_ratio": "16:9",
   "spacing": "relaxed",
-  "corner_radius": 12,
-  "rails_per_screen": 3,
-  "font_scale": 1.0,
+  "corner_radius": 16,
+  "rails_per_screen": 4,
+  "font_scale": 1.1,
   "show_descriptions": true,
   "show_duration": true,
   "navigation_style": "drawer",
-  "focus_style": "border+scale",
-  "animation_speed": "normal"
+  "focus_style": "neon",
+  "animation_speed": "energetic",
+  "mood": "warm",
+  "surface_style": "gradient",
+  "card_style": "rounded"
 }
