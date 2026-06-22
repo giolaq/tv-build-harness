@@ -1,6 +1,6 @@
 ---
 name: shared-ui-catalog
-description: Catalog of available shared-ui components: what exists in the template, how to reuse vs create new
+description: "Catalog of available shared-ui components: what exists in the template, how to reuse vs create new"
 applies_to: [phase_screens, phase_navigation]
 load_when: planner specifies a screen, or `add_screen` / `remove_screen` is invoked
 ---

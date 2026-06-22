@@ -1,6 +1,6 @@
 ---
 name: manifest-wiring
-description: Content manifest wiring: how to connect content.json data to React Native data hooks and screen components
+description: "Content manifest wiring: how to connect content.json data to React Native data hooks and screen components"
 applies_to: [phase_manifest, phase_screens]
 load_when: injecting `content.json`, or wiring data into screens
 ---

@@ -135,6 +135,23 @@ export class StrandsOrchestrator {
     writeFileSync(promptLogPath, `# Phase: ${phase}\n\n## System Prompt\n\n${systemPrompt}\n\n## User Message\n\n${userMessage}\n`);
 
     try {
+      // Suppress Strands SDK console warnings when TUI is active
+      const useTui = !process.argv.includes("--no-tui");
+      const origWarn = console.warn;
+      const origLog = console.log;
+      if (useTui) {
+        console.warn = (...args: unknown[]) => {
+          const msg = String(args[0] ?? "");
+          if (msg.includes("YAML parse") || msg.includes("does not match parent") || msg.includes("unable to trim")) return;
+          origWarn(...args);
+        };
+        console.log = (...args: unknown[]) => {
+          const msg = String(args[0] ?? "");
+          if (msg.includes("[tool]") || msg.includes("[text]") || msg.includes("[result]")) return;
+          origLog(...args);
+        };
+      }
+
       const tools = createStrandsTools({
         appDir,
         workdir: this.state.workdir,
@@ -186,8 +203,10 @@ export class StrandsOrchestrator {
         this.phaseCosts.set(phase, cost);
       }
 
+      if (useTui) { console.warn = origWarn; console.log = origLog; }
       return { phase, status: "success", iterations: turns };
     } catch (err) {
+      if (useTui) { console.warn = origWarn; console.log = origLog; }
       const message = err instanceof Error ? err.message : String(err);
       this.log.error(phase, this.state.totalIterations, message);
       return { phase, status: "failed", iterations: 1, error: message.slice(0, 200) };
@@ -195,7 +214,7 @@ export class StrandsOrchestrator {
   }
 
   private handleStreamEvent(phase: Phase, event: AgentStreamEvent, turns: number): void {
-    const verbose = process.argv.includes("--verbose");
+    const verbose = process.argv.includes("--verbose") && process.argv.includes("--no-tui");
 
     if (event.type === "contentBlockEvent") {
       const block = event.contentBlock;
@@ -379,7 +398,7 @@ export class StrandsOrchestrator {
     const metaPath = join(this.input.skillsDir, "meta.md");
     if (existsSync(metaPath)) {
       const content = readFileSync(metaPath, "utf-8");
-      skillSources.push(Skill.fromContent(content, { strict: false, path: metaPath }));
+      skillSources.push(Skill.fromContent(content, { strict: false }));
     }
 
     // Load phase-specific skills as Skill instances
@@ -387,7 +406,7 @@ export class StrandsOrchestrator {
       const skillPath = join(this.input.skillsDir, `${skillName}.md`);
       if (existsSync(skillPath)) {
         const content = readFileSync(skillPath, "utf-8");
-        skillSources.push(Skill.fromContent(content, { strict: false, path: skillPath }));
+        skillSources.push(Skill.fromContent(content, { strict: false }));
       }
     }
 
@@ -398,7 +417,7 @@ export class StrandsOrchestrator {
       for (const file of autoFiles) {
         const filePath = join(autoDir, file);
         const content = readFileSync(filePath, "utf-8");
-        skillSources.push(Skill.fromContent(content, { strict: false, path: filePath }));
+        skillSources.push(Skill.fromContent(content, { strict: false }));
       }
     }
 

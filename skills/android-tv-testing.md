@@ -1,6 +1,6 @@
 ---
 name: android-tv-testing
-description: D-pad navigation testing methodology for Android TV emulators using adb and agent-device
+description: "D-pad navigation testing methodology for Android TV emulators using adb and agent-device"
 applies_to: [android_test_loop]
 ---
 

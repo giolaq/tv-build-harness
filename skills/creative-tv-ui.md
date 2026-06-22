@@ -1,6 +1,6 @@
 ---
 name: creative-tv-ui
-description: Creative visual design patterns for TV apps: typography, color depth, focus states, animations, per-content-type personalities
+description: "Creative visual design patterns for TV apps: typography, color depth, focus states, animations, per-content-type personalities"
 applies_to: [creative_ui]
 ---
 

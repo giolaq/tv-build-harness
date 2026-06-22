@@ -1,6 +1,6 @@
 ---
 name: meta
-description: Meta skill loaded for all phases: project conventions, file modification rules, code quality standards
+description: "Meta skill loaded for all phases: project conventions, file modification rules, code quality standards"
 applies_to: [all]
 load_when: every turn
 ---

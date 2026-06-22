@@ -1,6 +1,6 @@
 ---
 name: eas-build
-description: Expo Application Services cloud build configuration for TV app APK and IPA generation
+description: "Expo Application Services cloud build configuration for TV app APK and IPA generation"
 applies_to: [phase_eas_build]
 load_when: producing signed artifacts via EAS, or local builds aren't sufficient
 ---
