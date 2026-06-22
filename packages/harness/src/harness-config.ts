@@ -94,7 +94,7 @@ export const HarnessConfigSchema = z.object({
   template: TemplateConfigSchema.default({
     repo: "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git",
   }),
-  models: ModelsConfigSchema.default({}),
+  models: ModelsConfigSchema.default({ plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" }),
   tokenBudget: z.number().default(500_000),
   phases: z.array(PhaseSpecSchema.partial().extend({ name: z.string() })).optional(),
 });

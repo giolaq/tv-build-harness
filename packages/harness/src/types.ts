@@ -138,13 +138,13 @@ export const ScreenSchema = z.object({
 
 export const ComponentCustomizationSchema = z.object({
   component: z.string(),
-  changes: z.record(z.string()),
+  changes: z.record(z.string(), z.string()),
 });
 
 export const ComponentSpecSchema = z.object({
   name: z.string(),
   description: z.string(),
-  props: z.record(z.string()).default({}),
+  props: z.record(z.string(), z.string()).default({}),
 });
 
 export const DataBindingSchema = z.object({
@@ -157,7 +157,7 @@ export const AppSpecSchema = z.object({
   app_name: z.string(),
   theme: z.object({
     mode: z.enum(["dark", "light"]),
-    tokens: z.record(z.string()).default({}),
+    tokens: z.record(z.string(), z.string()).default({}),
   }),
   navigation: z.object({
     type: z.enum(["drawer", "tabs", "single"]),
