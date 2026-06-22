@@ -12,7 +12,6 @@ import type {
   HarnessInput,
 } from "./types.js";
 import { AppSpecSchema } from "./types.js";
-import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
 import { writeRunReport } from "./run-report.js";
 import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
@@ -30,7 +29,6 @@ export interface StrandsRunOptions {
 
 export class StrandsOrchestrator {
   private state: SessionState;
-  private skills: SkillLibrary;
   private log: RunLog;
   private input: HarnessInput;
   private events: HarnessEvents;
@@ -39,7 +37,6 @@ export class StrandsOrchestrator {
   private modelConfig: ModelProviderConfig;
 
   constructor(input: HarnessInput, events: HarnessEvents = {}) {
-    this.skills = new SkillLibrary(input.skillsDir);
     this.input = input;
     this.events = events;
     this.harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
@@ -141,8 +138,6 @@ export class StrandsOrchestrator {
       const tools = createStrandsTools({
         appDir,
         workdir: this.state.workdir,
-        templateRepo: this.harness.template.repo,
-        skills: this.skills,
       });
 
       const model = createModel(this.modelConfig);
