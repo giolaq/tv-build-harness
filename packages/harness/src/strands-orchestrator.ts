@@ -179,6 +179,7 @@ export class StrandsOrchestrator {
       const maxTurns = this.getMaxTurns(phase);
       let turns = 0;
       let agentResult: AgentResult | undefined;
+      const collectedText: string[] = [];
 
       const stream = agent.stream(userMessage, {
         limits: { turns: maxTurns },
@@ -189,6 +190,12 @@ export class StrandsOrchestrator {
       while (!next.done) {
         const event = next.value;
         this.handleStreamEvent(phase, event, turns);
+
+        // Collect text blocks for response file
+        if (event.type === "contentBlockEvent") {
+          const block = (event as { contentBlock?: { text?: string } }).contentBlock;
+          if (block?.text) collectedText.push(block.text);
+        }
 
         // Track turns and tokens from model message events
         if (event.type === "modelMessageEvent") {
@@ -216,16 +223,19 @@ export class StrandsOrchestrator {
       }
 
       // Write phase response for debugging (mirrors claude-run behavior)
+      let responseText = "";
       if (agentResult?.lastMessage) {
-        let responseText = "";
         for (const block of agentResult.lastMessage.content) {
           if ("text" in block && typeof block.text === "string") {
             responseText += block.text;
           }
         }
-        if (responseText) {
-          writeFileSync(join(this.state.workdir, `response-${phase}.txt`), responseText);
-        }
+      }
+      if (!responseText && collectedText.length > 0) {
+        responseText = collectedText.join("\n");
+      }
+      if (responseText) {
+        writeFileSync(join(this.state.workdir, `response-${phase}.txt`), responseText);
       }
 
       if (useTui) { console.warn = origWarn; console.log = origLog; }
