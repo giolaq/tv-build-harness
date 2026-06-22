@@ -246,13 +246,14 @@ export class StrandsOrchestrator {
 
     if (event.type === "toolResultEvent") {
       const result = event.result;
-      if (verbose && "content" in result) {
-        const text = String(result.content ?? "").slice(0, 100);
-        console.log(`    [result] ${text}`);
+      const raw = (result as { content?: unknown }).content ?? "";
+      const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+      if (verbose) {
+        console.log(`    [result] ${text.slice(0, 100)}`);
       }
       this.events.onPhaseMessage?.(phase, {
         type: "tool_result",
-        content: String((result as { content?: unknown }).content ?? "").slice(0, 200),
+        content: text.slice(0, 200),
       });
     }
   }
