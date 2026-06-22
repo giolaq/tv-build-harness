@@ -191,10 +191,18 @@ export class StrandsOrchestrator {
         const event = next.value;
         this.handleStreamEvent(phase, event, turns);
 
-        // Collect text blocks for response file
+        // Collect text from any event that carries it
         if (event.type === "contentBlockEvent") {
           const block = (event as { contentBlock?: { text?: string } }).contentBlock;
           if (block?.text) collectedText.push(block.text);
+        }
+        if (event.type === "modelMessageEvent") {
+          const msg = (event as { message?: { content?: Array<{ text?: string }> } }).message;
+          if (msg?.content) {
+            for (const block of msg.content) {
+              if (block.text) collectedText.push(block.text);
+            }
+          }
         }
 
         // Track turns and tokens from model message events
@@ -250,6 +258,26 @@ export class StrandsOrchestrator {
 
   private handleStreamEvent(phase: Phase, event: AgentStreamEvent, turns: number): void {
     const verbose = process.argv.includes("--verbose") && process.argv.includes("--no-tui");
+
+    // OpenAI/OpenRouter models emit text via modelMessageEvent, not contentBlockEvent
+    if (event.type === "modelMessageEvent") {
+      const msg = (event as { message?: { content?: Array<{ text?: string; type?: string; name?: string; toolUseId?: string }> } }).message;
+      if (msg?.content) {
+        for (const block of msg.content) {
+          if (block.text) {
+            if (verbose) console.log(`    [text] ${block.text.slice(0, 150)}`);
+            this.log.log({ phase, iteration: turns, event: "model_turn", message: block.text.slice(0, 500) });
+            this.events.onPhaseMessage?.(phase, { type: "text", content: block.text.slice(0, 300) });
+          }
+          if (block.type === "tool_use" || block.name) {
+            const toolName = block.name ?? "unknown";
+            if (verbose) console.log(`    [tool] ${toolName}`);
+            this.log.toolCall(phase, turns, toolName, {});
+            this.events.onPhaseMessage?.(phase, { type: "tool_use", content: toolName, toolName });
+          }
+        }
+      }
+    }
 
     if (event.type === "contentBlockEvent") {
       const block = event.contentBlock;
