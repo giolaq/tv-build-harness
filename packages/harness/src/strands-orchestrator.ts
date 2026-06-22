@@ -257,10 +257,8 @@ export class StrandsOrchestrator {
 
     try {
       // Use a separate model config for planning (may use opus)
-      const planModelConfig: ModelProviderConfig = {
-        ...this.modelConfig,
-        modelId: this.harness.models.plan,
-      };
+      // Use the strandsProvider modelId for plan (don't override with legacy model string names)
+      const planModelConfig: ModelProviderConfig = { ...this.modelConfig };
       const model = createModel(planModelConfig);
 
       const agent = new Agent({
