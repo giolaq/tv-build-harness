@@ -29,6 +29,7 @@ export function createModel(config: ModelProviderConfig): Model {
         api: "chat",
         modelId: config.modelId,
         clientConfig: { baseURL: "https://openrouter.ai/api/v1" },
+        params: { stream: false },
         temperature: config.temperature,
         maxTokens: config.maxTokens ?? 8192,
       });
