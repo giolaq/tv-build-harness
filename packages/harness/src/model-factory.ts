@@ -21,17 +21,18 @@ export function createModel(config: ModelProviderConfig): Model {
         temperature: config.temperature,
         maxTokens: config.maxTokens ?? 8192,
       });
-    case "openrouter":
+    case "openrouter": {
+      const key = process.env.OPENROUTER_API_KEY;
+      if (!key) throw new Error("OPENROUTER_API_KEY is not set");
+      process.env.OPENAI_API_KEY = key;
       return new OpenAIModel({
         api: "chat",
         modelId: config.modelId,
-        clientConfig: {
-          baseURL: "https://openrouter.ai/api/v1",
-          apiKey: process.env.OPENROUTER_API_KEY,
-        },
+        clientConfig: { baseURL: "https://openrouter.ai/api/v1" },
         temperature: config.temperature,
         maxTokens: config.maxTokens ?? 8192,
       });
+    }
     case "openai":
       return new OpenAIModel({
         modelId: config.modelId,
