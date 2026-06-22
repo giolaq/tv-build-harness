@@ -67,7 +67,7 @@ export class StrandsOrchestrator {
       phaseResults: new Map(),
       iteration: 0,
       totalIterations: 0,
-      tokenBudget: this.harness.tokenBudget,
+      tokenBudget: 0, // unlimited in API mode — cost is tracked but not capped
       tokensUsed: 0,
       messages: [],
     };
@@ -98,7 +98,7 @@ export class StrandsOrchestrator {
           this.events.onLog?.(msg);
         },
         shouldStop: () =>
-          this.state.tokensUsed >= this.state.tokenBudget
+          this.state.tokenBudget > 0 && this.state.tokensUsed >= this.state.tokenBudget
             ? `Token budget exhausted (${this.state.tokensUsed}/${this.state.tokenBudget})`
             : null,
       },
