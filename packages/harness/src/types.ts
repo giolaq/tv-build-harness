@@ -248,8 +248,11 @@ export const DesignTokensSchema = z.object({
   show_descriptions: z.boolean().default(true),
   show_duration: z.boolean().default(true),
   navigation_style: z.enum(["drawer", "tabs", "hidden"]).default("drawer"),
-  focus_style: z.enum(["border", "glow", "scale", "border+scale"]).default("border+scale"),
+  focus_style: z.enum(["border", "glow", "scale", "border+scale", "neon", "glass", "sharp"]).default("border+scale"),
   animation_speed: z.enum(["none", "subtle", "normal", "energetic"]).default("normal"),
+  mood: z.enum(["warm", "cool", "electric", "natural", "minimal", "playful"]).optional(),
+  surface_style: z.enum(["flat", "gradient", "glass", "textured"]).default("gradient"),
+  card_style: z.enum(["rounded", "sharp", "pill", "angular"]).default("rounded"),
 }).strict();
 
 export type DesignTokens = z.infer<typeof DesignTokensSchema>;

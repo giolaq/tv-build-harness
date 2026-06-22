@@ -78,6 +78,10 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
         primaryColor: input.brand.primary_color,
         accentColor: input.brand.accent_color,
         backgroundColor: input.brand.background_color,
+        mood: input.design.mood ?? "auto",
+        focusStyle: input.design.focus_style,
+        surfaceStyle: input.design.surface_style,
+        cardStyle: input.design.card_style,
       });
 
     case "navigation": {
