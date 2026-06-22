@@ -21,6 +21,8 @@ import { buildDesignContext } from "./phase-prompts.js";
 import { createModel } from "./model-factory.js";
 import type { ModelProviderConfig } from "./model-factory.js";
 import { createStrandsTools } from "./strands-tools.js";
+import { runVisualQALoop } from "./visual-qa.js";
+import { PromptLoader } from "./prompt-loader.js";
 import type { HarnessEvents } from "./claude-orchestrator.js";
 
 export interface StrandsRunOptions {
@@ -122,6 +124,10 @@ export class StrandsOrchestrator {
 
     if (phase === "scaffold") {
       return this.executeClonePhase();
+    }
+
+    if (spec.kind === "visual_qa") {
+      return this.executeVisualQALoop();
     }
 
     const appDir = join(this.state.workdir, "app");
@@ -352,6 +358,40 @@ export class StrandsOrchestrator {
       const message = err instanceof Error ? `${err.message}\n${err.stack}` : JSON.stringify(err);
       return { phase: "plan", status: "failed", iterations: 1, error: message };
     }
+  }
+
+  private async executeVisualQALoop(): Promise<PhaseResult> {
+    const appDir = join(this.state.workdir, "app");
+    const prompts = new PromptLoader(join(import.meta.dirname ?? ".", "../prompts"));
+
+    const runClaude = async (prompt: string, cwd: string, timeoutMs?: number, allowedTools?: string): Promise<string> => {
+      // Use the Strands agent for visual QA sub-tasks
+      const model = createModel(this.harness.models.phaseModels?.["visual_qa_loop"] ?? this.modelConfig);
+      const tools = createStrandsTools({ appDir: cwd, workdir: this.state.workdir });
+      const agent = new Agent({ model, tools, systemPrompt: "You are a TV app visual QA agent.", printer: false });
+      const result = await agent.invoke(prompt, { limits: { turns: 20 } });
+      let text = "";
+      for (const block of result.lastMessage.content) {
+        if ("text" in block && typeof block.text === "string") text += block.text;
+      }
+      return text;
+    };
+
+    return runVisualQALoop({
+      appDir,
+      outDir: this.state.workdir,
+      maxIterations: this.input.config.visual_qa_max_iterations,
+      threshold: this.input.config.visual_qa_pass_threshold,
+      brand: this.input.brand,
+      design: this.input.design,
+      spec: this.state.spec,
+      platforms: this.input.config.platforms,
+      prompts,
+      useDevtools: this.input.config.use_devtools,
+      runClaude,
+      onLog: (msg) => this.events.onLog?.(msg),
+      onIteration: (current, max) => this.events.onIteration?.("visual_qa_loop", current, max),
+    });
   }
 
   private executeClonePhase(): PhaseResult {
