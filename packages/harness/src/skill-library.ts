@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, dirname } from "node:path";
 import type { Phase, SkillMeta } from "./types.js";
 import { DEFAULT_PHASE_SKILLS } from "./harness-config.js";
 
@@ -16,9 +16,20 @@ export class SkillLibrary {
   private buildIndex(): void {
     const scanDir = (dir: string) => {
       if (!existsSync(dir)) return;
-      for (const file of readdirSync(dir)) {
-        if (!file.endsWith(".md") || file === "README.md") continue;
-        const filePath = join(dir, file);
+      for (const entry of readdirSync(dir)) {
+        // New format: <name>/SKILL.md
+        const skillMdPath = join(dir, entry, "SKILL.md");
+        if (existsSync(skillMdPath)) {
+          const content = readFileSync(skillMdPath, "utf-8");
+          const meta = this.parseFrontmatter(content, skillMdPath);
+          if (meta) {
+            this.index.set(meta.name, meta);
+          }
+          continue;
+        }
+        // Old format: <name>.md (flat file)
+        if (!entry.endsWith(".md") || entry === "README.md") continue;
+        const filePath = join(dir, entry);
         const content = readFileSync(filePath, "utf-8");
         const meta = this.parseFrontmatter(content, filePath);
         if (meta) {
@@ -32,10 +43,14 @@ export class SkillLibrary {
   }
 
   private parseFrontmatter(content: string, filePath: string): SkillMeta | null {
+    // Derive fallback name: if SKILL.md, use parent dir name; otherwise strip .md
+    const fallbackName = basename(filePath) === "SKILL.md"
+      ? basename(dirname(filePath))
+      : basename(filePath, ".md");
+
     const match = content.match(/^---\n([\s\S]*?)\n---/);
     if (!match) {
-      const name = basename(filePath, ".md");
-      return { name, applies_to: [], filePath };
+      return { name: fallbackName, applies_to: [], filePath };
     }
 
     const frontmatter = match[1];
@@ -43,7 +58,7 @@ export class SkillLibrary {
     const appliesMatch = frontmatter.match(/applies_to:\s*\[([^\]]*)\]/);
 
     return {
-      name: nameMatch?.[1]?.trim() ?? basename(filePath, ".md"),
+      name: nameMatch?.[1]?.trim() ?? fallbackName,
       applies_to: appliesMatch?.[1]?.split(",").map((s) => s.trim()) ?? [],
       filePath,
     };

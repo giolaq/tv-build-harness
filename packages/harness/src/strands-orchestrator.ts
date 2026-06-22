@@ -134,11 +134,12 @@ export class StrandsOrchestrator {
     const promptLogPath = join(this.state.workdir, `prompt-${phase}.md`);
     writeFileSync(promptLogPath, `# Phase: ${phase}\n\n## System Prompt\n\n${systemPrompt}\n\n## User Message\n\n${userMessage}\n`);
 
+    // Suppress Strands SDK console warnings when TUI is active
+    const useTui = !process.argv.includes("--no-tui");
+    const origWarn = console.warn;
+    const origLog = console.log;
+
     try {
-      // Suppress Strands SDK console warnings when TUI is active
-      const useTui = !process.argv.includes("--no-tui");
-      const origWarn = console.warn;
-      const origLog = console.log;
       if (useTui) {
         console.warn = (...args: unknown[]) => {
           const msg = String(args[0] ?? "");
@@ -394,23 +395,29 @@ export class StrandsOrchestrator {
   private buildSkillsPlugin(spec: PhaseSpec): AgentSkills {
     const skillSources: (string | Skill)[] = [];
 
-    // Always load the meta skill
-    const metaPath = join(this.input.skillsDir, "meta.md");
-    if (existsSync(metaPath)) {
-      const content = readFileSync(metaPath, "utf-8");
+    // Always load the meta skill (new dir format first, then flat file fallback)
+    const metaDirPath = join(this.input.skillsDir, "meta");
+    const metaFlatPath = join(this.input.skillsDir, "meta.md");
+    if (existsSync(join(metaDirPath, "SKILL.md"))) {
+      skillSources.push(Skill.fromFile(metaDirPath, { strict: false }));
+    } else if (existsSync(metaFlatPath)) {
+      const content = readFileSync(metaFlatPath, "utf-8");
       skillSources.push(Skill.fromContent(content, { strict: false }));
     }
 
-    // Load phase-specific skills as Skill instances
+    // Load phase-specific skills (new dir format first, then flat file fallback)
     for (const skillName of spec.skills) {
-      const skillPath = join(this.input.skillsDir, `${skillName}.md`);
-      if (existsSync(skillPath)) {
-        const content = readFileSync(skillPath, "utf-8");
+      const skillDirPath = join(this.input.skillsDir, skillName);
+      const skillFlatPath = join(this.input.skillsDir, `${skillName}.md`);
+      if (existsSync(join(skillDirPath, "SKILL.md"))) {
+        skillSources.push(Skill.fromFile(skillDirPath, { strict: false }));
+      } else if (existsSync(skillFlatPath)) {
+        const content = readFileSync(skillFlatPath, "utf-8");
         skillSources.push(Skill.fromContent(content, { strict: false }));
       }
     }
 
-    // Also load auto-skills if they exist
+    // Also load auto-skills if they exist (flat files in auto/)
     const autoDir = join(this.input.skillsDir, "auto");
     if (existsSync(autoDir)) {
       const autoFiles = readdirSync(autoDir).filter(f => f.endsWith(".md"));
