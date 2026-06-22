@@ -86,8 +86,8 @@ export type ModelProviderConfig = z.infer<typeof ModelProviderConfigSchema>;
 export const ModelsConfigSchema = z.object({
   plan: z.string().default("claude-opus-4-6"),
   execution: z.string().default("claude-sonnet-4-6"),
-  // Extended provider config for Strands SDK mode
   strandsProvider: ModelProviderConfigSchema.optional(),
+  phaseModels: z.record(z.string(), ModelProviderConfigSchema).optional(),
 });
 
 export const HarnessConfigSchema = z.object({

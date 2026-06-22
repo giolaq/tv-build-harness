@@ -3,6 +3,12 @@
     "strandsProvider": {
       "provider": "openrouter",
       "modelId": "z-ai/glm-5.2"
+    },
+    "phaseModels": {
+      "visual_qa_loop": {
+        "provider": "openrouter",
+        "modelId": "anthropic/claude-sonnet-4"
+      }
     }
   }
 }

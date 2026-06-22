@@ -158,7 +158,8 @@ export class StrandsOrchestrator {
         workdir: this.state.workdir,
       });
 
-      const model = createModel(this.modelConfig);
+      const phaseModelConfig = this.harness.models.phaseModels?.[phase] ?? this.modelConfig;
+      const model = createModel(phaseModelConfig);
       const skillsPlugin = this.buildSkillsPlugin(spec);
 
       const agent = new Agent({
