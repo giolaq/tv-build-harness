@@ -184,23 +184,27 @@ export class StrandsOrchestrator {
         const event = next.value;
         this.handleStreamEvent(phase, event, turns);
 
-        // Track turns from model message events
+        // Track turns and tokens from model message events
         if (event.type === "modelMessageEvent") {
           turns++;
           this.events.onIteration?.(phase, turns, maxTurns);
+          // Extract usage from the message if available
+          const msg = (event as { message?: { usage?: { inputTokens?: number; outputTokens?: number } } }).message;
+          if (msg?.usage) {
+            const turnTokens = (msg.usage.inputTokens ?? 0) + (msg.usage.outputTokens ?? 0);
+            if (turnTokens > 0) {
+              this.state.tokensUsed += turnTokens;
+              this.events.onTokens?.(turnTokens);
+            }
+          }
         }
         next = await stream.next();
       }
       agentResult = next.value;
 
-      // Extract metrics from the AgentResult
+      // Extract cost from the AgentResult (tokens already emitted per-turn above)
       if (agentResult?.metrics) {
         const usage = agentResult.metrics.accumulatedUsage;
-        const tokensThisPhase = usage.inputTokens + usage.outputTokens;
-        this.state.tokensUsed += tokensThisPhase;
-        this.events.onTokens?.(tokensThisPhase);
-
-        // Estimate cost (Claude Sonnet pricing: $3/M input, $15/M output)
         const cost = (usage.inputTokens * 3 + usage.outputTokens * 15) / 1_000_000;
         this.phaseCosts.set(phase, cost);
       }
