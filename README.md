@@ -121,12 +121,60 @@ Verify check types: `file_exists`, `grep` (with `{{brand.primary_color}}`-style 
 
 Skills are plain markdown in `skills/` with `name:`/`applies_to:` frontmatter — write one for whatever your template or domain needs and reference it from a phase's `skills` list. The agent can also load skills on demand and even write its own (quality-gated) during runs.
 
+## Model & Provider Configuration (Strands SDK)
+
+The `run` command uses the [Strands Agents SDK](https://strandsagents.com/) which supports multiple LLM providers. Configure the provider and model in `harness.config.json`:
+
+```jsonc
+{
+  "models": {
+    // Legacy model names (used by claude-run CLI mode)
+    "plan": "claude-opus-4-6",
+    "execution": "claude-sonnet-4-6",
+
+    // Strands SDK provider config (used by `run` API mode)
+    "strandsProvider": {
+      "provider": "bedrock",      // "bedrock" or "anthropic"
+      "modelId": "global.anthropic.claude-sonnet-4-6-v1",
+      "region": "us-west-2",     // required for bedrock
+      "temperature": 0.7,         // optional
+      "maxTokens": 8192           // optional
+    }
+  }
+}
+```
+
+### Supported providers
+
+| Provider | Config | Auth |
+|----------|--------|------|
+| **AWS Bedrock** | `"provider": "bedrock"` | `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` |
+| **Anthropic Direct** | `"provider": "anthropic"` | `ANTHROPIC_API_KEY` env var |
+
+### Bedrock model IDs
+
+```
+global.anthropic.claude-opus-4-6-v1        # Opus (plan phase)
+global.anthropic.claude-sonnet-4-6-v1      # Sonnet (execution phases)
+us.anthropic.claude-haiku-4-5-20251001-v1  # Haiku (fast/cheap)
+us.meta.llama4-maverick-17b-instruct-v1    # Llama (experimental)
+```
+
+### Two execution modes
+
+| Mode | Command | SDK | Use case |
+|------|---------|-----|----------|
+| **CLI mode** | `claude-run` | Claude CLI subprocess | Recommended — stable, battle-tested |
+| **API mode** | `run` | Strands Agents SDK | Multi-provider, configurable, benchmarking |
+
+Both produce identical outputs in `out/<runId>/`. The CLI mode uses the Claude CLI binary; the API mode calls the LLM provider directly via the Strands SDK.
+
 ## All commands
 
 | Command | What it does |
 |---|---|
 | `claude-run [dir]` | Full pipeline via the Claude CLI (recommended) |
-| `run [dir]` | Full pipeline via the Anthropic API (`ANTHROPIC_API_KEY`) |
+| `run [dir]` | Full pipeline via the Strands Agents SDK (multi-provider) |
 | `doctor [--fix]` | Pre-flight checks, with exact fix commands |
 | `visual-qa` | Re-run only the visual QA loop on an existing app |
 | `add-screen <Name> --type=<layout>` | Add a screen to a generated app |
