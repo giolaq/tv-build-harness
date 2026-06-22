@@ -1,5 +1,6 @@
 ---
 name: firetv-leanback
+description: Fire TV leanback manifest configuration: banner icons, LEANBACK_LAUNCHER intent filter, TV-specific Android settings
 applies_to: [phase_brand, phase_build]
 load_when: targeting `androidtv` or `firetv-fos`
 ---

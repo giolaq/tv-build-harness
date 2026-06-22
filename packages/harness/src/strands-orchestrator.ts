@@ -377,7 +377,7 @@ export class StrandsOrchestrator {
     const metaPath = join(this.input.skillsDir, "meta.md");
     if (existsSync(metaPath)) {
       const content = readFileSync(metaPath, "utf-8");
-      skillSources.push(Skill.fromContent(content, { path: metaPath }));
+      skillSources.push(Skill.fromContent(content, { strict: false, path: metaPath }));
     }
 
     // Load phase-specific skills as Skill instances
@@ -385,7 +385,7 @@ export class StrandsOrchestrator {
       const skillPath = join(this.input.skillsDir, `${skillName}.md`);
       if (existsSync(skillPath)) {
         const content = readFileSync(skillPath, "utf-8");
-        skillSources.push(Skill.fromContent(content, { path: skillPath }));
+        skillSources.push(Skill.fromContent(content, { strict: false, path: skillPath }));
       }
     }
 
@@ -396,11 +396,11 @@ export class StrandsOrchestrator {
       for (const file of autoFiles) {
         const filePath = join(autoDir, file);
         const content = readFileSync(filePath, "utf-8");
-        skillSources.push(Skill.fromContent(content, { path: filePath }));
+        skillSources.push(Skill.fromContent(content, { strict: false, path: filePath }));
       }
     }
 
-    return new AgentSkills({ skills: skillSources });
+    return new AgentSkills({ skills: skillSources, strict: false });
   }
 
   private buildPhaseUserMessage(phase: Phase): string {

@@ -1,5 +1,6 @@
 ---
 name: vega-sdk
+description: Fire TV Vega OS (Kepler) build system: npx kepler build, Vega app structure, platform-specific components
 applies_to: [phase_vega_build]
 load_when: target platforms include `firetv-vega`, or touching `apps/vega/`
 ---

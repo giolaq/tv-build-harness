@@ -1,5 +1,6 @@
 ---
 name: theming
+description: Theme token system: colors.ts and typography.ts structure, surface hierarchy, how to apply brand colors consistently
 applies_to: [phase_brand]
 load_when: applying `brand.json`, or any color/typography request
 ---

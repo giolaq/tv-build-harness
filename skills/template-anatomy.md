@@ -1,5 +1,6 @@
 ---
 name: template-anatomy
+description: Template repo file structure: where screens, navigation, theme, data, and platform entries live in the monorepo
 applies_to: [phase_clone, phase_brand, phase_manifest, phase_screens, phase_build]
 load_when: any time the agent reads or writes project files
 ---

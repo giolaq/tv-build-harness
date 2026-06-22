@@ -1,5 +1,6 @@
 ---
 name: expo-tv-config
+description: Expo TV configuration: app.json plugins, prebuild settings, platform-specific config for react-native-tvos
 applies_to: [phase_clone, phase_prebuild]
 load_when: configuring `app.json`, running prebuild, or builds fail with config errors
 ---

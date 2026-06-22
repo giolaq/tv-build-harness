@@ -1,5 +1,6 @@
 ---
 name: 10ft-ui
+description: 10-foot UI design guidelines: safe zones, font sizes, contrast, focus indicators for TV viewing distance
 applies_to: [phase_screens]
 load_when: writing a new screen that doesn't reuse a shared-ui screen
 ---

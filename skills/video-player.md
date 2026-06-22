@@ -1,5 +1,6 @@
 ---
 name: video-player
+description: "react-native-video integration: player component setup, controls overlay, streaming format support"
 applies_to: [phase_screens, phase_manifest]
 load_when: customizing the player, adding new stream types, debugging playback
 ---
