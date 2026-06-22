@@ -244,9 +244,15 @@ function listExamples(): string[] {
 }
 
 async function runHarness() {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error(`  ANTHROPIC_API_KEY is not set — API mode needs it.`);
-    console.error(`  Fix: export ANTHROPIC_API_KEY=sk-ant-... (or add it to .env)`);
+  // Check for required API key based on provider config
+  const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+  const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+  const hasAWSAuth = !!process.env.AWS_PROFILE || !!process.env.AWS_ACCESS_KEY_ID;
+
+  if (!hasAnthropicKey && !hasOpenRouterKey && !hasOpenAIKey && !hasAWSAuth) {
+    console.error(`  No API credentials found for API mode.`);
+    console.error(`  Set one of: ANTHROPIC_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, or AWS_PROFILE`);
     console.error(`  Or use claude-run mode, which uses your local Claude CLI session instead.`);
     process.exit(1);
   }
