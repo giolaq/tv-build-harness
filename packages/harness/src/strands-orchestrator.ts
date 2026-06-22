@@ -310,7 +310,7 @@ export class StrandsOrchestrator {
 
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = err instanceof Error ? `${err.message}\n${err.stack}` : JSON.stringify(err);
       return { phase: "plan", status: "failed", iterations: 1, error: message };
     }
   }
