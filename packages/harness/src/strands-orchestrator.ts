@@ -230,6 +230,15 @@ export class StrandsOrchestrator {
         this.phaseCosts.set(phase, cost);
       }
 
+      // Auto-commit after each phase (mirrors claude-run git snapshots)
+      try {
+        execSync("git add -A && git diff --cached --quiet || git commit -m \"phase: " + phase + "\"", {
+          cwd: join(this.state.workdir, "app"),
+          stdio: ["pipe", "pipe", "pipe"],
+          timeout: 10_000,
+        });
+      } catch { /* no changes to commit or git not initialized */ }
+
       // Write phase response for debugging (mirrors claude-run behavior)
       let responseText = "";
       if (agentResult?.lastMessage) {
