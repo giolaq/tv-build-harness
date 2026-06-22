@@ -25,31 +25,34 @@ export function createModel(config: ModelProviderConfig): Model {
       const key = process.env.OPENROUTER_API_KEY;
       if (!key) throw new Error("OPENROUTER_API_KEY is not set");
       process.env.OPENAI_API_KEY = key;
-      const model = new OpenAIModel({
+      // Workaround for Strands SDK bug: it calls err.code?.toLowerCase() but
+      // OpenRouter returns numeric codes. Patch fetch to stringify error codes.
+      const patchedFetch: typeof fetch = async (input, init) => {
+        const res = await fetch(input, init);
+        if (!res.ok) {
+          const body = await res.text();
+          let patched = body;
+          try {
+            const json = JSON.parse(body);
+            if (json.error && typeof json.error.code === "number") {
+              json.error.code = String(json.error.code);
+              patched = JSON.stringify(json);
+            }
+          } catch { /* not JSON, pass through */ }
+          return new Response(patched, { status: res.status, statusText: res.statusText, headers: res.headers });
+        }
+        return res;
+      };
+      return new OpenAIModel({
         api: "chat",
         modelId: config.modelId,
         clientConfig: {
           baseURL: "https://openrouter.ai/api/v1",
-          defaultHeaders: { "HTTP-Referer": "https://tv-harness.dev" },
+          fetch: patchedFetch,
         },
         temperature: config.temperature,
         maxTokens: config.maxTokens ?? 8192,
       });
-      // Workaround: Strands SDK crashes on numeric error codes from OpenRouter
-      // (err.code?.toLowerCase is not a function). Patch the stream method to
-      // catch and re-throw with a string code.
-      const origStream = model.stream.bind(model);
-      model.stream = async function* (...args: Parameters<typeof model.stream>) {
-        try {
-          yield* origStream(...args);
-        } catch (err: unknown) {
-          if (err instanceof Error && err.message.includes("toLowerCase is not a function")) {
-            throw new Error(`OpenRouter API error (model: ${config.modelId}). Check model availability and API key.`);
-          }
-          throw err;
-        }
-      } as typeof model.stream;
-      return model;
     }
     case "openai":
       return new OpenAIModel({
