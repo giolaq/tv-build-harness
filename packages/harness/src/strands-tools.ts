@@ -29,7 +29,7 @@ export function createStrandsTools(ctx: StrandsToolsContext) {
           timeout: timeout ?? 60_000,
           stdio: ["pipe", "pipe", "pipe"],
         });
-        return output;
+        return output || "OK (no output)";
       } catch (err: unknown) {
         const e = err as { stdout?: string; stderr?: string; status?: number };
         return `Command failed (exit ${e.status ?? "?"})\nstdout: ${e.stdout ?? ""}\nstderr: ${e.stderr ?? ""}`;
@@ -111,13 +111,13 @@ export function createStrandsTools(ctx: StrandsToolsContext) {
             encoding: "utf-8",
             timeout: 10_000,
           });
-          return output;
+          return output || "(empty directory)";
         } catch {
           return `Failed to list ${resolved}`;
         }
       }
       const entries = readdirSync(resolved, { withFileTypes: true });
-      return entries.map(e => `${e.isDirectory() ? "📁" : "📄"} ${e.name}`).join("\n");
+      return entries.map(e => `${e.isDirectory() ? "📁" : "📄"} ${e.name}`).join("\n") || "(empty directory)";
     },
   });
 
@@ -129,11 +129,12 @@ export function createStrandsTools(ctx: StrandsToolsContext) {
     }),
     callback: async ({ args }) => {
       try {
-        return execSync(`git ${args}`, {
+        const out = execSync(`git ${args}`, {
           cwd: appDir,
           encoding: "utf-8",
           timeout: 30_000,
         });
+        return out || "OK (no output)";
       } catch (err: unknown) {
         const e = err as { stdout?: string; stderr?: string };
         return `Git failed: ${e.stderr ?? e.stdout ?? "unknown error"}`;
@@ -155,10 +156,11 @@ export function createStrandsTools(ctx: StrandsToolsContext) {
         : join(appDir, "packages/shared-ui/src");
       const includeFlag = include ? `--include="${include}"` : '--include="*.ts" --include="*.tsx"';
       try {
-        return execSync(
+        const out = execSync(
           `grep -rn "${pattern.replace(/"/g, '\\"')}" "${dir}" ${includeFlag} | head -30`,
           { encoding: "utf-8", timeout: 10_000 }
         );
+        return out || `No matches for "${pattern}" in ${dir}`;
       } catch {
         return `No matches for "${pattern}" in ${dir}`;
       }
