@@ -180,6 +180,7 @@ export class StrandsOrchestrator {
       let turns = 0;
       let agentResult: AgentResult | undefined;
       const collectedText: string[] = [];
+      const toolLog: string[] = [];
 
       const stream = agent.stream(userMessage, {
         limits: { turns: maxTurns },
@@ -193,16 +194,24 @@ export class StrandsOrchestrator {
 
         // Collect text from any event that carries it
         if (event.type === "contentBlockEvent") {
-          const block = (event as { contentBlock?: { text?: string } }).contentBlock;
+          const block = (event as { contentBlock?: { text?: string; name?: string } }).contentBlock;
           if (block?.text) collectedText.push(block.text);
+          if (block?.name) toolLog.push(block.name);
         }
         if (event.type === "modelMessageEvent") {
-          const msg = (event as { message?: { content?: Array<{ text?: string }> } }).message;
+          const msg = (event as { message?: { content?: Array<{ text?: string; name?: string; type?: string }> } }).message;
           if (msg?.content) {
             for (const block of msg.content) {
               if (block.text) collectedText.push(block.text);
+              if (block.name || block.type === "tool_use") toolLog.push(block.name ?? "tool");
             }
           }
+        }
+        if (event.type === "toolResultEvent") {
+          const result = event.result;
+          const raw = (result as { content?: unknown }).content ?? "";
+          const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+          if (text.length > 5) toolLog.push(`  → ${text.slice(0, 80)}`);
         }
 
         // Track turns and tokens from model message events
@@ -250,6 +259,9 @@ export class StrandsOrchestrator {
       }
       if (!responseText && collectedText.length > 0) {
         responseText = collectedText.join("\n");
+      }
+      if (!responseText && toolLog.length > 0) {
+        responseText = `# Phase: ${phase} — Tool execution log (${turns} turns)\n\n` + toolLog.join("\n");
       }
       if (responseText) {
         writeFileSync(join(this.state.workdir, `response-${phase}.txt`), responseText);
