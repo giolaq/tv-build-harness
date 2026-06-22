@@ -74,7 +74,7 @@ export const TemplateConfigSchema = z.object({
 });
 
 export const ModelProviderConfigSchema = z.object({
-  provider: z.enum(["bedrock", "anthropic"]).default("anthropic"),
+  provider: z.enum(["bedrock", "anthropic", "openrouter", "openai"]).default("anthropic"),
   modelId: z.string(),
   region: z.string().optional(),
   temperature: z.number().optional(),
