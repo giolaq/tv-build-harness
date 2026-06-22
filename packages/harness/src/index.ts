@@ -12,7 +12,6 @@ if (perf?.clearMeasures) {
 }
 import { TVAppHarness } from "./orchestrator.js";
 import { ClaudeOrchestrator } from "./claude-orchestrator.js";
-import { StrandsOrchestrator } from "./strands-orchestrator.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { ReplayClient } from "./recorder.js";
 import { SkillLibrary } from "./skill-library.js";
@@ -259,6 +258,7 @@ async function runHarness() {
 
   const input = { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
 
+  const { StrandsOrchestrator } = await import("./strands-orchestrator.js");
   const harness = new StrandsOrchestrator(input, {
     onPhaseStart: (phase) => console.log(`\n  [${"=".repeat(40)}]\n  Phase: ${phase}\n  [${"=".repeat(40)}]\n`),
     onPhaseEnd: (phase, result, cost) => {
