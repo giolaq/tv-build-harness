@@ -43,12 +43,13 @@ export function createStrandsTools(ctx: StrandsToolsContext) {
       background_color: z.string(),
       font_family: z.string().optional(),
     }),
-    callback: async ({ primary_color, accent_color, background_color }) => {
+    callback: async ({ primary_color, accent_color, background_color, font_family }) => {
       const themeDir = join(appDir, "packages", "shared-ui", "src", "theme");
       if (!existsSync(themeDir)) {
         return `Theme dir not found at ${themeDir}`;
       }
-      return `Apply these colors to ${themeDir}: primary=${primary_color}, accent=${accent_color}, bg=${background_color}`;
+      const fontNote = font_family ? `, font=${font_family}` : "";
+      return `Apply these colors to ${themeDir}: primary=${primary_color}, accent=${accent_color}, bg=${background_color}${fontNote}`;
     },
   });
 

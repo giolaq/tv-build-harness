@@ -106,7 +106,6 @@ export interface HarnessConfig {
   phases: PhaseSpec[];
 }
 
-export type { ModelProviderConfig as ModelProviderConfigType };
 
 // ─── Default Pipeline ────────────────────────────────────────────────────────
 // This encodes the built-in TV app pipeline. A harness.config.json can override

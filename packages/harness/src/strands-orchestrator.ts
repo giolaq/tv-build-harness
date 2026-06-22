@@ -6,7 +6,6 @@ import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import type {
-  AppSpec,
   Phase,
   PhaseResult,
   SessionState,
@@ -45,12 +44,9 @@ export class StrandsOrchestrator {
     this.events = events;
     this.harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
 
-    // Resolve model config — supports string (legacy) or object (new)
-    const modelsConf = this.harness.models as unknown;
-    if (typeof modelsConf === "object" && modelsConf !== null && "provider" in modelsConf) {
-      this.modelConfig = modelsConf as ModelProviderConfig;
+    if (this.harness.models.strandsProvider) {
+      this.modelConfig = this.harness.models.strandsProvider;
     } else {
-      // Default: use Anthropic provider with the execution model string
       this.modelConfig = {
         provider: "anthropic",
         modelId: this.harness.models.execution,

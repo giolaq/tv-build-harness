@@ -1,14 +1,9 @@
 import { BedrockModel } from "@strands-agents/sdk/models/bedrock";
 import { AnthropicModel } from "@strands-agents/sdk/models/anthropic";
 import type { Model } from "@strands-agents/sdk";
+import type { ModelProviderConfig } from "./harness-config.js";
 
-export interface ModelProviderConfig {
-  provider: "bedrock" | "anthropic";
-  modelId: string;
-  region?: string;
-  temperature?: number;
-  maxTokens?: number;
-}
+export type { ModelProviderConfig };
 
 export function createModel(config: ModelProviderConfig): Model {
   switch (config.provider) {
