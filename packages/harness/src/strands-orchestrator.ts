@@ -471,15 +471,17 @@ export class StrandsOrchestrator {
 
   private getMaxTurns(phase: Phase): number {
     const limits: Partial<Record<string, number>> = {
-      branding: 20,
-      content: 25,
-      screens: 20,
-      navigation: 15,
-      verify: 10,
-      build_loop: 10,
-      visual_smoke_test: 5,
+      branding: 40,
+      content: 50,
+      screens: 50,
+      creative_ui: 40,
+      navigation: 30,
+      verify: 20,
+      build_loop: 30,
+      android_test_loop: 30,
+      visual_smoke_test: 10,
     };
-    return limits[phase] ?? 15;
+    return limits[phase] ?? 30;
   }
 
   private buildSystemPrompt(_spec: PhaseSpec): string {
