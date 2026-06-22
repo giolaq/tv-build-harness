@@ -261,39 +261,58 @@ async function runHarness() {
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
+  const generateOnly = args.includes("--generate-only");
+  const useTui = !args.includes("--no-tui") && process.stdout.isTTY;
 
   const input = { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
 
   const { StrandsOrchestrator } = await import("./strands-orchestrator.js");
-  const harness = new StrandsOrchestrator(input, {
-    onPhaseStart: (phase) => console.log(`\n  [${"=".repeat(40)}]\n  Phase: ${phase}\n  [${"=".repeat(40)}]\n`),
-    onPhaseEnd: (phase, result, cost) => {
-      if (result.status === "failed") {
-        console.log(`  Phase ${phase} FAILED: ${result.error}`);
-      } else {
-        console.log(`  Phase ${phase}: ${result.status}`);
-        if (cost != null) console.log(`  Cost: $${cost.toFixed(4)}`);
-      }
-    },
-    onLog: (msg) => console.log(`  ${msg}`),
+  const { selectActivePhases } = await import("./pipeline-engine.js");
+
+  const { active } = selectActivePhases(harnessConfig.phases, {
+    platforms: config.platforms,
+    generateOnly,
   });
 
-  console.log(`\n  TV App Harness — Strands SDK mode`);
-  console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
-  console.log(`  Platforms: ${config.platforms.join(", ")}`);
-  console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);
-  console.log(`  Skills dir: ${skillsDir}\n`);
+  if (useTui) {
+    const { TUI } = await import("./tui.js");
+    const tui = new TUI(
+      brand.name,
+      config.platforms,
+      { template: design.template, navigation_style: design.navigation_style },
+      active.map((p) => p.name)
+    );
+    tui.start();
 
-  const { state, outDir } = await harness.run({ generateOnly: args.includes("--generate-only") });
+    const harness = new StrandsOrchestrator(input, {
+      onPhaseStart: (phase) => tui.setPhase(phase),
+      onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
+      onTokens: (tokens) => tui.addTokens(tokens),
+      onIteration: (phase, current, max) => tui.setIteration(phase, current, max),
+      onLog: (msg) => tui.log(msg),
+      onPhaseMessage: (phase, msg) => tui.addPhaseMessage(phase, msg),
+    });
 
-  console.log(`\n  Run complete.`);
-  console.log(`  Output: ${outDir}`);
-  console.log(`  Tokens used: ${state.tokensUsed}/${state.tokenBudget}`);
-  console.log(`  Phases:`);
+    const { state, outDir } = await harness.run({ generateOnly });
+    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
+    tui.finish(failed ? "failed" : "done");
+    tui.log(`Output: ${outDir}`);
+  } else {
+    const harness = new StrandsOrchestrator(input, {
+      onPhaseStart: (phase) => console.log(`\n  Phase: ${phase}`),
+      onPhaseEnd: (phase, result, cost) => {
+        const icon = result.status === "success" ? "✓" : "✗";
+        console.log(`  ${icon} ${phase}: ${result.status}${cost ? ` ($${cost.toFixed(4)})` : ""}`);
+        if (result.error) console.log(`    ${result.error}`);
+      },
+      onLog: (msg) => console.log(`  ${msg}`),
+    });
 
-  for (const [phase, result] of state.phaseResults) {
-    const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
-    console.log(`    ${icon} ${phase}: ${result.status} (${result.iterations} iterations)`);
+    console.log(`\n  TV App Harness — Strands SDK mode`);
+    console.log(`  Platforms: ${config.platforms.join(", ")}`);
+
+    const { state, outDir } = await harness.run({ generateOnly });
+    console.log(`\n  Output: ${outDir}`);
   }
 }
 

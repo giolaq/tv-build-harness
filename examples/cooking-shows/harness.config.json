@@ -2,7 +2,7 @@
   "models": {
     "strandsProvider": {
       "provider": "openrouter",
-      "modelId": "anthropic/claude-sonnet-4"
+      "modelId": "z-ai/glm-5.2"
     }
   }
 }
