@@ -209,6 +209,19 @@ export class StrandsOrchestrator {
         this.phaseCosts.set(phase, cost);
       }
 
+      // Write phase response for debugging (mirrors claude-run behavior)
+      if (agentResult?.lastMessage) {
+        let responseText = "";
+        for (const block of agentResult.lastMessage.content) {
+          if ("text" in block && typeof block.text === "string") {
+            responseText += block.text;
+          }
+        }
+        if (responseText) {
+          writeFileSync(join(this.state.workdir, `response-${phase}.txt`), responseText);
+        }
+      }
+
       if (useTui) { console.warn = origWarn; console.log = origLog; }
       return { phase, status: "success", iterations: turns };
     } catch (err) {
