@@ -12,6 +12,7 @@ if (perf?.clearMeasures) {
 }
 import { TVAppHarness } from "./orchestrator.js";
 import { ClaudeOrchestrator } from "./claude-orchestrator.js";
+import { StrandsOrchestrator } from "./strands-orchestrator.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { ReplayClient } from "./recorder.js";
 import { SkillLibrary } from "./skill-library.js";
@@ -256,11 +257,22 @@ async function runHarness() {
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
 
-  const harness = new TVAppHarness(
-    { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig }
-  );
+  const input = { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
 
-  console.log(`\n  TV App Harness — Agent SDK mode`);
+  const harness = new StrandsOrchestrator(input, {
+    onPhaseStart: (phase) => console.log(`\n  [${"=".repeat(40)}]\n  Phase: ${phase}\n  [${"=".repeat(40)}]\n`),
+    onPhaseEnd: (phase, result, cost) => {
+      if (result.status === "failed") {
+        console.log(`  Phase ${phase} FAILED: ${result.error}`);
+      } else {
+        console.log(`  Phase ${phase}: ${result.status}`);
+        if (cost != null) console.log(`  Cost: $${cost.toFixed(4)}`);
+      }
+    },
+    onLog: (msg) => console.log(`  ${msg}`),
+  });
+
+  console.log(`\n  TV App Harness — Strands SDK mode`);
   console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
   console.log(`  Platforms: ${config.platforms.join(", ")}`);
   console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);

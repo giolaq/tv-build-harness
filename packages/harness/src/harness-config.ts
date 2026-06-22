@@ -73,9 +73,21 @@ export const TemplateConfigSchema = z.object({
   branch: z.string().optional(),
 });
 
+export const ModelProviderConfigSchema = z.object({
+  provider: z.enum(["bedrock", "anthropic"]).default("anthropic"),
+  modelId: z.string(),
+  region: z.string().optional(),
+  temperature: z.number().optional(),
+  maxTokens: z.number().optional(),
+});
+
+export type ModelProviderConfig = z.infer<typeof ModelProviderConfigSchema>;
+
 export const ModelsConfigSchema = z.object({
   plan: z.string().default("claude-opus-4-6"),
   execution: z.string().default("claude-sonnet-4-6"),
+  // Extended provider config for Strands SDK mode
+  strandsProvider: ModelProviderConfigSchema.optional(),
 });
 
 export const HarnessConfigSchema = z.object({
@@ -93,6 +105,8 @@ export interface HarnessConfig {
   tokenBudget: number;
   phases: PhaseSpec[];
 }
+
+export type { ModelProviderConfig as ModelProviderConfigType };
 
 // ─── Default Pipeline ────────────────────────────────────────────────────────
 // This encodes the built-in TV app pipeline. A harness.config.json can override
