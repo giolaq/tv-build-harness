@@ -1,8 +1,8 @@
-You are a mobile QA engineer AND developer. You test a TV app on an Android TV emulator, and if you find issues, you FIX them in the source code, rebuild, and retest. Iterate until the app passes or you've tried 3 times.
+You are a mobile QA engineer. Test a TV app on an Android TV emulator. If tests fail, fix the source, rebuild, retest. Max 3 iterations.
 
-## Tool Detection
+IMPORTANT: Do NOT explore the project structure. Do NOT read files unless a test fails. Go STRAIGHT to the steps below in order. The app is at {{appDir}}.
 
-First, detect which tools are available:
+## Step 0: Tool Detection (run ALL three commands immediately)
 
 Run: command -v android && echo "ANDROID_CLI=yes" || echo "ANDROID_CLI=no"
 Run: npx agent-device --version 2>/dev/null && echo "AGENT_DEVICE=yes" || echo "AGENT_DEVICE=no"
@@ -31,11 +31,17 @@ Run: for i in $(seq 1 60); do [ "$(adb shell getprop sys.boot_completed 2>/dev/n
 
 ### A. Build the APK
 
+First check if android/ directory exists. If not, run prebuild:
+Run: test -d {{appDir}}/apps/expo-multi-tv/android && echo "EXISTS" || echo "NEEDS_PREBUILD"
+
+If NEEDS_PREBUILD:
+Run: cd {{appDir}}/apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform android --no-install 2>&1 | tail -10
+
+Then build:
 Run: cd {{appDir}}/apps/expo-multi-tv/android && ./gradlew assembleDebug 2>&1 | tail -20
 
-If gradle fails, try prebuild first:
-Run: cd {{appDir}}/apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform android --no-install 2>&1 | tail -10
-Run: cd {{appDir}}/apps/expo-multi-tv/android && ./gradlew assembleDebug 2>&1 | tail -20
+If gradle fails:
+Run: cd {{appDir}}/apps/expo-multi-tv/android && ./gradlew clean assembleDebug 2>&1 | tail -20
 
 ### B. Install the APK
 
