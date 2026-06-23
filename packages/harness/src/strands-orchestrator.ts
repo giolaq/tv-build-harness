@@ -144,6 +144,8 @@ export class StrandsOrchestrator {
     const useTui = !process.argv.includes("--no-tui");
     const origWarn = console.warn;
     const origLog = console.log;
+    let turns = 0;
+    const toolLog: string[] = [];
 
     try {
       if (useTui) {
@@ -177,10 +179,8 @@ export class StrandsOrchestrator {
       });
 
       const maxTurns = this.getMaxTurns(phase);
-      let turns = 0;
       let agentResult: AgentResult | undefined;
       const collectedText: string[] = [];
-      const toolLog: string[] = [];
 
       const stream = agent.stream(userMessage, {
         limits: { turns: maxTurns },
@@ -272,8 +272,16 @@ export class StrandsOrchestrator {
     } catch (err) {
       if (useTui) { console.warn = origWarn; console.log = origLog; }
       const message = err instanceof Error ? err.message : String(err);
+      const fullError = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : JSON.stringify(err);
       this.log.error(phase, this.state.totalIterations, message);
-      return { phase, status: "failed", iterations: 1, error: message.slice(0, 200) };
+      this.events.onLog?.(`Phase ${phase} error: ${message}`);
+      writeFileSync(join(this.state.workdir, `error-${phase}.txt`), fullError);
+      // Also write tool log so far as the response
+      if (toolLog.length > 0) {
+        writeFileSync(join(this.state.workdir, `response-${phase}.txt`),
+          `# Phase: ${phase} — FAILED after ${turns} turns\n\nError: ${message}\n\n## Tool log:\n${toolLog.join("\n")}`);
+      }
+      return { phase, status: "failed", iterations: turns, error: message.slice(0, 200) };
     }
   }
 
