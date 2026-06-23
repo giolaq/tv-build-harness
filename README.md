@@ -255,4 +255,4 @@ your-harness-repo/
 
 ## License
 
-MIT
+This project is licensed under the [MIT-0 License](LICENSE).
