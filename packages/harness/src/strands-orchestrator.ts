@@ -239,6 +239,10 @@ export class StrandsOrchestrator {
 
       // Extract cost from the AgentResult
       if (agentResult?.metrics) {
+        // Debug: write metrics structure to understand what the SDK returns
+        writeFileSync(join(this.state.workdir, `metrics-${phase}.json`),
+          JSON.stringify(agentResult.metrics, null, 2));
+
         const usage = agentResult.metrics.accumulatedUsage as
           { inputTokens?: number; outputTokens?: number; input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
         const input = usage.inputTokens ?? usage.input_tokens ?? usage.prompt_tokens ?? 0;
