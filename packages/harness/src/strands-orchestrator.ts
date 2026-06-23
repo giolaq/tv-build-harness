@@ -218,10 +218,15 @@ export class StrandsOrchestrator {
         if (event.type === "modelMessageEvent") {
           turns++;
           this.events.onIteration?.(phase, turns, maxTurns);
-          // Extract usage from the message if available
-          const msg = (event as { message?: { usage?: { inputTokens?: number; outputTokens?: number } } }).message;
-          if (msg?.usage) {
-            const turnTokens = (msg.usage.inputTokens ?? 0) + (msg.usage.outputTokens ?? 0);
+          // Extract usage — try multiple locations (Anthropic vs OpenAI format)
+          const ev = event as unknown as Record<string, unknown>;
+          const msg = ev.message as Record<string, unknown> | undefined;
+          const usage = (msg?.usage ?? ev.usage ?? (ev as { invocationState?: { usage?: unknown } }).invocationState) as
+            { inputTokens?: number; outputTokens?: number; input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number } | undefined;
+          if (usage) {
+            const input = usage.inputTokens ?? usage.input_tokens ?? usage.prompt_tokens ?? 0;
+            const output = usage.outputTokens ?? usage.output_tokens ?? usage.completion_tokens ?? 0;
+            const turnTokens = input + output;
             if (turnTokens > 0) {
               this.state.tokensUsed += turnTokens;
               this.events.onTokens?.(turnTokens);
@@ -232,11 +237,19 @@ export class StrandsOrchestrator {
       }
       agentResult = next.value;
 
-      // Extract cost from the AgentResult (tokens already emitted per-turn above)
+      // Extract cost from the AgentResult
       if (agentResult?.metrics) {
-        const usage = agentResult.metrics.accumulatedUsage;
-        const cost = (usage.inputTokens * 3 + usage.outputTokens * 15) / 1_000_000;
+        const usage = agentResult.metrics.accumulatedUsage as
+          { inputTokens?: number; outputTokens?: number; input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
+        const input = usage.inputTokens ?? usage.input_tokens ?? usage.prompt_tokens ?? 0;
+        const output = usage.outputTokens ?? usage.output_tokens ?? usage.completion_tokens ?? 0;
+        const cost = (input * 3 + output * 15) / 1_000_000;
         this.phaseCosts.set(phase, cost);
+        // If per-turn tracking missed tokens, catch up here
+        if (this.state.tokensUsed === 0 && (input + output) > 0) {
+          this.state.tokensUsed += input + output;
+          this.events.onTokens?.(input + output);
+        }
       }
 
       // Auto-commit after each phase (mirrors claude-run git snapshots)
