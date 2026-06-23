@@ -6,6 +6,14 @@ import type { ModelProviderConfig } from "./harness-config.js";
 
 export type { ModelProviderConfig };
 
+// Module-level usage tracker for OpenRouter (which doesn't propagate usage via Strands metrics)
+export const usageTracker = {
+  inputTokens: 0,
+  outputTokens: 0,
+  reset() { this.inputTokens = 0; this.outputTokens = 0; },
+  get totalTokens() { return this.inputTokens + this.outputTokens; },
+};
+
 export function createModel(config: ModelProviderConfig): Model {
   switch (config.provider) {
     case "bedrock":
@@ -25,8 +33,9 @@ export function createModel(config: ModelProviderConfig): Model {
       const key = process.env.OPENROUTER_API_KEY;
       if (!key) throw new Error("OPENROUTER_API_KEY is not set");
       process.env.OPENAI_API_KEY = key;
-      // Workaround for Strands SDK bug: it calls err.code?.toLowerCase() but
-      // OpenRouter returns numeric codes. Patch fetch to stringify error codes.
+
+      // Track cumulative token usage from OpenRouter responses via module-level tracker
+
       const patchedFetch: typeof fetch = async (input, init) => {
         const res = await fetch(input, init);
         if (!res.ok) {
@@ -41,8 +50,21 @@ export function createModel(config: ModelProviderConfig): Model {
           } catch { /* not JSON, pass through */ }
           return new Response(patched, { status: res.status, statusText: res.statusText, headers: res.headers });
         }
+        // For non-streaming responses, extract usage directly
+        if (!res.headers.get("content-type")?.includes("text/event-stream")) {
+          const body = await res.text();
+          try {
+            const json = JSON.parse(body);
+            if (json.usage) {
+              usageTracker.inputTokens += json.usage.prompt_tokens ?? 0;
+              usageTracker.outputTokens += json.usage.completion_tokens ?? 0;
+            }
+          } catch { /* pass through */ }
+          return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+        }
         return res;
       };
+
       return new OpenAIModel({
         api: "chat",
         modelId: config.modelId,

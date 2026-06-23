@@ -18,7 +18,7 @@ import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
 import { buildDesignContext } from "./phase-prompts.js";
-import { createModel } from "./model-factory.js";
+import { createModel, usageTracker } from "./model-factory.js";
 import type { ModelProviderConfig } from "./model-factory.js";
 import { createStrandsTools } from "./strands-tools.js";
 import { runVisualQALoop } from "./visual-qa.js";
@@ -238,10 +238,17 @@ export class StrandsOrchestrator {
       agentResult = next.value;
 
       // Extract cost from the AgentResult
+      // Use the module-level usageTracker for OpenRouter (which doesn't populate agentResult.metrics)
+      if (usageTracker.totalTokens > 0) {
+        const phaseInput = usageTracker.inputTokens;
+        const phaseOutput = usageTracker.outputTokens;
+        this.state.tokensUsed += usageTracker.totalTokens;
+        this.events.onTokens?.(usageTracker.totalTokens);
+        const cost = (phaseInput * 3 + phaseOutput * 15) / 1_000_000;
+        this.phaseCosts.set(phase, cost);
+        usageTracker.reset();
+      }
       if (agentResult?.metrics) {
-        // Debug: write metrics structure to understand what the SDK returns
-        writeFileSync(join(this.state.workdir, `metrics-${phase}.json`),
-          JSON.stringify(agentResult.metrics, null, 2));
 
         const usage = agentResult.metrics.accumulatedUsage as
           { inputTokens?: number; outputTokens?: number; input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
