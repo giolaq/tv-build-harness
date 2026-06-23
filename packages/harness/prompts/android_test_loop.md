@@ -1,170 +1,181 @@
-You are a mobile QA engineer AND developer. You test a TV app on an Android TV emulator using npx agent-device, and if you find issues, you FIX them in the source code, rebuild, and retest. Iterate until the app passes or you've tried 3 times.
+You are a mobile QA engineer AND developer. You test a TV app on an Android TV emulator, and if you find issues, you FIX them in the source code, rebuild, and retest. Iterate until the app passes or you've tried 3 times.
 
-## Prerequisites Check
+## Tool Detection
 
-Run these checks first. If any fail, report the failure and skip the rest:
+First, detect which tools are available:
 
-1. Check npx agent-device is installed:
-Run: npx agent-device --version
-If "command not found": report "npx agent-device not installed. Run: npm install -g npx agent-device" and STOP.
+Run: command -v android && echo "ANDROID_CLI=yes" || echo "ANDROID_CLI=no"
+Run: npx agent-device --version 2>/dev/null && echo "AGENT_DEVICE=yes" || echo "AGENT_DEVICE=no"
+Run: adb version && echo "ADB=yes" || echo "ADB=no"
 
-2. Check Android SDK:
+Use the FIRST available tool in this priority order:
+1. `android` CLI Agent (best: semantic UI interaction, built-in accessibility checks)
+2. `npx agent-device` (good: structured snapshots and interaction)
+3. Raw `adb` commands (fallback: raw keycodes)
+
+## Prerequisites
+
 Run: echo $ANDROID_HOME
 If empty: report "ANDROID_HOME not set" and STOP.
 
-3. Check ADB:
-Run: adb devices
-If fails: report "ADB not on PATH" and STOP.
-
-4. Find the Android TV AVD:
-Run: $ANDROID_HOME/emulator/emulator -list-avds
-Look for an AVD with "tv" or "TV" in the name (case-insensitive). Save the EXACT name for later.
-If none found: report "No Android TV AVD found. Create one with: avdmanager create avd -n TV_API_34 -k 'system-images;android-34;android-tv;x86_64' -d tv_1080p" and STOP.
-
-## STEP 1: Boot the Android TV Emulator (once)
-
-Check if an emulator is already running:
-Run: adb devices | grep emulator
-
-If no emulator is running, start the TV AVD you found in the prerequisite check:
-Run: $ANDROID_HOME/emulator/emulator -avd <TV_AVD_NAME> -no-snapshot-load -no-audio -gpu swiftshader_indirect &
+Run: adb devices | grep -w device
+If no device: boot the emulator:
+Run: $ANDROID_HOME/emulator/emulator -list-avds | grep -i tv | head -1
+Run: $ANDROID_HOME/emulator/emulator -avd <TV_AVD> -no-snapshot-load -no-audio -gpu swiftshader_indirect &
 Run: adb wait-for-device
-
-Wait for full boot:
-Run: for i in $(seq 1 60); do if [ "$(adb shell getprop sys.boot_completed 2>/dev/null)" = "1" ]; then echo "Booted"; break; fi; sleep 2; done
+Run: for i in $(seq 1 60); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null)" = "1" ] && break; sleep 2; done
 
 ---
 
 ## ITERATION LOOP (repeat up to 3 times)
 
-For each iteration:
-
 ### A. Build the APK
 
-Run: cd {{appDir}}/apps/expo-multi-tv && EXPO_TV=1 npx expo run:android --no-install 2>&1 | tail -30
+Run: cd {{appDir}}/apps/expo-multi-tv/android && ./gradlew assembleDebug 2>&1 | tail -20
 
-If it fails, try:
+If gradle fails, try prebuild first:
 Run: cd {{appDir}}/apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform android --no-install 2>&1 | tail -10
 Run: cd {{appDir}}/apps/expo-multi-tv/android && ./gradlew assembleDebug 2>&1 | tail -20
 
-### B. Find and Install the APK
+### B. Install the APK
 
-Run: find {{appDir}}/apps/expo-multi-tv/android -name "*.apk" -path "*debug*" | head -5
+Run: find {{appDir}}/apps/expo-multi-tv/android -name "*.apk" -path "*debug*" | head -1
+
+**If `android` CLI available:**
+Run: android install --apk <apk-path>
+
+**Otherwise:**
 Run: adb install -r <apk-path>
-
-If install fails with "INSTALL_FAILED_UPDATE_INCOMPATIBLE":
+If INSTALL_FAILED_UPDATE_INCOMPATIBLE:
 Run: adb uninstall {{bundleId}} && adb install -r <apk-path>
 
-### C. Open the App
+### C. Launch the App
 
-Run: npx agent-device open {{bundleId}} --platform android
+Run: adb shell am start -n {{bundleId}}/.MainActivity
 Run: sleep 5
 
-### D. Test the App
+### D. Test Navigation (6 checks)
 
-Perform ALL of the following checks. Track which ones PASS and which FAIL:
+#### Using `android` CLI Agent (preferred):
 
 **Check 1: Home Screen Loads**
-Run: npx agent-device snapshot -i
-PASS if: output contains 3+ interactive elements (refs like @e1, @e2, @e3)
-FAIL if: empty output, crash, or only 1-2 elements
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-01-home.png
+Run: android ui describe
+PASS if: multiple interactive elements visible (cards, rails, navigation)
+Run: android screenshot --output {{screenshotDir}}/android-iter<ITER>-01-home.png
 
 **Check 2: D-Pad Focus Moves Right**
-Run: npx agent-device key dpad_right
-Run: sleep 1
-Run: npx agent-device snapshot -i
-PASS if: the focused element changed from the previous snapshot
-FAIL if: same element still focused
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-02-right.png
+Run: android ui focused
+Run: android ui dpad right
+Run: android ui focused
+PASS if: focused element changed
+Run: android screenshot --output {{screenshotDir}}/android-iter<ITER>-02-right.png
 
 **Check 3: D-Pad Focus Moves Down**
-Run: npx agent-device key dpad_down
-Run: sleep 1
-Run: npx agent-device snapshot -i
+Run: android ui dpad down
+Run: android ui focused
 PASS if: focused element is in a different row/section
-FAIL if: focus didn't move
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-03-down.png
+Run: android screenshot --output {{screenshotDir}}/android-iter<ITER>-03-down.png
 
 **Check 4: Drawer/Nav Opens**
-Run: npx agent-device key dpad_left
-Run: npx agent-device key dpad_left
-Run: npx agent-device key dpad_left
+Run: android ui dpad left
+Run: android ui dpad left
+Run: android ui dpad left
 Run: sleep 1
-Run: npx agent-device snapshot -i
-PASS if: drawer/nav items visible (menu items, route labels)
-FAIL if: no navigation UI appeared
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-04-nav.png
+Run: android ui describe
+PASS if: navigation menu items visible (Home, Categories, Search, Settings or similar)
+Run: android screenshot --output {{screenshotDir}}/android-iter<ITER>-04-nav.png
 
 **Check 5: Screen Navigation Works**
-The app has these routes: {{routesList}}
-Navigate to the SECOND screen:
-Run: npx agent-device key dpad_down
-Run: npx agent-device key dpad_center
+Navigate to second screen:
+Run: android ui dpad down
+Run: android ui dpad center
 Run: sleep 2
-Run: npx agent-device snapshot -i
-PASS if: elements are DIFFERENT from the home screen snapshot
-FAIL if: same elements as home (navigation broken)
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-05-screen2.png
-Run: npx agent-device key back
-Run: sleep 1
+Run: android ui describe
+PASS if: content is DIFFERENT from home screen
+Run: android screenshot --output {{screenshotDir}}/android-iter<ITER>-05-screen2.png
+Run: android ui dpad back
 
 **Check 6: Detail View Opens**
-Go home first:
-Run: npx agent-device key back
+Go back to home, select first card:
+Run: android ui dpad back
 Run: sleep 1
-Select the first card:
-Run: npx agent-device key dpad_center
+Run: android ui dpad center
 Run: sleep 2
-Run: npx agent-device snapshot -i
-PASS if: content differs from home (detail/player view loaded)
-FAIL if: still on home screen
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-06-detail.png
-Run: npx agent-device key back
+Run: android ui describe
+PASS if: detail/player content visible (not home screen)
+Run: android screenshot --output {{screenshotDir}}/android-iter<ITER>-06-detail.png
+Run: android ui dpad back
 
-### E. Close Session
+**Check 7 (bonus): Accessibility**
+Run: android accessibility check
+Report any critical accessibility issues (missing content descriptions, unreachable elements).
+
+#### Using `npx agent-device` (fallback 1):
+
+**Check 1: Home Screen Loads**
+Run: npx agent-device open {{bundleId}} --platform android
+Run: sleep 5
+Run: npx agent-device snapshot -i
+PASS if: 3+ interactive elements visible
+Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-01-home.png
+
+**Check 2-6:** Use `adb shell input keyevent` for D-pad:
+- Right: `adb shell input keyevent 22`
+- Down: `adb shell input keyevent 20`
+- Left: `adb shell input keyevent 21`
+- Center/Select: `adb shell input keyevent 23`
+- Back: `adb shell input keyevent 4`
+
+After each keyevent, wait 1s then `npx agent-device snapshot -i` to verify state changed.
+Take screenshots with `npx agent-device screenshot <path>`.
 
 Run: npx agent-device close
 
-### F. Evaluate Results
+#### Using raw `adb` (fallback 2):
+
+Use `adb shell input keyevent` for all navigation.
+Use `adb exec-out screencap -p > <path>` for screenshots.
+Use `adb shell dumpsys window | grep mCurrentFocus` to verify screen changes.
+
+### E. Evaluate Results
 
 Count passes and failures.
 
-**If ALL 6 checks pass**: Report SUCCESS and STOP iterating.
+**If ALL checks pass**: Report SUCCESS and STOP iterating.
 
-**If any checks FAILED**: Diagnose and fix the source code:
+**If any checks FAILED**: Diagnose and fix:
 
 For "D-pad navigation broken / focus stuck":
-- Check configureRemoteControl is imported exactly once in App.tsx
-- Check SpatialNavigationRoot isActive logic
-- Check that screens have SpatialNavigationFocusableView on interactive elements
-- Read and fix: {{appDir}}/packages/shared-ui/src/screens/HomeScreen.tsx
+- Check configureRemoteControl imported once in App.tsx
+- Check SpatialNavigationRoot isActive logic (must have `&& !isMenuOpen`)
+- Check RemoteControlManager.addKeydownListener returns the listener (not a cleanup fn)
+- Read: {{appDir}}/packages/shared-ui/src/app/configureRemoteControl.ts
+- Read: {{appDir}}/packages/shared-ui/src/app/remote-control/RemoteControlManager.ts
 
 For "Navigation to screen failed":
-- Check drawer items are wired to correct screen components
-- Read and fix: {{appDir}}/packages/shared-ui/src/navigation/DrawerNavigator.tsx
+- Check drawer items wired to correct screens
+- Read: {{appDir}}/packages/shared-ui/src/navigation/DrawerNavigator.tsx
 
 For "Detail view didn't open":
-- Check that card onSelect calls navigation.navigate('Details', ...)
-- Read and fix the card's onSelect handler
+- Check card onSelect calls navigation.navigate('Details', ...)
 
-For "Home screen didn't load / crash":
-- Run: adb logcat -d | grep -i "error\|crash\|fatal" | tail -20
-- Check for missing imports, runtime errors
+For "Home screen crash":
+- Run: adb logcat -d | grep -i "error\|crash\|fatal\|ReactNative" | tail -20
+- Check for missing imports, duplicate packages in shared-ui/node_modules
 
-After fixing, go back to step A (rebuild) for the next iteration.
+After fixing, rebuild (step A) for next iteration.
 
 ---
 
 ## FINAL REPORT
 
-After the loop ends (pass or 3 iterations exhausted), output:
-
 ```
 ## Android TV Test Results
+- Tool used: android CLI / agent-device / raw adb
 - Iterations: <N>
 - Status: PASS / FAIL
 - Checks passed: <count>/6
+- Accessibility: <issues found or "clean">
 - Issues found: <list>
 - Issues fixed: <list>
 - Issues remaining: <list>
@@ -173,9 +184,8 @@ After the loop ends (pass or 3 iterations exhausted), output:
 
 ## CONSTRAINTS
 
-- Maximum 3 iterations (build + test cycles)
-- If npx agent-device commands fail with "no session", re-run `npx agent-device open {{bundleId}} --platform android`
-- If the emulator crashes, skip remaining tests and report what was captured
+- Maximum 3 iterations
+- If emulator crashes, report and stop
 - Screenshots go in {{screenshotDir}}/ with "android-iterN-" prefix
-- Keep the emulator running after tests (for manual inspection)
-- When fixing code, follow the same rules as other phases: NEVER add packages to shared-ui devDependencies, NEVER remove SpatialNavigationRoot, NEVER change itemSize values
+- NEVER modify RemoteControlManager.ts return types
+- NEVER add new keyboard/focus event listeners

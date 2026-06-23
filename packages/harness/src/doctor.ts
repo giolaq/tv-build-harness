@@ -28,6 +28,7 @@ export async function runDoctor(): Promise<CheckResult[]> {
   results.push(checkXcode());
   results.push(checkAndroidSDK());
   results.push(checkEmulators());
+  results.push(checkAndroidCliAgent());
   results.push(checkAgentDevice());
   results.push(checkTvOSSimulator());
   results.push(checkDiskSpace());
@@ -192,6 +193,19 @@ function checkPuppeteer(): CheckResult {
   }
 }
 
+function checkAndroidCliAgent(): CheckResult {
+  try {
+    const version = execSync("android --version", { stdio: "pipe", timeout: 10_000 }).toString().trim();
+    return { name: "Android CLI Agent", ok: true, detail: `${version} (semantic UI testing enabled)` };
+  } catch {
+    return {
+      name: "Android CLI Agent", ok: false, optional: true,
+      detail: "Not found. Falling back to agent-device or raw adb for Android testing.",
+      fix: "Install Android Studio 2025.2+ or run: sdkmanager 'cmdline-tools;latest'",
+    };
+  }
+}
+
 function checkAgentDevice(): CheckResult {
   try {
     const version = execSync("npx agent-device --version", { stdio: "pipe", timeout: 15_000 }).toString().trim();
@@ -199,7 +213,7 @@ function checkAgentDevice(): CheckResult {
   } catch {
     return {
       name: "agent-device", ok: false, optional: true,
-      detail: "Not found (android_test_loop phase will be skipped).",
+      detail: "Not found (will use Android CLI Agent or raw adb).",
       fix: "npm install -g agent-device",
     };
   }
