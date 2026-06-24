@@ -20,8 +20,8 @@ load_when: verifying code compiles, debugging build errors, or running static an
 # Compile Android TV app (includes Compose compiler)
 ./gradlew :androidtv-app:compileDebugKotlin
 
-# Full project compilation (all modules, all targets)
-./gradlew compileKotlin
+# Full project compilation (use module-specific tasks to avoid ambiguity)
+./gradlew :androidtv-app:compileDebugKotlin :shared-core:compileKotlinMetadata
 ```
 
 **Use `:shared-core:compileKotlinAndroid`** after editing models/repositories — it's fast (10-20s) and catches type errors across the shared layer.
