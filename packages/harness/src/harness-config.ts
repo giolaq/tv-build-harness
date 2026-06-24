@@ -119,14 +119,14 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
     buildPhase: false, internalLoop: false, abortOnFailure: true, cwd: "out", verify: [],
   },
   {
-    name: "scaffold", kind: "agent", prompt: "scaffold", skills: ["template-anatomy"],
+    name: "scaffold", kind: "agent", prompt: "scaffold", skills: ["rn-template-anatomy"],
     deps: ["plan"], timeoutMs: 600_000, buildPhase: false, internalLoop: false,
     abortOnFailure: false, cwd: "out",
     verify: [{ type: "file_exists", path: "package.json", error: "Template not cloned: package.json missing in app dir" }],
   },
   {
     name: "branding", kind: "agent", prompt: "branding",
-    skills: ["template-anatomy", "theming", "firetv-leanback"],
+    skills: ["rn-template-anatomy", "rn-theming", "firetv-leanback"],
     deps: ["scaffold"], timeoutMs: 600_000, buildPhase: false, internalLoop: false,
     abortOnFailure: false, cwd: "app",
     verify: [
@@ -136,7 +136,7 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
   },
   {
     name: "content", kind: "agent", prompt: "content",
-    skills: ["template-anatomy", "manifest-wiring"],
+    skills: ["rn-template-anatomy", "rn-manifest-wiring"],
     deps: ["scaffold"], timeoutMs: 600_000, buildPhase: false, internalLoop: false,
     abortOnFailure: false, cwd: "app",
     verify: [
@@ -146,20 +146,20 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
   },
   {
     name: "screens", kind: "agent", prompt: "screens",
-    skills: ["template-anatomy", "shared-ui-catalog", "10ft-ui"],
+    skills: ["rn-template-anatomy", "rn-shared-ui-catalog", "10ft-ui"],
     deps: ["branding", "content"], timeoutMs: 600_000, buildPhase: false,
     internalLoop: false, abortOnFailure: false, cwd: "app", verify: [],
   },
   {
     name: "creative_ui", kind: "agent", prompt: "creative_ui",
-    skills: ["template-anatomy", "shared-ui-catalog", "10ft-ui", "creative-tv-ui"],
+    skills: ["rn-template-anatomy", "rn-shared-ui-catalog", "10ft-ui", "creative-tv-ui"],
     deps: ["screens"], timeoutMs: 600_000, buildPhase: false, internalLoop: false,
     abortOnFailure: false, cwd: "app",
     verify: [{ type: "tsc" }],
   },
   {
     name: "navigation", kind: "agent", prompt: "navigation",
-    skills: ["template-anatomy", "shared-ui-catalog", "spatial-navigation"],
+    skills: ["rn-template-anatomy", "rn-shared-ui-catalog", "rn-spatial-navigation"],
     deps: ["creative_ui"], timeoutMs: 600_000, buildPhase: false, internalLoop: false,
     abortOnFailure: false, cwd: "app", verify: [],
   },
@@ -181,7 +181,7 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
   },
   {
     name: "visual_qa_loop", kind: "visual_qa",
-    skills: ["10ft-ui", "theming", "spatial-navigation"],
+    skills: ["10ft-ui", "rn-theming", "rn-spatial-navigation"],
     deps: ["build_loop"], timeoutMs: 600_000, buildPhase: true, internalLoop: true,
     abortOnFailure: false, cwd: "app", verify: [],
   },
@@ -200,7 +200,7 @@ export const DEFAULT_PHASE_SKILLS: Record<string, string[]> = Object.fromEntries
 // Phases known to the type system but not in the default pipeline.
 Object.assign(DEFAULT_PHASE_SKILLS, {
   prebuild: ["firetv-leanback"],
-  visual_correctness: ["10ft-ui", "theming"],
+  visual_correctness: ["10ft-ui", "rn-theming"],
   visual_smoke_test: ["10ft-ui"],
   eas_build: ["eas-build"],
   package: [],

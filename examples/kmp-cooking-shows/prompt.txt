@@ -1,0 +1,9 @@
+A premium streaming app for indie cooking shows. The visual identity should feel like a high-end food magazine meets Netflix — rich, cinematic, warm. Think golden-hour kitchen lighting, dark moody backgrounds with warm amber glows, and editorial-quality typography.
+
+Home screen: full-bleed hero with parallax-style gradient overlay (deep background fading to warm amber at the edges), featured carousel with oversized cards that breathe. Category rails below with distinct section titles using a serif display font. Each rail should feel like a chapter in a cookbook.
+
+Detail screen: immersive — the food image fills the top half with a dramatic bottom-to-top gradient. Metadata (duration, difficulty, cuisine) as elegant pill-shaped badges. A prominent "Watch Now" button with the accent color glow.
+
+Visual signatures: warm golden atmospheric tint across all screens (rgba warmth overlays), section dividers using thin accent-colored lines, card focus states with a double-glow effect (inner warm gold + outer accent orange). Typography should mix a bold condensed display font for titles with a friendly humanist body font.
+
+The app should NOT look like a generic dark-mode template. It should feel handcrafted, editorial, and appetizing — like you can almost smell the food through the screen.

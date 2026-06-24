@@ -1,5 +1,5 @@
 ---
-name: spatial-navigation
+name: rn-spatial-navigation
 description: "react-tv-space-navigation patterns: SpatialNavigationRoot, focus isolation, drawer integration, D-pad event handling"
 applies_to: [phase_screens, phase_static_check]
 load_when: writing new screens, fixing focus-check failures, debugging "remote doesn't work"
