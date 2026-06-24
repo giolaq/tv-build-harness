@@ -1,59 +1,47 @@
-You MUST transform the app's visual identity from generic template to distinctive brand. The app currently looks identical to every other app built from this template — your job is to make it unmistakably "{{appName}}".
+Transform the app's visual identity from generic template to distinctive brand. The app must look unmistakably like "{{appName}}", not a template.
 
-## STEP 1: Read existing theme structure
+## STEP 1: Discover the existing theme structure
 
-Run these reads first:
-- Read {{appDir}}/apps/expo-multi-tv/app.json
-- Find the theme tokens file: look in {{appDir}}/packages/shared-ui/ for files containing color definitions (likely in theme/, src/theme/, or similar)
-- Read the colors.ts and typography.ts (or equivalent)
+Use the loaded skill to find where these live in this project:
+- App metadata / config file (name, bundle ID, slug)
+- Theme tokens (colors, typography)
+
+Read those files before making any changes.
 
 ## STEP 2: Update app metadata
 
-Edit {{appDir}}/apps/expo-multi-tv/app.json:
-- Set "name" to "{{appName}}"
-- Set "slug" to "{{slug}}"
-- Set the iOS bundleIdentifier to "{{bundleId}}"
-- Set the Android package to "{{bundleId}}"
+Set the app name to "{{appName}}", slug to "{{slug}}", and bundle identifier to "{{bundleId}}" in the app config file. Use the loaded skill to find the right file.
 
-## STEP 3: Build a COMPLETE color system (not just primary swap)
+## STEP 3: Build a complete color system
 
 Brand inputs: primary={{primaryColor}}, accent={{accentColor}}, background={{backgroundColor}}
 
-Derive a full palette from these inputs:
-- `background`: {{backgroundColor}} (the deepest layer)
+Derive a full palette:
+- `background`: {{backgroundColor}}
 - `surface`: background + 8% lightness (for cards and containers)
-- `surfaceElevated`: background + 12% lightness (for focused/elevated elements)
-- `primary`: {{primaryColor}} (key CTAs, active indicators)
-- `secondary`: {{accentColor}} (focus glow, highlights, accent elements)
-- `text`: #FFFFFF or #F5F5F5 (primary text on dark)
-- `textSecondary`: 70% opacity white (metadata, descriptions)
-- `textOnPrimary`: high-contrast text on the primary color
-- `border`: 15% opacity white (subtle card edges)
-- `card`: surface color (distinct from background — NOT the same)
+- `surfaceElevated`: background + 12% lightness (for focused elements)
+- `primary`: {{primaryColor}}
+- `secondary`: {{accentColor}}
+- `text`: #FFFFFF or #F5F5F5
+- `textSecondary`: 70% opacity white
+- `textOnPrimary`: high-contrast text on primary
+- `border`: 15% opacity white
+- `card`: surface color (distinct from background)
 - `cardElevated`: surfaceElevated color
 
-Replace ALL color values in the theme file with these derived values. Do NOT leave template defaults.
+Replace ALL color values in the theme file. Do NOT leave template defaults. `background`, `surface`, and `card` must all be different shades.
 
-## STEP 4: Set typography personality
+## STEP 4: Set typography
 
 Font family: {{fontFamily}}
 
-Update the typography configuration:
-- Set the display/heading fontFamily to {{fontFamily}} (bold/heavy weight variant)
-- Keep body text in a clean readable font (the template default is fine for body)
-- Ensure font weights are available: the display font needs 700 or 800 weight
+Update the typography configuration to use {{fontFamily}} for display/heading (bold weight). Use the loaded skill to find the right file and format.
 
-If the font is not already installed, note it for the creative_ui phase to handle (it will install via expo-google-fonts).
+If the font needs to be installed, note it for the creative_ui phase.
 
-## STEP 5: Verify the transformation
+## STEP 5: Verify
 
-Run: cd "{{appDir}}" && grep -r "{{primaryColor}}" packages/shared-ui/ | head -5
-This should show your primary color in the theme files.
+Run: cd "{{appDir}}" && {{typeCheckCommand}} 2>&1 | head -20
+Fix any errors.
 
-Run: cd "{{appDir}}" && grep -r "{{accentColor}}" packages/shared-ui/ | head -5
-This should show your accent color.
-
-Run: cd "{{appDir}}" && grep -rn "background\|surface\|card" packages/shared-ui/src/theme/colors.ts | head -10
-Verify that background ≠ surface ≠ card (they must be different shades for depth).
-
-If any check shows nothing, your edits didn't work — find the right file and try again.
+Verify that primary and accent colors appear in the theme file and that background, surface, and card are distinct values.

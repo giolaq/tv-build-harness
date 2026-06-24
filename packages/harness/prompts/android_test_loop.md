@@ -1,4 +1,4 @@
-You are a mobile QA engineer AND developer. You test a TV app on an Android TV emulator using npx agent-device, and if you find issues, you FIX them in the source code, rebuild, and retest. Iterate until the app passes or you've tried 3 times.
+You are a mobile QA engineer AND developer. Test the TV app on an Android TV emulator using npx agent-device. If you find issues, fix them in the source code, rebuild, and retest. Iterate until the app passes or you've tried 3 times.
 
 ## Prerequisites Check
 
@@ -6,7 +6,7 @@ Run these checks first. If any fail, report the failure and skip the rest:
 
 1. Check npx agent-device is installed:
 Run: npx agent-device --version
-If "command not found": report "npx agent-device not installed. Run: npm install -g npx agent-device" and STOP.
+If "command not found": report "npx agent-device not installed. Run: npm install -g agent-device" and STOP.
 
 2. Check Android SDK:
 Run: echo $ANDROID_HOME
@@ -18,7 +18,7 @@ If fails: report "ADB not on PATH" and STOP.
 
 4. Find the Android TV AVD:
 Run: $ANDROID_HOME/emulator/emulator -list-avds
-Look for an AVD with "tv" or "TV" in the name (case-insensitive). Save the EXACT name for later.
+Look for an AVD with "tv" or "TV" in the name. Save the EXACT name for later.
 If none found: report "No Android TV AVD found. Create one with: avdmanager create avd -n TV_API_34 -k 'system-images;android-34;android-tv;x86_64' -d tv_1080p" and STOP.
 
 ## STEP 1: Boot the Android TV Emulator (once)
@@ -26,7 +26,7 @@ If none found: report "No Android TV AVD found. Create one with: avdmanager crea
 Check if an emulator is already running:
 Run: adb devices | grep emulator
 
-If no emulator is running, start the TV AVD you found in the prerequisite check:
+If no emulator is running, start the TV AVD you found above:
 Run: $ANDROID_HOME/emulator/emulator -avd <TV_AVD_NAME> -no-snapshot-load -no-audio -gpu swiftshader_indirect &
 Run: adb wait-for-device
 
@@ -41,15 +41,12 @@ For each iteration:
 
 ### A. Build the APK
 
-Run: cd {{appDir}}/apps/expo-multi-tv && EXPO_TV=1 npx expo run:android --no-install 2>&1 | tail -30
-
-If it fails, try:
-Run: cd {{appDir}}/apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform android --no-install 2>&1 | tail -10
-Run: cd {{appDir}}/apps/expo-multi-tv/android && ./gradlew assembleDebug 2>&1 | tail -20
+Use the loaded skill to get the correct build command for the Android target.
+If the primary build command fails, try the fallback build approach the skill describes.
 
 ### B. Find and Install the APK
 
-Run: find {{appDir}}/apps/expo-multi-tv/android -name "*.apk" -path "*debug*" | head -5
+Run: find {{appDir}} -name "*.apk" -path "*debug*" | head -5
 Run: adb install -r <apk-path>
 
 If install fails with "INSTALL_FAILED_UPDATE_INCOMPATIBLE":
@@ -132,25 +129,17 @@ Count passes and failures.
 
 **If ALL 6 checks pass**: Report SUCCESS and STOP iterating.
 
-**If any checks FAILED**: Diagnose and fix the source code:
+**If any checks FAILED**: Diagnose and fix the source code.
 
-For "D-pad navigation broken / focus stuck":
-- Check configureRemoteControl is imported exactly once in App.tsx
-- Check SpatialNavigationRoot isActive logic
-- Check that screens have SpatialNavigationFocusableView on interactive elements
-- Read and fix: {{appDir}}/packages/shared-ui/src/screens/HomeScreen.tsx
+For "D-pad navigation broken / focus stuck": use the loaded skill to check focus registration, screen activation logic, and focusable element setup.
 
-For "Navigation to screen failed":
-- Check drawer items are wired to correct screen components
-- Read and fix: {{appDir}}/packages/shared-ui/src/navigation/DrawerNavigator.tsx
+For "Navigation to screen failed": check that navigation items are wired to the correct screen components.
 
-For "Detail view didn't open":
-- Check that card onSelect calls navigation.navigate('Details', ...)
-- Read and fix the card's onSelect handler
+For "Detail view didn't open": check that card selection triggers navigation to the detail screen.
 
 For "Home screen didn't load / crash":
-- Run: adb logcat -d | grep -i "error\|crash\|fatal" | tail -20
-- Check for missing imports, runtime errors
+Run: adb logcat -d | grep -i "error\|crash\|fatal" | tail -20
+Use the loaded skill's guidance for crash diagnosis.
 
 After fixing, go back to step A (rebuild) for the next iteration.
 
@@ -178,4 +167,4 @@ After the loop ends (pass or 3 iterations exhausted), output:
 - If the emulator crashes, skip remaining tests and report what was captured
 - Screenshots go in {{screenshotDir}}/ with "android-iterN-" prefix
 - Keep the emulator running after tests (for manual inspection)
-- When fixing code, follow the same rules as other phases: NEVER add packages to shared-ui devDependencies, NEVER remove SpatialNavigationRoot, NEVER change itemSize values
+- When fixing code, follow the loaded skill's rules: never break the focus system, never change list item sizing, follow the dependency rules
