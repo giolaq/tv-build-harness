@@ -2,7 +2,7 @@
   "models": {
     "strandsProvider": {
       "provider": "openrouter",
-      "modelId": "z-ai/glm-5.2"
+      "modelId": "deepseek/deepseek-v4-flash"
     },
     "phaseModels": {
       "visual_qa_loop": {
