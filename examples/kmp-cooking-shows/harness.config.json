@@ -8,7 +8,7 @@
     { "name": "branding", "skills": ["kmp-template-anatomy", "kmp-theming"] },
     { "name": "content", "skills": ["kmp-template-anatomy", "kmp-data-layer"] },
     { "name": "screens", "skills": ["kmp-template-anatomy", "kmp-compose-tv", "10ft-ui"] },
-    { "name": "creative_ui", "skills": ["kmp-template-anatomy", "kmp-compose-tv", "creative-tv-ui", "10ft-ui"] },
+    { "name": "creative_ui", "skills": ["kmp-template-anatomy", "kmp-compose-tv", "creative-tv-ui", "10ft-ui"], "timeoutMs": 900000 },
     { "name": "navigation", "skills": ["kmp-template-anatomy", "kmp-navigation"] },
     { "name": "verify", "skills": ["kmp-verify-patterns"], "verify": [{ "type": "command", "run": "./gradlew :androidtv-app:compileDebugKotlin :shared-core:compileKotlinMetadata" }] },
     { "name": "build_loop", "skills": ["kmp-build-commands"], "verify": [{ "type": "command", "run": "./gradlew :androidtv-app:assembleDebug" }] },

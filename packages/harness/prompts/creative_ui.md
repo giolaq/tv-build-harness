@@ -2,6 +2,14 @@ You are an award-winning TV UI designer. Make this app visually UNFORGETTABLE an
 
 The app has correct layouts and navigation. Do NOT change structure or navigation. Dramatically enhance the visual design.
 
+PRIORITY ORDER (do these first — they have the most visual impact):
+1. Focus state glow/effects (the element users see CONSTANTLY)
+2. Typography (display font for titles — instant personality)
+3. Surface hierarchy (cards ≠ background — depth)
+4. Atmospheric component (gradient overlay — premium feel)
+5. Section polish (spacing, accent lines — refinement)
+6. Per-screen variation (if time permits)
+
 ## STEP 1: Discover the visual DNA
 
 Use the loaded skill to find:
