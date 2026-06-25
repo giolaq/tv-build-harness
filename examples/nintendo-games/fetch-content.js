@@ -66,19 +66,13 @@ function buildContent(games) {
     description: game.excerpt || `A ${(game.pretty_game_categories_txt || ["game"])[0].toLowerCase()} game by ${game.publisher || "Nintendo"}`,
     duration_sec: 0,
     thumbnail_url: game.image_url_h16x9_s || game.image_url_sq_s || "",
-    poster_url: game.image_url_sq_s || game.image_url_h16x9_s || "",
-    stream_url: "",
-    stream_type: "none",
+    stream_url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+    stream_type: "hls",
     tags: [
       ...(game.pretty_game_categories_txt || []).map((c) => c.toLowerCase()),
       ...(game.game_series_txt || []),
       game.publisher?.toLowerCase(),
     ].filter(Boolean),
-    metadata: {
-      publisher: game.publisher || "Unknown",
-      players: game.players_to || 1,
-      age_rating: game.age_rating_sorting_i || 0,
-    },
   }));
 
   const categories = [];

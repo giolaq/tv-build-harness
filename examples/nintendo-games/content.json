@@ -71,19 +71,13 @@
       "description": "The Legend of Zelda: Ocarina of Time will be reborn on Nintendo Switch 2.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/thelegendofzeldaocarinaoftime/16x9_NSwitch2_TTLoZOcarinaOfTime_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/thelegendofzeldaocarinaoftime/1x1_NSwitch2_TTLoZOcarinaOfTime_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "adventure",
         "the_legend_of_zelda",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 1,
-        "age_rating": 12
-      }
+      ]
     },
     {
       "id": "g2",
@@ -91,18 +85,12 @@
       "description": "Experience the excitement of every goal – solo or with everyone! Begin your football journey with eFootball™ Kick-Off!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/efootballkickoff/16x9_EfootballKickOff_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/efootballkickoff/1x1_EfootballKickOff_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "sports",
         "konami"
-      ],
-      "metadata": {
-        "publisher": "KONAMI",
-        "players": 4,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g3",
@@ -110,18 +98,12 @@
       "description": "Fox McCloud and his wingmen are back in Star Fox, only on Nintendo Switch 2!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/starfox/16x9_Starfox_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/starfox/1x1_Starfox_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "shooter",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 8,
-        "age_rating": 7
-      }
+      ]
     },
     {
       "id": "g4",
@@ -129,19 +111,13 @@
       "description": "Become the caretaker of an island full of silliness, drama, love and other surprises in Tomodachi Life: Living the Dream for Nintendo Switch! ",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/tomodachilifelivingthedream/16x9_NSwitch_TomodachiLiveLTD_BASE_UK_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/tomodachilifelivingthedream/1x1_NSwitch_TomodachiLiveLTD_BASE_UK_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "lifestyle",
         "simulation",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 2,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g5",
@@ -149,19 +125,13 @@
       "description": "Hope is Timeless",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/theadventuresofelliotthemillenniumtales/16x9_TheAdventuresOfElliotTheMillenniumTales_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/theadventuresofelliotthemillenniumtales/1x1_TheAdventuresOfElliotTheMillenniumTales_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "rpg",
         "square enix"
-      ],
-      "metadata": {
-        "publisher": "SQUARE ENIX",
-        "players": 2,
-        "age_rating": 12
-      }
+      ]
     },
     {
       "id": "g6",
@@ -169,19 +139,13 @@
       "description": "The Club is Yours",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/easportsfc26/16x9_NSwitch2_EaSportsFC26_202606_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/easportsfc26/1x1_NSwitch2_EaSportsFC26_202606_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "simulation",
         "sports",
         "electronic arts"
-      ],
-      "metadata": {
-        "publisher": "Electronic Arts",
-        "players": 22,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g7",
@@ -189,19 +153,13 @@
       "description": "More sports, more moves, more fun for everyone in Nintendo Switch Sports Resort, only on Nintendo Switch 2.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/nintendoswitchsportsresort/16x9_NSwitch2_NintendoSwitchSportsResort_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/nintendoswitchsportsresort/1x1_NSwitch2_NintendoSwitchSportsResort_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "party",
         "sports",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 4,
-        "age_rating": 7
-      }
+      ]
     },
     {
       "id": "g8",
@@ -209,19 +167,13 @@
       "description": "Craft cosy towns alongside your Pokémon friends in Pokémon Pokopia for Nintendo Switch 2.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/pokemonpokopia/16x9_NSwitch2_PokemonPokopia_image500w.png",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/pokemonpokopia/1x1_NSwitch2_PokemonPokopia_image500w.png",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "simulation",
         "pokemon",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 4,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g9",
@@ -229,19 +181,13 @@
       "description": "More experiences are coming to the Flower Kingdom in Super Mario Bros. Wonder – Nintendo Switch 2 Edition + Meetup in Bellabel Park",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/supermariobroswonderns2edbellabelpark/16x9_HP_NSwitch2_SMBWonderN2SEBP_GB_en_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/supermariobroswonderns2edbellabelpark/1x1_NSwitch2_SMBWonderN2SEBP_GB_en_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "super_mario",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 12,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g10",
@@ -249,19 +195,13 @@
       "description": "Expect the unexpected in Mario's latest 2D side-scrolling adventure!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_5/1x1_NSwitch_SuperMarioBrosWonder_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_5/1x1_NSwitch_SuperMarioBrosWonder_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "super_mario",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 4,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g11",
@@ -269,19 +209,13 @@
       "description": "The Club is Yours",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/easportsfc26_1/16x9_NintendoSwitch_EaSportsFc26_2026_06_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/easportsfc26_1/1x1_NintendoSwitch_EaSportsFc26_202606_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "simulation",
         "sports",
         "electronic arts"
-      ],
-      "metadata": {
-        "publisher": "Electronic Arts",
-        "players": 22,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g12",
@@ -289,19 +223,13 @@
       "description": "Experience everything you love about Pokémon battles all in one place – in Pokémon Champions for Nintendo Switch.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/pokemonchampions/1x1_NSwitch_PokemonChampions_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/pokemonchampions/1x1_NSwitch_PokemonChampions_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "rpg",
         "strategy",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 2,
-        "age_rating": 7
-      }
+      ]
     },
     {
       "id": "g13",
@@ -309,18 +237,12 @@
       "description": "Get in the groove together! Discover a colourful collection of funny little rhythm games for Nintendo Switch.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/rhythmparadisegroove/16x9_NSwitch_RythmParadiseGroove_PDPGamepage_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/rhythmparadisegroove/1x1_NSwitch_RythmParadiseGroove_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "music",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 4,
-        "age_rating": 7
-      }
+      ]
     },
     {
       "id": "g14",
@@ -328,20 +250,14 @@
       "description": "Fight for victory and make your wish in Fire Emblem: Fortune’s Weave on Nintendo Switch 2.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/fireemblemfortunesweave/16x9_NSwitch2_FireEmblemFortunesWeave_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/fireemblemfortunesweave/1x1_NSwitch2_FireEmblemFortunesWeave_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "rpg",
         "simulation",
         "fire_emblem",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 1,
-        "age_rating": 12
-      }
+      ]
     },
     {
       "id": "g15",
@@ -349,19 +265,13 @@
       "description": "Devil May Cry 5 Devil Hunter Edition brings the heat on the Nintendo Switch™ 2!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/devilmaycry5devilhunteredition/16x9_DevilMayCry5DevilHunterEdition_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/devilmaycry5devilhunteredition/1x1_DevilMayCry5DevilHunterEdition_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "adventure",
         "capcom"
-      ],
-      "metadata": {
-        "publisher": "CAPCOM",
-        "players": 1,
-        "age_rating": 18
-      }
+      ]
     },
     {
       "id": "g16",
@@ -369,18 +279,12 @@
       "description": "Play classic Nintendo GameCube games anytime, anywhere",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/services/nintendo_switch_online_2/classic_games/gamecube_8/gamepage_1/16x9_HP_NSOClassics_GameCube_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/services/nintendo_switch_online_2/classic_games/gamecube_8/gamepage_1/1x1_HP_NSOClasscis_GameCube_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "other",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 4,
-        "age_rating": 12
-      }
+      ]
     },
     {
       "id": "g17",
@@ -388,20 +292,14 @@
       "description": "Join Donkey Kong and Pauline as they smash their way through a vast underground world in Donkey Kong Bananza – only on Nintendo Switch 2.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/donkey_kong_bananza/16x9_DonkeyKongBananza_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/donkey_kong_bananza/1x1_NSwitch2_DonkeyKongBananza_Launch_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "platformer",
         "donkey_kong",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 2,
-        "age_rating": 7
-      }
+      ]
     },
     {
       "id": "g18",
@@ -409,19 +307,13 @@
       "description": "Rise, Tarnished.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/eldenringtarnishededition/1x1_NSwitch2_EldenRing_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/eldenringtarnishededition/1x1_NSwitch2_EldenRing_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "adventure",
         "rpg",
         "bandai namco entertainment"
-      ],
-      "metadata": {
-        "publisher": "BANDAI NAMCO Entertainment",
-        "players": 6,
-        "age_rating": 16
-      }
+      ]
     },
     {
       "id": "g19",
@@ -429,21 +321,15 @@
       "description": "Dive by day! Serve by night! The best diving, harpooning, action-adventuring, and sushi restaurant managing experience you'll ever have.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_download_software/1x1_NSwitchDS_DaveTheDiver_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_download_software/1x1_NSwitchDS_DaveTheDiver_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "adventure",
         "rpg",
         "simulation",
         "mintrocket"
-      ],
-      "metadata": {
-        "publisher": "Mintrocket",
-        "players": 1,
-        "age_rating": 12
-      }
+      ]
     },
     {
       "id": "g20",
@@ -451,20 +337,14 @@
       "description": "Dive into the pages of a talking encyclopaedia and embark on a discovery-driven adventure in Yoshi and the Mysterious Book, only on Nintendo Switch 2.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/yoshiandthemysteriousbook/16x9_NSwitch2_YoshiATMB_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/yoshiandthemysteriousbook/1x1_NSwitch2_YoshiATMB_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "adventure",
         "platformer",
         "yoshi",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 1,
-        "age_rating": 7
-      }
+      ]
     },
     {
       "id": "g21",
@@ -472,19 +352,13 @@
       "description": "Explore randomly generated worlds and build amazing things.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_5/SQ_NSwitch_Minecraft_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_5/SQ_NSwitch_Minecraft_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "adventure",
         "mojang"
-      ],
-      "metadata": {
-        "publisher": "Mojang",
-        "players": 8,
-        "age_rating": 7
-      }
+      ]
     },
     {
       "id": "g22",
@@ -492,19 +366,13 @@
       "description": "Explore a world filled with the magic of Disney! Discover rich stories while building the perfect neighborhood alongside Disney and Pixar Heroes and Villains.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/disneydreamlightvalley/1x1_DisneyDreamlightValley15_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/disneydreamlightvalley/1x1_DisneyDreamlightValley15_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "adventure",
         "simulation",
         "gameloft"
-      ],
-      "metadata": {
-        "publisher": "Gameloft",
-        "players": 4,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g23",
@@ -512,21 +380,15 @@
       "description": "Start your engines and race across a sprawling world in Mario Kart World for Nintendo Switch 2!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/mariokartworld/16x9_MarioKartWorld_image500w.png",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/mariokartworld/1x1_NSwitch2_MarioKartWorld_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "party",
         "racing",
         "super_mario",
         "mario_kart",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 24,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g24",
@@ -534,19 +396,13 @@
       "description": "No turning back… Discover the secrets of Kitezh and survive the forces of Trinity on Lara’s first tomb raiding expedition!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/riseofthetombraider20yc/16x9_RiseOfTheTombRaider20YC_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/riseofthetombraider20yc/1x1_RiseOfTheTombRaider20YC_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "adventure",
         "aspyr"
-      ],
-      "metadata": {
-        "publisher": "Aspyr",
-        "players": 2,
-        "age_rating": 18
-      }
+      ]
     },
     {
       "id": "g25",
@@ -554,21 +410,15 @@
       "description": "Explore a world filled with the magic of Disney! Discover rich stories while building the perfect neighborhood alongside Disney and Pixar Heroes and Villains.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/disneydreamlightvalleynintendoswitch2edition/16x9_DisneyDreamlightValleyNintendoSwitch2Edition_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/disneydreamlightvalleynintendoswitch2edition/1x1_DisneyDreamlightValleyNintendoSwitch2Edition_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "adventure",
         "other",
         "rpg",
         "simulation",
         "gameloft"
-      ],
-      "metadata": {
-        "publisher": "Gameloft",
-        "players": 4,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g26",
@@ -576,18 +426,12 @@
       "description": "Uncover the secrets of the Monado and save the world in Xenoblade Chronicles: Definitive Edition – Nintendo Switch 2 Edition.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/xenobladechroniclesdefinitiveeditionnintendoswitch2edition/16x9_XenobladeChroniclesDefinitiveEdition_NS2Edition_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_2_games/xenobladechroniclesdefinitiveeditionnintendoswitch2edition/1x1_XenobladeChroniclesDefinitiveEdition_NS2Edition_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "rpg",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 1,
-        "age_rating": 12
-      }
+      ]
     },
     {
       "id": "g27",
@@ -595,18 +439,12 @@
       "description": "Hogwarts Legacy is an immersive, open-world action RPG set in the world first introduced in the Harry Potter books.",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_5/1x1_NSwitch_HogwartsLegacy_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_5/1x1_NSwitch_HogwartsLegacy_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "rpg",
         "wb games"
-      ],
-      "metadata": {
-        "publisher": "WB Games",
-        "players": 1,
-        "age_rating": 12
-      }
+      ]
     },
     {
       "id": "g28",
@@ -614,20 +452,14 @@
       "description": "Start your new life with Nook Inc.'s Deserted Island Getaway Package!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_5/SQ_NSwitch_AnimalCrossingNewHorizons_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/11_square_images/games_18/nintendo_switch_5/SQ_NSwitch_AnimalCrossingNewHorizons_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "animal life",
         "simulation",
         "animal_crossing",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 8,
-        "age_rating": 3
-      }
+      ]
     },
     {
       "id": "g29",
@@ -635,18 +467,12 @@
       "description": "Enjoy access to a growing library of classic Nintendo 64 games anytime, anywhere, right on your Nintendo Switch 2 or Nintendo Switch!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/services/nintendo_switch_online_2/classic_games/nintendo_10/gamepage_2/16x9_HP_NSOClassics_N64_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/services/nintendo_switch_online_2/classic_games/nintendo_10/gamepage_2/1x1_HP_NSOClassics_N64_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "other",
         "nintendo"
-      ],
-      "metadata": {
-        "publisher": "Nintendo",
-        "players": 4,
-        "age_rating": 16
-      }
+      ]
     },
     {
       "id": "g30",
@@ -654,20 +480,14 @@
       "description": "Squad up for a Battle Royale on Nintendo Switch!",
       "duration_sec": 0,
       "thumbnail_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/fortnite/16x9_Fortnite_202605_image500w.jpg",
-      "poster_url": "https://www.nintendo.com/eu/media/images/assets/nintendo_switch_games/fortnite/1x1_Fortnite_202605_image500w.jpg",
-      "stream_url": "",
-      "stream_type": "none",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": [
         "action",
         "shooter",
         "strategy",
         "epic games"
-      ],
-      "metadata": {
-        "publisher": "Epic Games",
-        "players": 100,
-        "age_rating": 12
-      }
+      ]
     }
   ],
   "featured": [
