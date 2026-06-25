@@ -1,0 +1,14 @@
+{
+  "models": {
+    "strandsProvider": {
+      "provider": "openrouter",
+      "modelId": "deepseek/deepseek-v4-flash"
+    },
+    "phaseModels": {
+      "visual_qa_loop": {
+        "provider": "openrouter",
+        "modelId": "anthropic/claude-sonnet-4"
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+A premium game discovery app for Nintendo Switch titles. The visual identity should feel like a modern console storefront — bold, playful but refined, with the energy of Nintendo's brand without being childish. Think deep navy/charcoal backgrounds with Nintendo red as a signature accent, electric blue for interactive elements.
+
+Home screen: full-bleed hero showcasing a featured game with its poster art, a cinematic scrim gradient, and a prominent "View Game" CTA. Category rails below organized by genre (Action, Adventure, RPG, etc.) with large 16:9 cards showing game art. Each card should feel collectible — like a game box on a shelf.
+
+Detail screen: immersive game page with the poster image filling the top third, metadata pills (publisher, players, age rating), and a bold description area. Focus state should feel like picking up a game case — slight lift with a clean colored border.
+
+Visual signatures: the Nintendo red should appear sparingly but memorably (focus borders, CTAs, section accents). Cards should have subtle depth with layered surfaces. The overall tone is confident and curated — like a personal game library, not a cluttered store.

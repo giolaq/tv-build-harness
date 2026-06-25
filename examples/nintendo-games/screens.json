@@ -1,0 +1,39 @@
+{
+  "navigation_type": "drawer",
+  "home": {
+    "id": "home",
+    "name": "Home",
+    "layout": "hero+rails",
+    "data_source": "featured+categories"
+  },
+  "screens": [
+    {
+      "id": "categories",
+      "name": "Browse",
+      "layout": "grid",
+      "icon": "grid",
+      "data_source": "categories",
+      "children": [
+        {
+          "id": "category_detail",
+          "name": "Category Detail",
+          "layout": "grid",
+          "data_source": "category_items"
+        }
+      ]
+    },
+    {
+      "id": "search",
+      "name": "Search",
+      "layout": "search",
+      "icon": "search",
+      "data_source": "all_videos"
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "layout": "settings",
+      "icon": "settings"
+    }
+  ]
+}
