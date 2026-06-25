@@ -40,8 +40,12 @@ Commit to a direction. Be bold — safe is boring.
 
 {{creativeSeed}}
 
-## STEP 3: Create a custom visual layer
+## STEP 3: Cinematic scrim + atmospheric layer
 
+### 3a: Hero scrim (MANDATORY if the app has a hero/featured section)
+Find the hero/featured component. Add a cinematic scrim — a gradient overlay between the background image and any text. The loaded skill has the exact pattern (Cinematic Scrim System section). Without a scrim, text on images fails the 4.5:1 contrast requirement.
+
+### 3b: Atmospheric component
 Create a new atmospheric component that adds depth to screens. Use the loaded skill to find the right location.
 
 Options (pick one or combine):
@@ -50,6 +54,9 @@ Options (pick one or combine):
 - **SurfaceCard**: Card wrapper with surface-hierarchy colors and subtle depth
 
 Use this component in at least HomeScreen and one other screen.
+
+### 3c: Color desaturation check
+TV panels render colors more saturated than monitors. Check that the accent color is not over-saturated — if it's pure/vivid (e.g., #FF0000, #00FF00, #FFAA00), reduce saturation by 15-20%. The loaded skill's TV Panel Color Physics section explains why.
 
 ## STEP 4: Typography enhancement
 
@@ -69,6 +76,12 @@ Multi-layered focus treatment:
 - Scale transform
 - Accent-colored border
 - Glow effect (shadowColor = accentColor, high shadowOpacity, large shadowRadius)
+
+Then add ONE advanced focus pattern (pick the best fit):
+
+**Option A — Specular highlight**: Add a subtle top-edge light reflection on focused cards (1px semi-transparent white border-top + positioned gradient). Makes cards feel physically elevated. See the loaded skill's "Specular Highlight Focus" section.
+
+**Option B — Focus-driven environment**: When a card receives focus, update a background tint or ambient color based on that item's primary color. Even a simple `backgroundColor` animation on the screen wrapper tied to the focused item's category color creates the Netflix "alive background" effect. See the loaded skill's "Focus-Driven Environment" section.
 
 Then add a content-type flourish:
 - Sports: diagonal accent stripe on focused cards

@@ -15,6 +15,8 @@ function generateCreativeSeed(): string {
     "Color bleed: the accent color bleeds outward beyond the card boundaries like neon paint",
     "Spotlight cone: a radial gradient originates from behind the focused card, like a stage light",
     "Morphing shape: the card border radius increases on focus (rectangular → more rounded)",
+    "Specular lift: focused card gets a 1px white top-border at 15% opacity simulating a light reflection on the elevated surface",
+    "Environment shift: when a card focuses, the screen background tint subtly shifts to match that item's dominant color (use the loaded skill's Focus-Driven Environment pattern)",
   ];
 
   const atmosphereStyles = [
@@ -26,6 +28,8 @@ function generateCreativeSeed(): string {
     "Mesh gradient: a multi-point gradient with 3+ color stops creating an organic blob",
     "Horizontal bands: subtle horizontal gradient bands at different heights",
     "Bokeh circles: large defocused circles of light in the background at very low opacity",
+    "Cinematic scrim: a strong bottom-to-top gradient (transparent → 95% background) over the hero image, with the accent color mixed in at 5% opacity for warmth",
+    "Glass depth: semi-transparent card surfaces with a faint border (1px white at 8% opacity) simulating glass panels floating over the background",
   ];
 
   const typographyStyles = [
@@ -134,7 +138,7 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
       return prompts.load("creative_ui", {
         appDir,
         appName: spec?.app_name ?? input.content.title,
-        prompt: input.prompt.slice(0, 200),
+        prompt: input.prompt.slice(0, 800),
         primaryColor: input.brand.primary_color,
         accentColor: input.brand.accent_color,
         backgroundColor: input.brand.background_color,

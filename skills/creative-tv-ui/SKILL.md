@@ -18,11 +18,28 @@ Every generated app MUST look different from every other. The template provides 
 
 ## The 10-Foot Creative Challenge
 
-TV design is NOT web design zoomed in. At 10 feet, users perceive:
+TV design is NOT web design zoomed in. At 10 feet (3 meters — the standard viewing distance), users perceive:
 - **Shapes and color blocks** before text
 - **Motion** more sensitively (peripheral vision is active)
 - **Contrast** as the primary hierarchy tool (not size alone)
 - **Glow and light** as premium indicators (dark rooms amplify luminance)
+
+### TV Panel Color Physics
+
+TV panels render colors MORE saturated and vibrant than computer screens. The color gamut is narrower, contrast is higher. This means:
+- **Desaturate warm colors** — pure red/orange/yellow will appear garish on TV. Pull saturation down 10-20% from what looks good on your monitor.
+- **Cool tones are safer** — blue, purple, gray render more predictably across TV panels.
+- **Warm tones still work** for cooking/lifestyle apps but use them at lower saturation (e.g., `#D4A574` not `#FFAA00`).
+- **Never use pure white (#FFFFFF)** for large text areas — use off-white (`#F5F5F5` or `#EBEBEB`) to reduce glare in dark rooms.
+- **Test accent colors at 50% opacity** — if they're still visible and distinctive, the saturation is correct for TV.
+
+### Interaction Cost Shapes Design
+
+D-pad navigation is sequential — users pass through ALL elements on the path. This constrains creative layout:
+- **Max 5-7 items visible per rail** — more items = more clicks to reach the last one
+- **Prefer fewer, larger cards** over many small ones — reduces traversal cost
+- **Hero sections earn their space** — they reduce the total items a user must navigate past
+- **Vertical sections: max 4-5 rails visible** before requiring scroll — users should reach any visible content in ≤3 presses
 
 ## Visual Personality by Content Type
 
@@ -141,6 +158,54 @@ focusGlow: {
 }
 ```
 
+## Cinematic Scrim System (Hero Sections)
+
+Every hero/featured section MUST have a scrim — a gradient overlay between the background image and foreground text. This is the single most important readability pattern in TV UI. Android TV documents it as a required architectural element.
+
+### Scrim Anatomy
+```
+┌─────────────────────────────────────┐
+│  Background Image (full-bleed)      │
+│  ┌───────────────────────────────┐  │
+│  │  Cinematic Scrim (gradient)   │  │
+│  │  ┌─────────────────────────┐  │  │
+│  │  │  Poster + Title + CTA   │  │  │
+│  │  └─────────────────────────┘  │  │
+│  └───────────────────────────────┘  │
+└─────────────────────────────────────┘
+```
+
+### Two Variants
+
+**Immersive Hero** (full-bleed, Netflix/Disney+ style):
+```typescript
+const cinematicScrim = {
+  position: 'absolute',
+  bottom: 0, left: 0, right: 0,
+  height: '70%',
+  // Gradient from transparent at top to near-opaque at bottom
+  // Use LinearGradient: ['transparent', 'rgba(bg, 0.6)', 'rgba(bg, 0.95)']
+};
+```
+
+**Card Hero** (contained within a card shape):
+```typescript
+const cardScrim = {
+  position: 'absolute',
+  bottom: 0, left: 0, right: 0,
+  height: '50%',
+  borderBottomLeftRadius: cardBorderRadius,
+  borderBottomRightRadius: cardBorderRadius,
+  // Gradient: ['transparent', 'rgba(0,0,0,0.8)']
+};
+```
+
+### Rules
+- NEVER place text directly on a background image without a scrim
+- The scrim gradient must be strong enough for 4.5:1 contrast ratio
+- Background images should NOT contain embedded text (use overlaid components instead)
+- Scrim color should match the app's background color (not always pure black)
+
 ## Focus States: The Signature Element
 
 The focus indicator is the single most-seen UI element on TV. It MUST be distinctive.
@@ -158,6 +223,46 @@ const cardFocused = {
   elevation: 20,
 };
 ```
+
+### Specular Highlight Focus (Apple-quality premium feel)
+
+Apple tvOS adds a specular highlight — a simulated light reflection that moves across the focused element. Approximate this with a positioned semi-transparent gradient overlay:
+
+```typescript
+const specularHighlight = {
+  position: 'absolute',
+  top: 0, left: 0, right: 0,
+  height: '40%',
+  borderTopLeftRadius: cardBorderRadius,
+  borderTopRightRadius: cardBorderRadius,
+  backgroundColor: 'transparent',
+  // Simulate light hitting the top edge of the elevated card
+  borderTopWidth: 1,
+  borderTopColor: 'rgba(255, 255, 255, 0.15)',
+};
+```
+
+Only show the specular highlight when focused — it reinforces that the card has "lifted" toward the viewer. Combine with scale + shadow for the full effect: scale lifts, shadow grounds, specular catches light.
+
+### Focus-Driven Environment (Netflix/Disney+ level)
+
+Production apps don't just highlight the focused card — they change the SURROUNDING environment:
+
+- **Background image updates**: When a card receives focus, the screen's background image crossfades to that item's hero art (or a blurred/darkened version of it).
+- **Metadata reveal**: The focused card's row expands in height to reveal title + description below the card, then contracts when focus moves away.
+- **Color extraction**: The ambient/atmospheric tint adapts to the dominant color of the focused item's artwork.
+
+Implementation pattern:
+```typescript
+// In the rail/row component, track which item is focused:
+const [focusedIndex, setFocusedIndex] = useState(0);
+const focusedItem = items[focusedIndex];
+
+// Pass focusedItem to a parent context or screen-level component
+// that renders the background and metadata area
+```
+
+This is the single biggest differentiator between "template" and "production" TV UI. Even a simple version (background color tint changes on focus) elevates the experience dramatically.
 
 ### Going Further — Per-Personality Focus
 - Sports: add a small accent-colored bar at the top of the focused card
@@ -181,6 +286,52 @@ const cardFocused = {
 - Create animations longer than 500ms
 - Add new event listeners or keyboard handlers
 
+## Navigation Drawer: Dual-State Pattern
+
+TV navigation drawers are fundamentally different from mobile. They have TWO always-visible states:
+
+### Collapsed State (icon rail)
+When focus is on content, the drawer collapses to a narrow rail showing only icons:
+```typescript
+const collapsedDrawer = {
+  width: scaledPixels(72),           // Just enough for icon + padding
+  backgroundColor: surfaceColor,
+  paddingVertical: scaledPixels(24),
+};
+
+const collapsedItem = {
+  width: scaledPixels(72),
+  height: scaledPixels(56),
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+```
+
+### Expanded State (icons + labels)
+When focus moves to the drawer, it expands to show full labels:
+```typescript
+const expandedDrawer = {
+  width: scaledPixels(280),
+  backgroundColor: surfaceColor,
+};
+
+const expandedItem = {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: scaledPixels(20),
+  height: scaledPixels(56),
+  gap: scaledPixels(16),
+};
+```
+
+### Behavioral Models
+
+**Standard drawer** (Netflix, Prime Video): Content pushes aside when drawer expands. Moving focus between nav items auto-updates the page content (focus-triggers-navigation). Best for apps where users browse between sections frequently.
+
+**Modal drawer** (less common): Overlays content with a semi-transparent scrim. Requires explicit selection (press Enter/Select) to navigate. Better when the drawer is rarely used or has many items.
+
+Choose Standard for content-browsing apps (streaming, media). Choose Modal for utility-heavy apps (settings-focused, deep hierarchies).
+
 ## Anti-Patterns (What Makes Apps Look Generic)
 
 1. **Same font everywhere** — Using one system font makes all apps identical
@@ -201,3 +352,7 @@ After creative_ui phase, the app MUST have:
 - [ ] Surface hierarchy (cards are NOT the same color as background)
 - [ ] Section titles styled differently from body text (font, size, spacing)
 - [ ] At least one visual element that no other app would have
+- [ ] Cinematic scrim on any hero/featured section with background imagery
+- [ ] Accent colors desaturated for TV panel rendering (not monitor-bright)
+- [ ] No more than 6-7 items visible per horizontal rail
+- [ ] Specular highlight OR environment-reactive focus (pick at least one advanced focus pattern)
