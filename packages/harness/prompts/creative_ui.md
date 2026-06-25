@@ -38,6 +38,8 @@ Every app must have a **visual signature** — one distinctive element that make
 
 Commit to a direction. Be bold — safe is boring.
 
+{{creativeSeed}}
+
 ## STEP 3: Create a custom visual layer
 
 Create a new atmospheric component that adds depth to screens. Use the loaded skill to find the right location.

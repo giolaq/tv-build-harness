@@ -3,6 +3,66 @@ import type { AppSpec, DesignTokens, HarnessInput } from "./types.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import type { PromptLoader } from "./prompt-loader.js";
 
+function generateCreativeSeed(): string {
+  const focusTreatments = [
+    "Double-ring: two concentric borders with a gap between them (inner = accent, outer = accent at 30% opacity)",
+    "Underline slide: a thick accent line slides in from the left beneath the focused card",
+    "Corner accents: only the corners of the focused card get highlighted (L-shaped borders)",
+    "Gradient border: the border cycles through a gradient of the brand colors",
+    "Inner glow: the card content gets a warm inner shadow that radiates from the center",
+    "Particle trail: subtle dot/spark elements positioned around the focused card",
+    "Frosted elevation: focused card gets a frosted glass effect with stronger blur",
+    "Color bleed: the accent color bleeds outward beyond the card boundaries like neon paint",
+    "Spotlight cone: a radial gradient originates from behind the focused card, like a stage light",
+    "Morphing shape: the card border radius increases on focus (rectangular → more rounded)",
+  ];
+
+  const atmosphereStyles = [
+    "Diagonal gradient: a bold 45-degree gradient across the entire screen background",
+    "Radial spotlight: a large circular gradient centered behind the hero area",
+    "Noise texture: a very subtle (2-3% opacity) grain/noise overlay for film-like quality",
+    "Floating orbs: 2-3 large, blurred circles of accent color at low opacity floating in background",
+    "Vignette: darkened edges fading toward the center for cinematic depth",
+    "Mesh gradient: a multi-point gradient with 3+ color stops creating an organic blob",
+    "Horizontal bands: subtle horizontal gradient bands at different heights",
+    "Bokeh circles: large defocused circles of light in the background at very low opacity",
+  ];
+
+  const typographyStyles = [
+    "Pair a heavy condensed display font (Oswald, Barlow Condensed) with a warm humanist body (Nunito Sans)",
+    "Pair an elegant serif display (Playfair Display, DM Serif) with a geometric body (DM Sans)",
+    "Pair a tech-forward display (Space Grotesk, JetBrains Mono) with a neutral body (Inter)",
+    "Pair a blocky display (Archivo Black, Bebas Neue) with a friendly rounded body (Quicksand, Comfortaa)",
+    "Pair a hand-drawn display (Caveat, Pacifico) with a clean body (Source Sans Pro)",
+    "Use a SINGLE font family at extreme weight contrast (100 for body, 900 for display)",
+  ];
+
+  const sectionDividers = [
+    "Thin accent-colored horizontal line with a small diamond/dot in the center",
+    "Gradient fade: a line that fades from accent to transparent from left to right",
+    "Offset double lines: two parallel thin lines offset vertically by 4px",
+    "Dotted accent: a row of small dots in the accent color",
+    "Icon separator: a tiny themed icon (fork for cooking, ball for sports) centered between sections",
+    "Asymmetric bar: a short thick bar aligned to the left edge only (40-80px wide)",
+    "Wave: a subtle SVG wave or curve as the section boundary",
+    "Nothing: use generous whitespace only (60px+) with NO visible divider",
+  ];
+
+  const focus = focusTreatments[Math.floor(Math.random() * focusTreatments.length)];
+  const atmosphere = atmosphereStyles[Math.floor(Math.random() * atmosphereStyles.length)];
+  const typography = typographyStyles[Math.floor(Math.random() * typographyStyles.length)];
+  const divider = sectionDividers[Math.floor(Math.random() * sectionDividers.length)];
+
+  return `## YOUR CREATIVE DIRECTION (this run's unique identity — follow these exactly)
+
+**Focus treatment:** ${focus}
+**Background atmosphere:** ${atmosphere}
+**Typography pairing:** ${typography}
+**Section dividers:** ${divider}
+
+These choices are NON-NEGOTIABLE for this run. Do not substitute safer alternatives. Implement them as described. This is what makes this app different from every other generated app.`;
+}
+
 export interface PhasePromptContext {
   outDir: string;
   input: HarnessInput;
@@ -82,6 +142,7 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
         focusStyle: input.design.focus_style,
         surfaceStyle: input.design.surface_style,
         cardStyle: input.design.card_style,
+        creativeSeed: generateCreativeSeed(),
       });
 
     case "navigation": {
