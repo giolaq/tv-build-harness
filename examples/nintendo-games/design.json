@@ -4,7 +4,7 @@
   "show_hero": true,
   "tile_size": "large",
   "tile_ratio": "16:9",
-  "spacing": "comfortable",
+  "spacing": "relaxed",
   "corner_radius": 12,
   "rails_per_screen": 4,
   "font_scale": 1.0,
@@ -12,8 +12,8 @@
   "show_duration": false,
   "navigation_style": "drawer",
   "focus_style": "glow",
-  "animation_speed": "snappy",
+  "animation_speed": "energetic",
   "mood": "playful",
-  "surface_style": "layered",
+  "surface_style": "gradient",
   "card_style": "rounded"
 }
