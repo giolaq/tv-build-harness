@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-import type { CheckResult, Expected, RubricScore } from "@tv-harness/shared-types";
+import type { CheckResult, Expected, RubricScore } from "@tv-build/shared-types";
 
 const RUBRIC_VERSION = "1.0.0";
 

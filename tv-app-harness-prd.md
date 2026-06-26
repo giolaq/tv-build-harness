@@ -1,4 +1,4 @@
-# PRD: Auto-Generated TV App Harness
+# PRD: Auto-Generated TV Build
 
 > A coding agent harness that ingests a prompt + content manifest and produces a buildable, runnable TV application (tvOS, Android TV, optionally Tizen / webOS / Fire TV).
 

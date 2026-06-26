@@ -2,7 +2,7 @@ import { execSync, spawn } from "node:child_process";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PinnedEnv } from "@tv-harness/shared-types";
+import type { PinnedEnv } from "@tv-build/shared-types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../../..");

@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-import type { Expected, CheckResult } from "@tv-harness/shared-types";
+import type { Expected, CheckResult } from "@tv-build/shared-types";
 
 export function runStructuralChecks(appPath: string, expected: Expected): CheckResult[] {
   const results: CheckResult[] = [];

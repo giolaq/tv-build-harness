@@ -1,11 +1,11 @@
 {
-  "name": "@tv-harness/core",
+  "name": "@tv-build/core",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "tv-harness": "dist/index.js"
+    "tv-build": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

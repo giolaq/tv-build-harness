@@ -2,7 +2,7 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { VerifyConfig, GoldenSpec, RunRecord } from "@tv-harness/shared-types";
+import type { VerifyConfig, GoldenSpec, RunRecord } from "@tv-build/shared-types";
 import { runSuite } from "./runner.js";
 import { aggregate } from "./report/aggregate.js";
 import { compare } from "./report/compare.js";

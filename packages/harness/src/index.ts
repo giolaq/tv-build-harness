@@ -308,7 +308,7 @@ async function runHarness() {
       onLog: (msg) => console.log(`  ${msg}`),
     });
 
-    console.log(`\n  TV App Harness — Strands SDK mode`);
+    console.log(`\n  TV Build — Strands SDK mode`);
     console.log(`  Platforms: ${config.platforms.join(", ")}`);
 
     const { state, outDir } = await harness.run({ generateOnly });
@@ -320,7 +320,7 @@ async function runWithClaude() {
   if (!resolveClaude()) {
     console.error(`  The "claude" CLI was not found on this machine — claude-run mode needs it.`);
     console.error(`  Fix: npm install -g @anthropic-ai/claude-code   (or set CLAUDE_PATH=/path/to/claude)`);
-    console.error(`  Or use API mode instead: tv-harness run (requires ANTHROPIC_API_KEY).`);
+    console.error(`  Or use API mode instead: tv-build run (requires ANTHROPIC_API_KEY).`);
     process.exit(1);
   }
 
@@ -394,7 +394,7 @@ async function runWithClaude() {
   } else {
     const harness = makeOrchestrator({});
 
-    console.log(`\n  TV App Harness (Claude CLI mode)`);
+    console.log(`\n  TV Build (Claude CLI mode)`);
     console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
     console.log(`  Platforms: ${config.platforms.join(", ")}`);
     console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);
@@ -419,7 +419,7 @@ async function runWithClaude() {
 async function addScreen() {
   const screenName = positionalArgs()[0];
   if (!screenName) {
-    console.error("  Usage: tv-harness add-screen <ScreenName> --type=<layout>");
+    console.error("  Usage: tv-build add-screen <ScreenName> --type=<layout>");
     console.error("  Types: hero+rails, grid, detail, player, settings, search");
     process.exit(1);
   }
@@ -711,7 +711,7 @@ async function consolidateSkills() {
       console.log(`    - ${s.name}`);
     }
     if (!dryRun) {
-      console.log(`    → Merge these ${skills.length} skills using: npx tv-harness claude-run with a merge prompt`);
+      console.log(`    → Merge these ${skills.length} skills using: npx tv-build claude-run with a merge prompt`);
       console.log(`    (Automatic LLM merging not yet implemented — manual review recommended)`);
     }
     console.log();
@@ -765,7 +765,7 @@ async function startServe() {
 
 function printUsage() {
   console.log(`
-  tv-harness — AI-orchestrated multi-platform TV app generator
+  tv-build — AI-orchestrated multi-platform TV app generator
 
   Commands:
     claude-run [dir]       Run full pipeline using Claude CLI
@@ -803,18 +803,18 @@ function printUsage() {
     }
 
   Examples:
-    npx tv-harness claude-run --example cooking-shows
-    npx tv-harness claude-run --resume
-    npx tv-harness claude-run --resume d811afcb --from-phase navigation
-    npx tv-harness test-ui
-    npx tv-harness test-ui --app=./my-app --close
-    npx tv-harness visual-qa
-    npx tv-harness visual-qa --app=out/d811afcb
-    npx tv-harness add-screen Watchlist --type=grid
-    npx tv-harness add-screen Home --type=hero+rails
-    npx tv-harness review
-    npx tv-harness review "focus navigation"
-    npx tv-harness run ./my-app-inputs
+    npx tv-build claude-run --example cooking-shows
+    npx tv-build claude-run --resume
+    npx tv-build claude-run --resume d811afcb --from-phase navigation
+    npx tv-build test-ui
+    npx tv-build test-ui --app=./my-app --close
+    npx tv-build visual-qa
+    npx tv-build visual-qa --app=out/d811afcb
+    npx tv-build add-screen Watchlist --type=grid
+    npx tv-build add-screen Home --type=hero+rails
+    npx tv-build review
+    npx tv-build review "focus navigation"
+    npx tv-build run ./my-app-inputs
 `);
 }
 

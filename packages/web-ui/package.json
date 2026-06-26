@@ -1,5 +1,5 @@
 {
-  "name": "@tv-harness/web-ui",
+  "name": "@tv-build/web-ui",
   "version": "0.1.0",
   "private": true,
   "type": "module",

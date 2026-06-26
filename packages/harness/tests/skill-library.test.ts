@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { SkillLibrary } from "../src/skill-library.js";
 
-const TEST_SKILLS_DIR = "/tmp/tv-harness-test-skills";
+const TEST_SKILLS_DIR = "/tmp/tv-build-test-skills";
 
 beforeEach(() => {
   rmSync(TEST_SKILLS_DIR, { recursive: true, force: true });

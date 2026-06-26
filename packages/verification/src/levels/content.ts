@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import type { CheckResult, Expected } from "@tv-harness/shared-types";
+import type { CheckResult, Expected } from "@tv-build/shared-types";
 
 interface ContentManifest {
   title: string;

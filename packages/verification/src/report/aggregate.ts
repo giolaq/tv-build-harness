@@ -1,4 +1,4 @@
-import type { RunRecord, MetricWithCI } from "@tv-harness/shared-types";
+import type { RunRecord, MetricWithCI } from "@tv-build/shared-types";
 import { wilsonCI } from "../stats/wilson.js";
 
 /** Map wilsonCI output fields to MetricWithCI fields. */

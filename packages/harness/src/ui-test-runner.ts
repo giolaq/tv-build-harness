@@ -21,7 +21,7 @@ export async function runUITests(appDir: string, options: UITestOptions) {
   mkdirSync(screenshotDir, { recursive: true });
 
   console.log(`
-  TV App Harness — UI Test Runner
+  TV Build — UI Test Runner
   App: ${appDir}
   Server: http://localhost:${port}
 `);

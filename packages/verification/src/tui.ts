@@ -1,12 +1,12 @@
 /**
- * Terminal UI for TV App Harness Verification.
+ * Terminal UI for TV Build Verification.
  *
  * Uses chalk for colors and Unicode box-drawing for layout.
  * No heavy frameworks (Ink, blessed) — just ANSI escape codes
  * with manual cursor control for live progress updates.
  */
 import chalk from "chalk";
-import type { RunRecord, GoldenSpec, VerifyConfig, MetricWithCI, ComparisonVerdict } from "@tv-harness/shared-types";
+import type { RunRecord, GoldenSpec, VerifyConfig, MetricWithCI, ComparisonVerdict } from "@tv-build/shared-types";
 
 // ─── Box Drawing ───────────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ export function renderHeader(spec: GoldenSpec, config: VerifyConfig): string {
   const lines: string[] = [];
 
   lines.push(boxTop());
-  lines.push(boxLine(chalk.bold(`TV App Harness Verification ${chalk.dim(version)}`) ));
+  lines.push(boxLine(chalk.bold(`TV Build Verification ${chalk.dim(version)}`) ));
   lines.push(boxLine(
     `Spec: ${chalk.cyan(spec.id)} (${spec.tier}) ${chalk.dim("•")} N=${n} ${chalk.dim("•")} Levels: ${levels}`
   ));
@@ -244,7 +244,7 @@ export function startLiveProgress(): { update: (run: number, total: number) => v
 export function renderReportHeader(bundlePath: string, recordCount: number): string {
   const lines: string[] = [];
   lines.push(boxTop());
-  lines.push(boxLine(chalk.bold("TV App Harness Verification — Report")));
+  lines.push(boxLine(chalk.bold("TV Build Verification — Report")));
   lines.push(boxLine(`Bundle: ${chalk.cyan(bundlePath)} ${chalk.dim(`(${recordCount} records)`)}`));
   lines.push(boxBottom());
   return lines.join("\n");

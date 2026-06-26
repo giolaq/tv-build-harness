@@ -71,7 +71,7 @@ function Header({ state }: DashboardProps) {
       <Box>
         <TVFace tick={state.animTick} />
         <Text> </Text>
-        <Text bold color="cyan">TV App Harness</Text>
+        <Text bold color="cyan">TV Build</Text>
         <Text color="gray"> │ </Text>
         <Text bold>{state.appName}</Text>
       </Box>

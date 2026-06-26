@@ -1,5 +1,5 @@
 {
-  "name": "@tv-harness/verification",
+  "name": "@tv-build/verification",
   "version": "0.1.0",
   "type": "module",
   "bin": {
@@ -14,7 +14,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@tv-harness/shared-types": "file:../shared-types",
+    "@tv-build/shared-types": "file:../shared-types",
     "chalk": "^5.3.0"
   },
   "devDependencies": {

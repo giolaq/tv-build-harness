@@ -1,6 +1,6 @@
-# TV App Harness Verification System
+# TV Build Verification System
 
-A statistically rigorous verification suite for the TV App Harness. Measures harness quality as **rates over N repeated runs with 95% Wilson confidence intervals**, not single pass/fail results.
+A statistically rigorous verification suite for the TV Build. Measures harness quality as **rates over N repeated runs with 95% Wilson confidence intervals**, not single pass/fail results.
 
 ## Quick start
 

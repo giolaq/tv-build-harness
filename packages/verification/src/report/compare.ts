@@ -1,4 +1,4 @@
-import type { MetricWithCI, ComparisonVerdict } from "@tv-harness/shared-types";
+import type { MetricWithCI, ComparisonVerdict } from "@tv-build/shared-types";
 import { twoPropZTest } from "../stats/proportion.js";
 import { fisherExact } from "../stats/fisher.js";
 import { holmCorrection } from "../stats/correction.js";

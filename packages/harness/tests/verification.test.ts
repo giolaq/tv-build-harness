@@ -4,7 +4,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runVerifyChecks, substituteVars } from "../src/verification.js";
 
-const APP_DIR = "/tmp/tv-harness-test-verify";
+const APP_DIR = "/tmp/tv-build-test-verify";
 
 const vars = {
   "brand.primary_color": "#ff5500",

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { rmSync, readFileSync } from "node:fs";
 import { RunLog } from "../src/run-log.js";
 
-const TEST_LOG_PATH = "/tmp/tv-harness-test-run.log";
+const TEST_LOG_PATH = "/tmp/tv-build-test-run.log";
 
 beforeEach(() => {
   rmSync(TEST_LOG_PATH, { force: true });

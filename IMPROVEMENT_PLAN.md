@@ -1,4 +1,4 @@
-# TV App Harness — Improvement Plan
+# TV Build — Improvement Plan
 
 Goal: turn the harness from a working v1 prototype into a tool TV-app developers can pick up, run out of the box, and customize for their own templates, platforms, and pipelines — and use it as the flagship example for the talk **"How to build your harness for your task."**
 
@@ -30,8 +30,8 @@ Goal: turn the harness from a working v1 prototype into a tool TV-app developers
 
 ```bash
 npx create-tv-app my-app        # wizard: content source, brand, platforms
-cd my-app && tv-harness run     # 10–15 min later: buildable app + report + screenshots
-tv-harness run --resume         # picks up from last good phase
+cd my-app && tv-build run     # 10–15 min later: buildable app + report + screenshots
+tv-build run --resume         # picks up from last good phase
 ```
 
 And for the customizer:
@@ -67,7 +67,7 @@ And for the customizer:
 
 **B1. Root README + quickstart.** The repo has excellent internal docs (ARCHITECTURE.md, FEATURES.md) and no front door. README with: 60-second pitch, GIF of the TUI, quickstart, architecture diagram, "customize it" section.
 
-**B2. Real CLI.** Bin entry (`tv-harness`), publish to npm, `npx tv-harness run --example cooking-shows` with zero clone. Later: `create-tv-app` wizard (prompts for content source, brand colors, platforms; emits the input directory).
+**B2. Real CLI.** Bin entry (`tv-build`), publish to npm, `npx tv-build run --example cooking-shows` with zero clone. Later: `create-tv-app` wizard (prompts for content source, brand colors, platforms; emits the input directory).
 
 **B3. Doctor that fixes.** `doctor` already detects; add `doctor --fix` (install missing CLIs where safe, create an Android TV AVD, suggest exact commands otherwise) and run a fast doctor subset automatically before every `run`.
 
@@ -79,7 +79,7 @@ And for the customizer:
 
 **C1. `harness.config.json`** (from A2/A3) — phases, skills, template, models, budgets all overridable per project.
 
-**C2. Skill packs.** Skills already support local / remote / auto tiers. Formalize: `tv-harness skills add github:org/repo` installs a pack; packs declare `applies_to` phases in frontmatter so they slot into the pipeline without config edits. Ship the existing 12 skills as the built-in "react-native-tv" pack.
+**C2. Skill packs.** Skills already support local / remote / auto tiers. Formalize: `tv-build skills add github:org/repo` installs a pack; packs declare `applies_to` phases in frontmatter so they slot into the pipeline without config edits. Ship the existing 12 skills as the built-in "react-native-tv" pack.
 
 **C3. Hooks.** `prePhase` / `postPhase` / `onFailure` commands in config (e.g. run your own linter after `screens`, post to Slack on failure). Keeps the engine closed, the pipeline open.
 
@@ -101,7 +101,7 @@ And for the customizer:
 
 **E2. Maestro D-pad smoke flows.** Generate a YAML flow per screen from the AppSpec (D-pad through every focusable, screenshot, assert non-blank). Falls back to `adb shell input keyevent` per the existing spike note in TODOS.md.
 
-**E3. Screenshot baseline diffing.** Store screenshots per run; `tv-harness diff <runA> <runB>` produces a side-by-side HTML report (extend the existing screenshots.html generator).
+**E3. Screenshot baseline diffing.** Store screenshots per run; `tv-build diff <runA> <runB>` produces a side-by-side HTML report (extend the existing screenshots.html generator).
 
 ### Theme F — Reach
 

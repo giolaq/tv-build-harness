@@ -1,4 +1,4 @@
-# DISCOVERY.md — TV App Harness Verification System
+# DISCOVERY.md — TV Build Verification System
 
 > Phase 0 output. Human must confirm before Phase 1 begins.
 
@@ -11,7 +11,7 @@
 | Root | `/Users/laquigi/Projects/your-harness-repo` |
 | Package manager | Yarn Classic (1.22.21) at harness level; generated apps use Yarn 4.5.0 |
 | Monorepo task runner | None (no turbo.json, nx.json, or lerna.json) |
-| Workspace packages | `packages/harness/` (`@tv-harness/core`), `packages/web-ui/` (Vite dashboard) |
+| Workspace packages | `packages/harness/` (`@tv-build/core`), `packages/web-ui/` (Vite dashboard) |
 | Harness orchestrator | `packages/harness/src/` |
 | Skills directory | `skills/` (15 core skills + `skills/auto/` for agent-generated) |
 | Examples directory | `examples/` (cooking-shows, fitness-tv, music-videos, sports-live) |
@@ -21,15 +21,15 @@
 
 ## 0.2 Harness Entrypoint
 
-**Mode:** CLI only — no exported programmatic API. Package declares `"bin": { "tv-harness": "dist/index.js" }` but `main` points at the CLI (shebang script).
+**Mode:** CLI only — no exported programmatic API. Package declares `"bin": { "tv-build": "dist/index.js" }` but `main` points at the CLI (shebang script).
 
 **Primary commands:**
 ```bash
 # Claude CLI mode (recommended for generation):
-npx tv-harness claude-run [inputDir] --example <name> --generate-only --resume [runId] --from-phase <name> --config <path> --no-tui
+npx tv-build claude-run [inputDir] --example <name> --generate-only --resume [runId] --from-phase <name> --config <path> --no-tui
 
 # API mode (uses Anthropic Messages API directly):
-npx tv-harness run [inputDir] --example <name> --generate-only
+npx tv-build run [inputDir] --example <name> --generate-only
 ```
 
 **Input contract — files in the input directory:**

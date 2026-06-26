@@ -36,7 +36,7 @@ export async function runDoctor(): Promise<CheckResult[]> {
 }
 
 export function printDoctorReport(results: CheckResult[], showFixes = false): void {
-  console.log("\n  TV App Harness — Pre-flight Check\n");
+  console.log("\n  TV Build — Pre-flight Check\n");
 
   for (const r of results) {
     const icon = r.ok ? "✓" : r.optional ? "~" : "✗";
@@ -53,7 +53,7 @@ export function printDoctorReport(results: CheckResult[], showFixes = false): vo
 
   const failures = results.filter((r) => !r.ok);
   if (failures.length > 0 && !showFixes) {
-    console.log(`  Run "tv-harness doctor --fix" to see the exact fix for each failing check.`);
+    console.log(`  Run "tv-build doctor --fix" to see the exact fix for each failing check.`);
   }
   console.log();
 

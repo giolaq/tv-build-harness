@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { existsSync } from "node:fs";
-import type { Platform, CheckResult, BuildErrorClass } from "@tv-harness/shared-types";
+import type { Platform, CheckResult, BuildErrorClass } from "@tv-build/shared-types";
 
 interface BuildResult {
   platform: Platform;

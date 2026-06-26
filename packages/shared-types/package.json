@@ -1,5 +1,5 @@
 {
-  "name": "@tv-harness/shared-types",
+  "name": "@tv-build/shared-types",
   "version": "0.1.0",
   "type": "module",
   "exports": {

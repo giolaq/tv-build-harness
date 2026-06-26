@@ -1,4 +1,4 @@
-# TV App Harness
+# TV Build
 
 You feed it a JSON with your content and some brand colors. It spits out a multi-platform TV app that actually works — D-pad navigation, proper focus states, the whole thing.
 

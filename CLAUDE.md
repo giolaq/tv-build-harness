@@ -1,4 +1,4 @@
-# TV App Harness
+# TV Build
 
 Auto-generated TV app harness using Claude Agent SDK (Anthropic Messages API).
 

@@ -1,7 +1,7 @@
 import { execSync, spawn, ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import type { CheckResult } from "@tv-harness/shared-types";
+import type { CheckResult } from "@tv-build/shared-types";
 
 interface SmokeOptions {
   appPath: string;

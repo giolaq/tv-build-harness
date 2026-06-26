@@ -236,7 +236,7 @@ export function startServer(options: ServerOptions) {
   // --- Start ---
 
   server.listen(port, () => {
-    console.log(`\n  TV App Harness — Web Server`);
+    console.log(`\n  TV Build — Web Server`);
     console.log(`  REST API: http://localhost:${port}/api`);
     console.log(`  WebSocket: ws://localhost:${port}`);
     console.log(`  Examples: ${examplesDir}`);

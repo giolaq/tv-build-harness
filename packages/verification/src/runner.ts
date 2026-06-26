@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { RunRecord, GoldenSpec, VerifyConfig, CheckResult, RunOutcome, Platform, BuildErrorClass, RubricScore } from "@tv-harness/shared-types";
+import type { RunRecord, GoldenSpec, VerifyConfig, CheckResult, RunOutcome, Platform, BuildErrorClass, RubricScore } from "@tv-build/shared-types";
 import { runHarness, captureEnv } from "./harnessClient.js";
 import { runStructuralChecks } from "./levels/structural.js";
 import { runBuildChecks } from "./levels/build.js";

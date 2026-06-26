@@ -8,7 +8,7 @@ import {
   mergeHarnessConfig,
 } from "../src/harness-config.js";
 
-const TEST_DIR = "/tmp/tv-harness-test-config";
+const TEST_DIR = "/tmp/tv-build-test-config";
 
 beforeEach(() => {
   rmSync(TEST_DIR, { recursive: true, force: true });

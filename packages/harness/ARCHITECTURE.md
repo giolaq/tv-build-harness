@@ -1,4 +1,4 @@
-# TV App Harness — How It Works
+# TV Build — How It Works
 
 A coding agent harness that takes a prompt + content manifest and produces a buildable, multi-platform TV application by orchestrating Claude through a phased pipeline.
 
