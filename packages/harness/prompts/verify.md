@@ -38,4 +38,16 @@ For any horizontal scrolling list with focused scale transforms, verify item siz
 STEP 9: Verify the focus manager's event listener return type.
 Use the loaded skill to check that the remote control manager returns the correct type from its addKeydownListener method. Returning a wrapper instead of the original listener causes accumulated listeners and double navigation.
 
+STEP 10: Verify remote control is configured for web platform.
+The `configureRemoteControl` import must run on BOTH `Platform.isTV` AND `Platform.OS === 'web'`. Without this, arrow keys and Enter do nothing on web — the spatial navigation library never receives key events.
+
+Run: grep -n "Platform.isTV" "{{appDir}}"/packages/shared-ui/src/navigation/AppNavigator.tsx
+
+If the condition is `Platform.isTV` only (without `|| Platform.OS === 'web'`), fix it:
+```
+if (Platform.isTV || Platform.OS === 'web') {
+  require('../app/configureRemoteControl');
+}
+```
+
 Report: errors found, errors fixed, any remaining.

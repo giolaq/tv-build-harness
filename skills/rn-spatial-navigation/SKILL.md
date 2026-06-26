@@ -105,7 +105,7 @@ When you need a custom handler:
 
 **Vega OS:** spatial navigation works, but Vega's preferred pattern is its own Vega UI components. For shared-ui screens, the library works fine. For Vega-only screens (in `apps/vega/`), prefer Vega UI primitives.
 
-**Web:** the library uses keyboard arrow keys. Mouse focus is disabled by default. If web is a target, verify arrow-key navigation in a browser before assuming parity.
+**Web:** the library uses keyboard arrow keys. Mouse focus is disabled by default. If web is a target, verify arrow-key navigation in a browser before assuming parity. CRITICAL: `configureRemoteControl` must be loaded on web too — the guard in AppNavigator must be `Platform.isTV || Platform.OS === 'web'`, NOT just `Platform.isTV`. Without this, the `RemoteControlManager` registers the keydown listener but never connects it to `SpatialNavigation`, so arrow keys do nothing.
 
 ## The #1 Generated-App Bug: Double-Step Focus
 
