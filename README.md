@@ -157,14 +157,16 @@ You can use different models per phase:
 
 ## How skills work
 
-Each phase gets domain-specific knowledge loaded alongside it. These are markdown files in `skills/` that teach the LLM things like:
+The core idea behind TV Build is **thin harness, fat skills**. The pipeline is intentionally simple — run phases in order, check results, retry or move on. All the domain expertise lives in skills: markdown files that teach the LLM how to actually build TV apps.
+
+Each phase gets relevant skills loaded alongside it. They cover things like:
 
 - How react-tv-space-navigation works (focus roots, D-pad events, overflow traps)
 - TV color physics (panels over-saturate, desaturate your palette)
 - Cinematic scrim patterns for hero sections
 - Why items-per-rail matters when every click is sequential
 
-They're loaded on demand, not dumped into the system prompt.
+Skills are loaded on demand, not dumped into the system prompt. The harness stays generic and small; the skills carry all the knowledge. You can swap skills, add your own, or point at a different template — the pipeline doesn't care.
 
 ## Output
 
