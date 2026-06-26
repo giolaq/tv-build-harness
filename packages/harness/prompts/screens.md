@@ -30,9 +30,17 @@ IMPORTANT: Every screen must deactivate its focus root when the drawer is open. 
 Every screen must deactivate its focus root when not the active route. Use the loaded skill for the exact pattern.
 {{/if}}
 
-STEP 4: Export all screens from the screens index.
+STEP 4: Remove all hardcoded template placeholder data from reused screens.
+The template's DetailsScreen (and possibly other screens) contains hardcoded placeholder crew/cast names, descriptions, and metadata that do NOT come from the content manifest. Find and replace ALL hardcoded text in reused screens:
+- Remove or replace any hardcoded person names (Director, Producer, Star, Cast sections with static names)
+- Replace with data from the route params (passed from the content manifest) OR remove the section entirely if the content data doesn't include that metadata
+- Grep for common template placeholders: `grep -rn "Director\|Producer\|Star\|Cast" "{{appDir}}"/packages/shared-ui/src/screens/`
+
+If the content manifest has tags/genres, show those instead. If it has a publisher or other metadata, use that. If it has nothing relevant, remove the crew section entirely — empty is better than fake data.
+
+STEP 5: Export all screens from the screens index.
 Find the barrel/index file and add exports for any new screens.
 
-STEP 5: Verify.
+STEP 6: Verify.
 Run: cd "{{appDir}}" && {{typeCheckCommand}} 2>&1 | head -20
 Fix any TypeScript errors.
