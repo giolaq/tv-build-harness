@@ -1,6 +1,6 @@
 # TV Build
 
-You feed it a JSON with your content and some brand colors. It spits out a multi-platform TV app that actually works — D-pad navigation, proper focus states, the whole thing.
+You feed it a JSON with your content and some brand colors. It spits out a multi-platform TV app that actually works. D-pad navigation, proper focus states, the whole thing.
 
 Supports **React Native** (Android TV, Apple TV, Fire TV, web) and **Kotlin Multiplatform** (Compose TV). No templates that look like every other app. Each run produces something visually distinct.
 
@@ -8,9 +8,9 @@ Supports **React Native** (Android TV, Apple TV, Fire TV, web) and **Kotlin Mult
 
 ## Why
 
-TV apps need spatial navigation, 10-foot UI design, focus management, platform-specific builds for Android TV / Apple TV / Fire TV / web — and you still want each one to look unique.
+TV apps need spatial navigation, 10-foot UI design, focus management, platform-specific builds for Android TV / Apple TV / Fire TV / web. And you still want each one to look unique.
 
-TV Build handles all of that. It uses an LLM to plan and build the app phase by phase, but the pipeline itself is deterministic — proven template, mechanical checks, git commits between phases, automated visual QA at the end.
+TV Build handles all of that. It uses an LLM to plan and build the app phase by phase, but the pipeline itself is deterministic: proven template, mechanical checks, git commits between phases, automated visual QA at the end.
 
 ## Quick start
 
@@ -86,7 +86,7 @@ Each phase runs independently, gets verified, and commits to git. If something f
 | branding | Your colors everywhere, surface hierarchy, app name |
 | content | Wires your data into hooks the screens actually use |
 | screens | Customizes existing screens or creates new ones |
-| creative_ui | Typography, focus animations, atmospheric effects — the personality |
+| creative_ui | Typography, focus animations, atmospheric effects. The personality. |
 | navigation | Drawer or tabs, focus isolation between screens |
 | verify | TSC, focus checks, platform guards |
 | build_loop | Web build, native prebuild |
@@ -157,7 +157,7 @@ You can use different models per phase:
 
 ## How skills work
 
-The core idea behind TV Build is **thin harness, fat skills**. The pipeline is intentionally simple — run phases in order, check results, retry or move on. All the domain expertise lives in skills: markdown files that teach the LLM how to actually build TV apps.
+The core idea behind TV Build is **thin harness, fat skills**. The pipeline is intentionally simple: run phases in order, check results, retry or move on. All the domain expertise lives in skills: markdown files that teach the LLM how to actually build TV apps.
 
 Each phase gets relevant skills loaded alongside it. They cover things like:
 
@@ -166,7 +166,7 @@ Each phase gets relevant skills loaded alongside it. They cover things like:
 - Cinematic scrim patterns for hero sections
 - Why items-per-rail matters when every click is sequential
 
-Skills are loaded on demand, not dumped into the system prompt. The harness stays generic and small; the skills carry all the knowledge. You can swap skills, add your own, or point at a different template — the pipeline doesn't care.
+Skills are loaded on demand, not dumped into the system prompt. The harness stays generic and small; the skills carry all the knowledge. You can swap skills, add your own, or point at a different template. The pipeline doesn't care.
 
 ## Output
 
