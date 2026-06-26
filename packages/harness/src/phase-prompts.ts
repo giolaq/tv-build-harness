@@ -209,7 +209,18 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
     }
 
     case "vega_build_loop":
-      return prompts.load("vega_build_loop", { appDir });
+      return prompts.load("vega_build_loop", {
+        appDir,
+        appName: spec?.app_name ?? input.content.title,
+      });
+
+    case "vega_qa_loop": {
+      const screenshotDir = join(ctx.outDir, "screenshots");
+      return prompts.load("vega_qa_loop", {
+        appDir,
+        screenshotDir,
+      });
+    }
 
     case "visual_correctness": {
       const routes = spec?.navigation.routes ?? [];

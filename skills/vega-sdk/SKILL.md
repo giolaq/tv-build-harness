@@ -110,10 +110,45 @@ Don't add it for:
 - Cosmetic tweaks. Use theme tokens with `.kepler.ts` overrides instead.
 - "Just in case." Each override doubles maintenance.
 
-## Testing notes
+## Testing on Vega
 
-- A Vega emulator exists; the template's README has setup steps. **Don't ship to a real device on first run** — emulator catches the common issues faster.
-- Vega's logcat equivalent is its own log stream; check the template's README or Amazon's Vega docs for the current command. Expect it to evolve.
+### Virtual Device (VDA)
+
+The Vega Virtual Device Agent is the primary testing target:
+
+```bash
+npx kepler device start       # Start VDA
+npx kepler device list        # Verify it's running
+npx kepler install            # Deploy the built app
+npx kepler launch             # Start the app
+npx kepler screenshot <path>  # Capture screen
+npx kepler key right          # Send D-pad right
+npx kepler key down           # Send D-pad down
+npx kepler key center         # Send select/enter
+npx kepler key back           # Send back
+npx kepler stop               # Stop the app
+```
+
+Don't ship to a real device on first run. VDA catches common issues faster.
+
+### MCP-based diagnostics
+
+The `@amazon-devices/amazon-devices-buildertools-mcp` package provides additional diagnostic tools:
+- `analyze_perfetto_traces` for app launch time analysis (TTFF, TTFD)
+- `get_app_hot_functions` for CPU profiling
+- `symbolicate_acr` for crash report analysis
+- `search_documentation` for Vega-specific guidance
+
+### Appium (for advanced automation)
+
+Vega supports Appium via the Vega Appium Driver for more complex test scenarios. Use locator strategies specific to Vega. For the QA loop, the Kepler CLI commands above are sufficient.
+
+### Vega log access
+
+```bash
+npx kepler logs              # Stream app logs (Vega equivalent of logcat)
+npx kepler logs --filter=error  # Filter for errors only
+```
 
 ## Anti-patterns
 

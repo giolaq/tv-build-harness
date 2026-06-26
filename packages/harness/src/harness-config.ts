@@ -180,6 +180,11 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
     buildPhase: true, internalLoop: false, abortOnFailure: false, cwd: "app", verify: [],
   },
   {
+    name: "vega_qa_loop", kind: "agent", prompt: "vega_qa_loop", skills: ["vega-sdk", "rn-spatial-navigation"],
+    deps: ["vega_build_loop"], timeoutMs: 1_800_000, requiresPlatform: "firetv-vega",
+    buildPhase: true, internalLoop: true, abortOnFailure: false, cwd: "app", verify: [],
+  },
+  {
     name: "visual_qa_loop", kind: "visual_qa",
     skills: ["10ft-ui", "rn-theming", "rn-spatial-navigation"],
     deps: ["build_loop"], timeoutMs: 600_000, buildPhase: true, internalLoop: true,
