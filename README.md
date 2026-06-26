@@ -1,85 +1,45 @@
-<div align="center">
-
 # TV App Harness
 
-**Give it a JSON. Get a TV app.**
+You feed it a JSON with your content and some brand colors. It spits out a multi-platform TV app that actually works — D-pad navigation, proper focus states, the whole thing.
 
-An AI-powered pipeline that transforms a content manifest + brand kit into a fully buildable, multi-platform TV application — in minutes, not weeks.
+No templates that look like every other app. Each run produces something visually distinct.
 
-[Getting Started](#getting-started) · [How It Works](#how-it-works) · [Examples](#examples) · [Configuration](#configuration)
+<!-- TODO: hero screenshot/gif here -->
 
-</div>
+## Why
 
----
+Building a TV app is annoying. You need spatial navigation, 10-foot UI considerations, focus management, platform-specific builds for Android TV / Apple TV / Fire TV / web... and then you want it to look good too.
 
-<!-- TODO: Replace with a hero image/gif showing the pipeline in action -->
-<!-- ![Hero](docs/hero.png) -->
+This harness does all of that. It uses an LLM to plan and build the app phase by phase, but the pipeline itself is deterministic — proven template, mechanical checks, git commits between phases, automated visual QA at the end.
 
-## The Pitch
-
-You have **content** (a catalog of videos, games, shows). You have a **brand** (colors, fonts, personality). You want a TV app on Android TV, Apple TV, Fire TV, and web — with proper D-pad navigation, 10-foot UI design, and a visual identity that doesn't look like a template.
-
-The TV App Harness does exactly that:
-
-```
-content.json + brand.json + prompt.txt → fully built TV app
-```
-
-It doesn't generate throwaway prototypes. It produces **production-grade React Native apps** with spatial navigation, accessibility, theming, and platform-specific builds — all verified through automated visual QA.
-
-<!-- TODO: Add a before/after or final app screenshot -->
-<!-- ![Generated App](docs/app-screenshot.png) -->
-
-## What It Generates
-
-| | |
-|---|---|
-| **5 platforms** | Android TV, Apple TV, Fire TV (FOS + Vega), Web |
-| **Real navigation** | D-pad spatial navigation via react-tv-space-navigation |
-| **Unique visuals** | 5,760+ creative seed combinations — no two apps look alike |
-| **Content-driven** | Your data, your categories, your hero images |
-| **Verified output** | Type-checked, visually QA'd, focus-tested |
-
-## Getting Started
+## Quick start
 
 ```bash
-git clone <this-repo>
 cd packages/harness
 yarn install
-
-# Check prerequisites
-npx tsx src/index.ts doctor
-
-# Generate an app from the cooking-shows example
-npx tsx src/index.ts claude-run --example cooking-shows
+npx tsx src/index.ts doctor                             # check you have what you need
+npx tsx src/index.ts claude-run --example cooking-shows # go
 ```
 
-That's it. The TUI shows real-time progress through each phase:
+![TUI](docs/tui-screenshot.png)
 
-![TUI Progress](docs/tui-screenshot.png)
+## Make your own
 
-### Your First Custom App
+Create a folder. Minimum you need `content.json`:
 
-Create a directory with your content:
-
-```bash
-mkdir my-app && cd my-app
-```
-
-**`content.json`** — your videos/items:
 ```json
 {
-  "title": "My Streaming App",
+  "title": "My App",
   "categories": [
-    { "id": "trending", "name": "Trending", "items": ["v1", "v2", "v3"] }
+    { "id": "trending", "name": "Trending", "items": ["v1", "v2"] }
   ],
   "videos": [
     {
       "id": "v1",
-      "title": "My First Video",
-      "description": "A great video",
-      "thumbnail_url": "https://example.com/thumb.jpg",
-      "stream_url": "https://example.com/stream.m3u8",
+      "title": "Some Video",
+      "description": "It's good",
+      "thumbnail_url": "https://...",
+      "stream_url": "https://...",
       "stream_type": "hls",
       "tags": ["drama"]
     }
@@ -88,7 +48,7 @@ mkdir my-app && cd my-app
 }
 ```
 
-**`brand.json`** — your colors:
+Add `brand.json` if you want specific colors:
 ```json
 {
   "name": "My App",
@@ -98,243 +58,190 @@ mkdir my-app && cd my-app
 }
 ```
 
-**`prompt.txt`** — describe the vibe:
+Add `prompt.txt` if you want to describe the vibe in plain English:
 ```
-A cinematic streaming app with a premium feel. Dark moody backgrounds,
-neon accent glows on focus, editorial typography. The hero section should
-feel like a movie premiere.
+Dark and cinematic. Neon accent glows on focus. Editorial typography.
+The hero section should feel like a movie premiere.
 ```
 
-Run it:
+Then run:
 ```bash
-npx tsx src/index.ts claude-run /path/to/my-app
+npx tsx src/index.ts claude-run /path/to/your-folder
 ```
 
-## How It Works
-
-The harness is **~80% deterministic** (proven template, mechanical checks, git snapshots) and **~20% LLM judgment** (planning, branding, creative decisions). Each phase is small, focused, and verified before the next one runs.
+## What it does, step by step
 
 ```
-                    ┌─────────────────────────────────────────────────────┐
-prompt.txt ──┐     │                                                     │
-content.json ├─►  plan → scaffold → brand → content → screens           │
-brand.json  ─┘     │     → creative_ui → navigation → verify → build    │
-                    │     → visual_qa → android_test                     │
-                    └─────────────────────────────────────────────────────┘
-                         every phase: skills loaded → agent works
-                                    → checks pass → git commit
+content.json ─┐
+brand.json   ─┼─► plan → scaffold → brand → content → screens
+prompt.txt   ─┘   → creative_ui → navigation → verify → build → visual QA
 ```
 
-### The Pipeline
+Each phase runs independently, gets verified, and commits to git. If something fails you can resume from that point.
 
-| Phase | What Happens |
+| Phase | What happens |
 |-------|-------------|
-| **plan** | AI generates an AppSpec (screens, navigation, data bindings) from your inputs |
-| **scaffold** | Clones a battle-tested RN TV template, installs deps |
-| **branding** | Applies your colors, fonts, surface hierarchy, app metadata |
-| **content** | Wires your videos/items into data hooks the screens consume |
-| **screens** | Customizes or creates screens per the AppSpec |
-| **creative_ui** | The magic — typography, focus animations, atmospheric effects, visual signatures |
-| **navigation** | Configures drawer/tabs with proper focus isolation |
-| **verify** | TypeScript compilation, focus system integrity checks |
-| **build_loop** | Web build, platform prebuild for native targets |
-| **visual_qa_loop** | Screenshots every screen → grades against 10-foot UI rubric → fixes issues |
-| **android_test_loop** | D-pad navigation testing on an emulator |
+| plan | Reads your inputs, decides on screens and navigation structure |
+| scaffold | Clones the RN TV template, installs deps |
+| branding | Your colors everywhere, surface hierarchy, app name |
+| content | Wires your data into hooks the screens actually use |
+| screens | Customizes existing screens or creates new ones |
+| creative_ui | Typography, focus animations, atmospheric effects — the personality |
+| navigation | Drawer or tabs, focus isolation between screens |
+| verify | TSC, focus checks, platform guards |
+| build_loop | Web build, native prebuild |
+| visual_qa_loop | Screenshots every screen, grades them, fixes issues |
+| android_test_loop | D-pad testing on an emulator |
 
-### Skills System
-
-Each phase loads domain-specific knowledge ("skills") that teach the LLM how to work with TV UI:
-
-- **Spatial Navigation** — react-tv-space-navigation patterns, focus roots, D-pad handling
-- **Creative TV UI** — cinematic scrims, specular highlights, TV color physics, content-type personalities
-- **10-Foot UI** — safe zones, minimum text sizes, contrast requirements
-- **Template Anatomy** — where files live, how the monorepo is structured
-
-Skills are progressively disclosed — only loaded when the agent needs them.
-
-## Examples
-
-| Example | Content | Visual Style |
-|---------|---------|--------------|
-| `cooking-shows` | Indie cooking videos | Warm editorial, golden tones, Playfair Display |
-| `music-videos` | Music streaming | Neon glow, glass-morphism, Bebas Neue |
-| `fitness-tv` | Workout videos | Athletic precision, sharp angles |
-| `sports-live` | Live sports | High-energy, diagonal cuts, stadium feel |
-| `nintendo-games` | Nintendo Switch games (live API) | Playful, bold red accent, game-box cards |
-| `kmp-cooking-shows` | Same content, Kotlin Multiplatform | Native Compose TV output |
-
-The `nintendo-games` example fetches real game data from Nintendo's public API:
-```bash
-cd examples/nintendo-games
-node fetch-content.js  # refreshes content.json with latest games
-```
-
-## Two Execution Modes
-
-| Mode | Command | When to Use |
-|------|---------|-------------|
-| `claude-run` | Claude CLI subprocess | **Recommended** — stable, battle-tested |
-| `run` | Strands Agents SDK | Multi-provider experiments, benchmarking, cost optimization |
-
-Both produce identical output in `out/<runId>/`.
-
-### Resume & Retry
+## Resume when things fail
 
 ```bash
-# Resume the latest run from where it failed
+# Pick up where it stopped
 npx tsx src/index.ts claude-run --resume
 
-# Resume a specific run from a specific phase
+# Re-run from a specific phase
 npx tsx src/index.ts claude-run --resume abc123 --from-phase verify
 
-# Generate only (skip build and QA)
+# Just generate, skip build/QA
 npx tsx src/index.ts claude-run --example cooking-shows --generate-only
 ```
 
-## Configuration
+## Examples
 
-### Provider Setup
+| Name | What's in it | Vibe |
+|------|-------------|------|
+| `cooking-shows` | Indie cooking videos | Warm, editorial, Playfair Display |
+| `music-videos` | Music streaming | Neon glow, glass cards |
+| `fitness-tv` | Workouts | Sharp, athletic, geometric |
+| `sports-live` | Live sports | High-energy, diagonal cuts |
+| `nintendo-games` | Real Nintendo games (from their API) | Playful, red accent, game-box feel |
+| `kmp-cooking-shows` | Same content, Kotlin Multiplatform | Compose TV output |
 
-The `run` command supports multiple LLM providers via [Strands Agents SDK](https://strandsagents.com/):
+The `nintendo-games` example pulls real data:
+```bash
+cd examples/nintendo-games && node fetch-content.js
+```
 
-| Provider | Auth | Example Models |
-|----------|------|----------------|
-| **AWS Bedrock** | `AWS_PROFILE` | `global.anthropic.claude-sonnet-4-6-v1` |
-| **Anthropic** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
-| **OpenRouter** | `OPENROUTER_API_KEY` | `anthropic/claude-sonnet-4`, `deepseek/deepseek-v4-flash` |
-| **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` |
+## Two modes
 
-Configure in your example's `harness.config.json`:
+| | Command | What it uses |
+|---|---------|-------------|
+| **Recommended** | `claude-run` | Claude CLI as a subprocess. Stable. |
+| **Multi-provider** | `run` | Strands Agents SDK. Use for OpenRouter, Bedrock, OpenAI, etc. |
 
+For multi-provider, configure `harness.config.json`:
 ```json
 {
   "models": {
     "strandsProvider": {
       "provider": "openrouter",
       "modelId": "anthropic/claude-sonnet-4"
-    },
-    "phaseModels": {
-      "visual_qa_loop": {
-        "provider": "openrouter",
-        "modelId": "anthropic/claude-sonnet-4"
-      }
     }
   }
 }
 ```
 
-### Input Files
+Supported: Bedrock (`AWS_PROFILE`), Anthropic (`ANTHROPIC_API_KEY`), OpenRouter (`OPENROUTER_API_KEY`), OpenAI (`OPENAI_API_KEY`).
 
-| File | Required | Purpose |
-|------|----------|---------|
-| `content.json` | **Yes** | Videos, categories, featured items |
-| `brand.json` | | Colors, font family, logo |
-| `design.json` | | Layout template, tile sizes, navigation style, mood |
-| `screens.json` | | Explicit screen tree |
-| `prompt.txt` | | Natural-language creative brief |
-| `run.json` | | Target platforms, retry budgets |
-| `harness.config.json` | | Provider, model, pipeline overrides |
+You can use different models per phase:
+```json
+{
+  "models": {
+    "strandsProvider": { "provider": "openrouter", "modelId": "deepseek/deepseek-v4-flash" },
+    "phaseModels": {
+      "visual_qa_loop": { "provider": "openrouter", "modelId": "anthropic/claude-sonnet-4" }
+    }
+  }
+}
+```
 
-### Pipeline Customization
+## How skills work
 
-Override phases, add custom ones, or change the template:
+Each phase gets domain-specific knowledge loaded alongside it. These are markdown files in `skills/` that teach the LLM things like:
+
+- How react-tv-space-navigation works (focus roots, D-pad events, overflow traps)
+- TV color physics (panels over-saturate, desaturate your palette)
+- Cinematic scrim patterns for hero sections
+- Why items-per-rail matters when every click is sequential
+
+They're loaded on demand, not dumped into the system prompt.
+
+## Output
+
+```
+out/<runId>/
+├── app/                   # The app. One git commit per phase.
+├── spec.json              # What the planner decided
+├── checkpoint.json        # For --resume
+├── report.md              # What passed, what failed, cost
+├── screenshots/           # Visual QA captures
+└── prompt-<phase>.md      # What the LLM actually saw (debugging)
+```
+
+## Pipeline customization
+
+You can swap the template, add custom phases, change retry counts:
 
 ```json
 {
-  "template": {
-    "repo": "https://github.com/you/your-tv-template.git",
-    "branch": "main"
-  },
+  "template": { "repo": "https://github.com/you/your-template.git" },
   "tokenBudget": 500000,
   "phases": [
-    { "name": "branding", "skills": ["template-anatomy", "my-design-system"], "retries": 3 },
+    { "name": "branding", "retries": 3 },
     {
       "name": "analytics",
       "prompt": "analytics",
       "insertAfter": "content",
-      "skills": ["template-anatomy"],
-      "verify": [
-        { "type": "grep", "pattern": "trackScreenView", "path": "packages/shared-ui/" },
-        { "type": "tsc" }
-      ]
+      "verify": [{ "type": "grep", "pattern": "trackScreenView", "path": "packages/shared-ui/" }]
     }
   ]
 }
 ```
 
-## Output Structure
+## All the CLI flags
 
-```
-out/<runId>/
-├── app/                   # The generated app (one git commit per phase)
-├── spec.json              # The planner's AppSpec
-├── checkpoint.json        # Resume state
-├── report.md              # Phase results, token usage, cost
-├── run.log                # NDJSON audit trail
-├── screenshots/           # Visual QA captures
-├── prompt-<phase>.md      # Per-phase prompt (debugging)
-└── response-<phase>.txt   # Per-phase LLM response
-```
+| Command / Flag | |
+|---|---|
+| `run [dir]` | Full pipeline (Strands SDK) |
+| `claude-run [dir]` | Full pipeline (Claude CLI) |
+| `doctor [--fix]` | Check prerequisites |
+| `visual-qa` | Re-run visual QA on existing app |
+| `test-ui` | Open app in a browser you can watch |
+| `--resume [runId]` | Continue from checkpoint |
+| `--from-phase <name>` | Jump to a phase |
+| `--generate-only` | No build, no QA |
+| `--no-tui` | Plain output |
 
-## CLI Reference
+## Verification suite
 
-| Command | Description |
-|---------|-------------|
-| `run [dir]` | Full pipeline (Strands SDK, multi-provider) |
-| `claude-run [dir]` | Full pipeline (Claude CLI, recommended) |
-| `doctor [--fix]` | Pre-flight prerequisite checks |
-| `visual-qa` | Re-run visual QA on an existing app |
-| `add-screen <Name>` | Add a screen to a generated app |
-| `review [scope]` | TV-specific code review |
-| `test-ui` | Drive the app in a visible browser |
-| `replay <file>` | Replay a recorded run |
-| `--resume [runId]` | Resume from checkpoint |
-| `--from-phase <name>` | Re-run from a specific phase |
-| `--generate-only` | Skip build and QA phases |
-| `--no-tui` | Plain console output |
-
-## Verification Suite
-
-A statistically rigorous quality measurement system at `packages/verification/`:
+There's a separate package for measuring harness quality statistically:
 
 ```bash
 cd packages/verification
-npx tsx src/cli.ts run --spec=GS-01-simple     # Run N times, compute Wilson CIs
-npx tsx src/cli.ts compare --base=X --head=Y   # Detect regressions
+npx tsx src/cli.ts run --spec=GS-01-simple
 ```
 
-5 levels: structural checks → platform builds → smoke tests → content fidelity → LLM-judge rubric.
+Runs N times, computes Wilson confidence intervals, detects regressions. See its own README.
+
+## Repo layout
+
+```
+├── packages/harness/      # The pipeline
+├── packages/verification/ # Quality measurement
+├── skills/                # Domain knowledge per phase
+├── examples/              # Input examples
+└── docs/
+```
 
 ## Development
 
 ```bash
 cd packages/harness
 yarn install
-yarn typecheck         # tsc --noEmit
-npx vitest run         # unit tests
-```
-
-### Repository Structure
-
-```
-your-harness-repo/
-├── packages/
-│   ├── harness/           # Pipeline engine, executors, TUI
-│   ├── verification/      # Statistical quality measurement
-│   └── web-ui/            # Dashboard (Vite)
-├── skills/                # Domain knowledge (loaded per phase)
-│   ├── rn-spatial-navigation/
-│   ├── creative-tv-ui/
-│   ├── rn-theming/
-│   └── ...
-├── examples/              # Working input examples
-│   ├── cooking-shows/
-│   ├── nintendo-games/
-│   ├── music-videos/
-│   └── ...
-└── docs/
+yarn typecheck
+npx vitest run
 ```
 
 ## License
 
-This project is licensed under the [MIT-0 License](LICENSE).
+[MIT-0](LICENSE)
