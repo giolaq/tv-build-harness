@@ -8,9 +8,9 @@ No templates that look like every other app. Each run produces something visuall
 
 ## Why
 
-Building a TV app is annoying. You need spatial navigation, 10-foot UI considerations, focus management, platform-specific builds for Android TV / Apple TV / Fire TV / web... and then you want it to look good too.
+TV apps need spatial navigation, 10-foot UI design, focus management, platform-specific builds for Android TV / Apple TV / Fire TV / web — and you still want each one to look unique.
 
-This harness does all of that. It uses an LLM to plan and build the app phase by phase, but the pipeline itself is deterministic — proven template, mechanical checks, git commits between phases, automated visual QA at the end.
+TV Build handles all of that. It uses an LLM to plan and build the app phase by phase, but the pipeline itself is deterministic — proven template, mechanical checks, git commits between phases, automated visual QA at the end.
 
 ## Quick start
 
