@@ -2,7 +2,7 @@
 
 You feed it a JSON with your content and some brand colors. It spits out a multi-platform TV app that actually works — D-pad navigation, proper focus states, the whole thing.
 
-No templates that look like every other app. Each run produces something visually distinct.
+Supports **React Native** (Android TV, Apple TV, Fire TV, web) and **Kotlin Multiplatform** (Compose TV). No templates that look like every other app. Each run produces something visually distinct.
 
 <!-- TODO: hero screenshot/gif here -->
 
