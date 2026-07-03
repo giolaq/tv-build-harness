@@ -48,3 +48,7 @@ jobs:
       - name: Test
         working-directory: ${{ matrix.package }}
         run: yarn test
+
+      - name: Check generated input docs
+        if: ${{ matrix.package == 'packages/harness' }}
+        run: packages/harness/node_modules/.bin/tsx scripts/gen-input-docs.ts --check

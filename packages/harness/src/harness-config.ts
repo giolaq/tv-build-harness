@@ -7,36 +7,36 @@ import { z } from "zod";
 export const VerifyCheckSchema = z.discriminatedUnion("type", [
   // At least one of the given paths must exist (relative to the app dir).
   z.object({
-    type: z.literal("file_exists"),
-    path: z.union([z.string(), z.array(z.string())]),
-    error: z.string().optional(),
+    type: z.literal("file_exists").describe("Check kind."),
+    path: z.union([z.string(), z.array(z.string())]).describe("Required path or fallback paths relative to the app dir."),
+    error: z.string().optional().describe("Custom failure message."),
   }),
   // Pattern (supports {{var}} substitution) must grep-match inside `path`.
   z.object({
-    type: z.literal("grep"),
-    pattern: z.string(),
-    path: z.string().default("."),
-    error: z.string().optional(),
+    type: z.literal("grep").describe("Check kind."),
+    pattern: z.string().describe("String pattern after template substitution."),
+    path: z.string().default(".").describe("File or directory to search relative to the app dir."),
+    error: z.string().optional().describe("Custom failure message."),
   }),
   // The app git worktree must have changes (skipped if git isn't initialized).
   z.object({
-    type: z.literal("git_dirty"),
-    error: z.string().optional(),
+    type: z.literal("git_dirty").describe("Check kind."),
+    error: z.string().optional().describe("Custom failure message."),
   }),
-  z.object({ type: z.literal("tsc"), error: z.string().optional() }),
-  z.object({ type: z.literal("focus_check"), error: z.string().optional() }),
+  z.object({ type: z.literal("tsc").describe("Check kind."), error: z.string().optional().describe("Custom failure message.") }),
+  z.object({ type: z.literal("focus_check").describe("Check kind."), error: z.string().optional().describe("Custom failure message.") }),
   z.object({
-    type: z.literal("forbidden_import"),
-    pattern: z.string(),
-    path: z.string().default("."),
-    error: z.string().optional(),
+    type: z.literal("forbidden_import").describe("Check kind."),
+    pattern: z.string().describe("Import pattern that must not appear."),
+    path: z.string().default(".").describe("File or directory to search relative to the app dir."),
+    error: z.string().optional().describe("Custom failure message."),
   }),
   // Arbitrary shell command; non-zero exit fails the check.
   z.object({
-    type: z.literal("command"),
-    run: z.string(),
-    timeoutMs: z.number().default(60_000),
-    error: z.string().optional(),
+    type: z.literal("command").describe("Check kind."),
+    run: z.string().describe("Shell command to run."),
+    timeoutMs: z.number().default(60_000).describe("Command timeout in milliseconds."),
+    error: z.string().optional().describe("Custom failure message."),
   }),
 ]);
 
@@ -45,81 +45,81 @@ export type VerifyCheck = z.infer<typeof VerifyCheckSchema>;
 // ─── Phase Spec ──────────────────────────────────────────────────────────────
 
 export const PhaseSpecSchema = z.object({
-  name: z.string(),
+  name: z.string().describe("Phase name."),
   // "agent": prompt-driven Claude phase. "plan" and "visual_qa" are built-in handlers.
-  kind: z.enum(["agent", "plan", "visual_qa"]).default("agent"),
+  kind: z.enum(["agent", "plan", "visual_qa"]).default("agent").describe("Executor behavior for the phase."),
   // Prompt file name (without .md) in the prompts directory. Required for kind=agent.
-  prompt: z.string().optional(),
-  skills: z.array(z.string()).default([]),
-  deps: z.array(z.string()).default([]),
-  retries: z.number().optional(),
-  timeoutMs: z.number().default(600_000),
-  model: z.string().optional(),
+  prompt: z.string().optional().describe("Prompt file name without .md."),
+  skills: z.array(z.string()).default([]).describe("Skill names loaded for this phase."),
+  deps: z.array(z.string()).default([]).describe("Phase names that must complete first."),
+  retries: z.number().optional().describe("Phase-specific retry count."),
+  timeoutMs: z.number().default(600_000).describe("Phase timeout in milliseconds."),
+  model: z.string().optional().describe("Claude model override for this phase."),
   // Phase only runs when this platform is targeted.
-  requiresPlatform: z.string().optional(),
+  requiresPlatform: z.string().optional().describe("Only run when this platform is targeted."),
   // Skipped when running with --generate-only.
-  buildPhase: z.boolean().default(false),
+  buildPhase: z.boolean().default(false).describe("Skip this phase when --generate-only is used."),
   // Phase manages its own iteration; the engine must not retry it externally.
-  internalLoop: z.boolean().default(false),
+  internalLoop: z.boolean().default(false).describe("Phase manages its own retries/iterations."),
   // A failure here aborts the whole pipeline.
-  abortOnFailure: z.boolean().default(false),
+  abortOnFailure: z.boolean().default(false).describe("Abort the pipeline if this phase ultimately fails."),
   // Working directory for the agent: the run out dir or the app dir.
-  cwd: z.enum(["app", "out"]).default("app"),
-  verify: z.array(VerifyCheckSchema).default([]),
+  cwd: z.enum(["app", "out"]).default("app").describe("Working directory for the agent."),
+  verify: z.array(VerifyCheckSchema).default([]).describe("Verification checks after the phase."),
   // For user-added phases: insert after this default phase instead of appending.
-  insertAfter: z.string().optional(),
+  insertAfter: z.string().optional().describe("Insert a new phase after this existing phase."),
 });
 
 export type PhaseSpec = z.infer<typeof PhaseSpecSchema>;
 
 export const PhaseOverrideSchema = z.object({
-  name: z.string(),
-  kind: z.enum(["agent", "plan", "visual_qa"]).optional(),
-  prompt: z.string().optional(),
-  skills: z.array(z.string()).optional(),
-  deps: z.array(z.string()).optional(),
-  retries: z.number().optional(),
-  timeoutMs: z.number().optional(),
-  model: z.string().optional(),
-  requiresPlatform: z.string().optional(),
-  buildPhase: z.boolean().optional(),
-  internalLoop: z.boolean().optional(),
-  abortOnFailure: z.boolean().optional(),
-  cwd: z.enum(["app", "out"]).optional(),
-  verify: z.array(VerifyCheckSchema).optional(),
-  insertAfter: z.string().optional(),
+  name: z.string().describe("Phase name to override or add."),
+  kind: z.enum(["agent", "plan", "visual_qa"]).optional().describe("Executor behavior for the phase."),
+  prompt: z.string().optional().describe("Prompt file name without .md."),
+  skills: z.array(z.string()).optional().describe("Skill names loaded for this phase."),
+  deps: z.array(z.string()).optional().describe("Phase names that must complete first."),
+  retries: z.number().optional().describe("Phase-specific retry count."),
+  timeoutMs: z.number().optional().describe("Phase timeout in milliseconds."),
+  model: z.string().optional().describe("Claude model override for this phase."),
+  requiresPlatform: z.string().optional().describe("Only run when this platform is targeted."),
+  buildPhase: z.boolean().optional().describe("Skip this phase when --generate-only is used."),
+  internalLoop: z.boolean().optional().describe("Phase manages its own retries/iterations."),
+  abortOnFailure: z.boolean().optional().describe("Abort the pipeline if this phase ultimately fails."),
+  cwd: z.enum(["app", "out"]).optional().describe("Working directory for the agent."),
+  verify: z.array(VerifyCheckSchema).optional().describe("Verification checks after the phase."),
+  insertAfter: z.string().optional().describe("Insert a new phase after this existing phase."),
 });
 
 // ─── Harness Config ──────────────────────────────────────────────────────────
 
 export const TemplateConfigSchema = z.object({
-  repo: z.string(),
-  branch: z.string().optional(),
+  repo: z.string().describe("Git repository for the app template."),
+  branch: z.string().optional().describe("Optional template branch."),
 });
 
 export const ModelProviderConfigSchema = z.object({
-  provider: z.enum(["bedrock", "anthropic", "openrouter", "openai"]).default("anthropic"),
-  modelId: z.string(),
-  region: z.string().optional(),
-  temperature: z.number().optional(),
-  maxTokens: z.number().optional(),
+  provider: z.enum(["bedrock", "anthropic", "openrouter", "openai"]).default("anthropic").describe("Model provider."),
+  modelId: z.string().describe("Provider-specific model id."),
+  region: z.string().optional().describe("Cloud region for providers that need one."),
+  temperature: z.number().optional().describe("Optional sampling temperature."),
+  maxTokens: z.number().optional().describe("Optional maximum output token count."),
 });
 
 export type ModelProviderConfig = z.infer<typeof ModelProviderConfigSchema>;
 
 export const ModelsConfigSchema = z.object({
-  plan: z.string().default("claude-opus-4-6"),
-  execution: z.string().default("claude-sonnet-4-6"),
-  strandsProvider: ModelProviderConfigSchema.optional(),
-  phaseModels: z.record(z.string(), ModelProviderConfigSchema).optional(),
+  plan: z.string().default("claude-opus-4-6").describe("Model for the planning phase."),
+  execution: z.string().default("claude-sonnet-4-6").describe("Default model for execution phases."),
+  strandsProvider: ModelProviderConfigSchema.optional().describe("Provider config for Strands/API mode."),
+  phaseModels: z.record(z.string(), ModelProviderConfigSchema).optional().describe("Per-phase provider overrides."),
 });
 
 export const VegaConfigSchema = z.object({
-  ttff_ms_max: z.number().default(1500),
-  ttfd_ms_max: z.number().default(3000),
-  max_hot_function_percent: z.number().default(20),
-  max_js_frame_drop_percent: z.number().default(2),
-  require_builder_tools: z.boolean().default(false),
+  ttff_ms_max: z.number().default(1500).describe("Maximum time to first frame in milliseconds."),
+  ttfd_ms_max: z.number().default(3000).describe("Maximum time to first decode in milliseconds."),
+  max_hot_function_percent: z.number().default(20).describe("Maximum allowed hot function percentage."),
+  max_js_frame_drop_percent: z.number().default(2).describe("Maximum allowed JavaScript frame drop percentage."),
+  require_builder_tools: z.boolean().default(false).describe("Fail setup if Amazon Devices Builder Tools are missing."),
 });
 
 export const DEFAULT_VEGA_CONFIG = {
@@ -133,11 +133,11 @@ export const DEFAULT_VEGA_CONFIG = {
 export const HarnessConfigSchema = z.object({
   template: TemplateConfigSchema.default({
     repo: "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git",
-  }),
-  models: ModelsConfigSchema.default({ plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" }),
-  vega: VegaConfigSchema.default(DEFAULT_VEGA_CONFIG),
-  tokenBudget: z.number().default(500_000),
-  phases: z.array(PhaseOverrideSchema).optional(),
+  }).describe("Template repository configuration."),
+  models: ModelsConfigSchema.default({ plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" }).describe("Model selection."),
+  vega: VegaConfigSchema.default(DEFAULT_VEGA_CONFIG).describe("Vega build and performance thresholds."),
+  tokenBudget: z.number().default(500_000).describe("Maximum token budget for a run."),
+  phases: z.array(PhaseOverrideSchema).optional().describe("Phase overrides or additional phases."),
 });
 
 export interface HarnessConfig {

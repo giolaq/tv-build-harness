@@ -104,19 +104,19 @@ export interface ScreenNode {
 
 export const ScreenNodeSchema: z.ZodType<ScreenNode> = z.lazy(() =>
   z.object({
-    id: z.string(),
-    name: z.string(),
-    layout: z.enum(["hero+rails", "grid", "detail", "player", "settings", "search", "list"]),
-    data_source: z.string().nullish(),
-    icon: z.string().nullish(),
-    children: z.array(ScreenNodeSchema).optional(),
+    id: z.string().describe("Stable screen identifier used by routes and sections."),
+    name: z.string().describe("Human-readable screen name."),
+    layout: z.enum(["hero+rails", "grid", "detail", "player", "settings", "search", "list"]).describe("Screen layout pattern to generate."),
+    data_source: z.string().nullish().describe("Optional content source id for this screen."),
+    icon: z.string().nullish().describe("Optional navigation icon name."),
+    children: z.array(ScreenNodeSchema).optional().describe("Nested child screens."),
   }).strict()
 ) as z.ZodType<ScreenNode>;
 
 export const ScreenTreeSchema = z.object({
-  navigation_type: z.enum(["drawer", "tabs"]),
-  home: ScreenNodeSchema,
-  screens: z.array(ScreenNodeSchema),
+  navigation_type: z.enum(["drawer", "tabs"]).describe("Top-level navigation pattern."),
+  home: ScreenNodeSchema.describe("Home screen node."),
+  screens: z.array(ScreenNodeSchema).describe("Additional screen nodes."),
 }).strict();
 
 export interface ScreenTree {
@@ -197,28 +197,28 @@ export type Section = z.infer<typeof SectionSchema>;
 // ─── Content Manifest ────────────────────────────────────────────────────────
 
 export const VideoSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
-  duration_sec: z.number(),
-  thumbnail_url: z.string(),
-  stream_url: z.string(),
-  stream_type: z.enum(["hls", "dash", "mp4"]),
-  tags: z.array(z.string()),
+  id: z.string().describe("Stable video id referenced by categories and featured lists."),
+  title: z.string().describe("Display title."),
+  description: z.string().describe("Display description."),
+  duration_sec: z.number().describe("Runtime in seconds."),
+  thumbnail_url: z.string().describe("Image URL used for rails, grids, and detail pages."),
+  stream_url: z.string().describe("Playable stream URL."),
+  stream_type: z.enum(["hls", "dash", "mp4"]).describe("Stream container/protocol."),
+  tags: z.array(z.string()).describe("Search, filtering, or display tags."),
 }).strict();
 
 export const CategorySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  items: z.array(z.string()),
+  id: z.string().describe("Stable category id."),
+  name: z.string().describe("Display name for the category rail or page."),
+  items: z.array(z.string()).describe("Video ids included in this category."),
 }).strict();
 
 export const ContentManifestSchema = z.object({
-  title: z.string(),
-  description: z.string(),
-  categories: z.array(CategorySchema),
-  videos: z.array(VideoSchema),
-  featured: z.array(z.string()),
+  title: z.string().describe("App/content catalog title."),
+  description: z.string().describe("One-line catalog description."),
+  categories: z.array(CategorySchema).describe("Content groupings used for rails and screens."),
+  videos: z.array(VideoSchema).describe("Video records available to the generated app."),
+  featured: z.array(z.string()).describe("Video ids to emphasize in hero or featured areas."),
 }).strict();
 
 export type ContentManifest = z.infer<typeof ContentManifestSchema>;
@@ -226,13 +226,13 @@ export type ContentManifest = z.infer<typeof ContentManifestSchema>;
 // ─── Brand Kit ───────────────────────────────────────────────────────────────
 
 export const BrandKitSchema = z.object({
-  name: z.string(),
-  primary_color: z.string(),
-  accent_color: z.string(),
-  background_color: z.string(),
-  font_family: z.string(),
-  logo_path: z.string(),
-  splash_path: z.string(),
+  name: z.string().describe("App display name."),
+  primary_color: z.string().describe("Primary brand color, usually a hex color."),
+  accent_color: z.string().describe("Accent color for focus and calls to action."),
+  background_color: z.string().describe("Default app background color."),
+  font_family: z.string().describe("Preferred font family name."),
+  logo_path: z.string().describe("Path or URL to the app logo asset."),
+  splash_path: z.string().describe("Path or URL to the splash/loading asset."),
 }).strict();
 
 export type BrandKit = z.infer<typeof BrandKitSchema>;
@@ -248,23 +248,23 @@ export const ScreenTemplateSchema = z.enum([
 ]);
 
 export const DesignTokensSchema = z.object({
-  template: ScreenTemplateSchema.default("netflix-style"),
-  hero_height: z.number().default(500),
-  show_hero: z.boolean().default(true),
-  tile_size: z.enum(["small", "medium", "large"]).default("medium"),
-  tile_ratio: z.enum(["16:9", "4:3", "1:1", "2:3"]).default("16:9"),
-  spacing: z.enum(["compact", "normal", "relaxed"]).default("normal"),
-  corner_radius: z.number().default(8),
-  rails_per_screen: z.number().default(4),
-  font_scale: z.number().default(1.0),
-  show_descriptions: z.boolean().default(true),
-  show_duration: z.boolean().default(true),
-  navigation_style: z.enum(["drawer", "tabs", "hidden"]).default("drawer"),
-  focus_style: z.enum(["border", "glow", "scale", "border+scale", "neon", "glass", "sharp"]).default("border+scale"),
-  animation_speed: z.enum(["none", "subtle", "normal", "energetic"]).default("normal"),
-  mood: z.enum(["warm", "cool", "electric", "natural", "minimal", "playful"]).optional(),
-  surface_style: z.enum(["flat", "gradient", "glass", "textured"]).default("gradient"),
-  card_style: z.enum(["rounded", "sharp", "pill", "angular"]).default("rounded"),
+  template: ScreenTemplateSchema.default("netflix-style").describe("Starting visual layout family."),
+  hero_height: z.number().default(500).describe("Hero area height in pixels."),
+  show_hero: z.boolean().default(true).describe("Whether home should include a hero area."),
+  tile_size: z.enum(["small", "medium", "large"]).default("medium").describe("Relative content tile size."),
+  tile_ratio: z.enum(["16:9", "4:3", "1:1", "2:3"]).default("16:9").describe("Content tile aspect ratio."),
+  spacing: z.enum(["compact", "normal", "relaxed"]).default("normal").describe("Overall spacing density."),
+  corner_radius: z.number().default(8).describe("Default radius for cards and surfaces."),
+  rails_per_screen: z.number().default(4).describe("Target number of rails visible on a screen."),
+  font_scale: z.number().default(1.0).describe("Multiplier for generated typography."),
+  show_descriptions: z.boolean().default(true).describe("Whether cards and details show descriptions."),
+  show_duration: z.boolean().default(true).describe("Whether videos show runtime metadata."),
+  navigation_style: z.enum(["drawer", "tabs", "hidden"]).default("drawer").describe("Preferred navigation UI."),
+  focus_style: z.enum(["border", "glow", "scale", "border+scale", "neon", "glass", "sharp"]).default("border+scale").describe("Visual treatment for focused TV elements."),
+  animation_speed: z.enum(["none", "subtle", "normal", "energetic"]).default("normal").describe("Motion intensity for generated UI."),
+  mood: z.enum(["warm", "cool", "electric", "natural", "minimal", "playful"]).optional().describe("Optional creative mood hint."),
+  surface_style: z.enum(["flat", "gradient", "glass", "textured"]).default("gradient").describe("Default surface treatment."),
+  card_style: z.enum(["rounded", "sharp", "pill", "angular"]).default("rounded").describe("Default card shape language."),
 }).strict();
 
 export type DesignTokens = z.infer<typeof DesignTokensSchema>;
@@ -283,14 +283,14 @@ export const PlatformSchema = z.enum([
 export type Platform = z.infer<typeof PlatformSchema>;
 
 export const RunConfigSchema = z.object({
-  platforms: z.array(PlatformSchema),
-  max_iterations: z.number().default(90),
-  max_retries_per_phase: z.number().default(5),
-  build_locally: z.boolean().default(true),
-  eas_profile: z.string().default("preview"),
-  visual_qa_max_iterations: z.number().default(3),
-  visual_qa_pass_threshold: z.enum(["strict", "normal"]).default("normal"),
-  use_devtools: z.boolean().default(false),
+  platforms: z.array(PlatformSchema).describe("Target platforms for this run."),
+  max_iterations: z.number().default(90).describe("Overall iteration guardrail."),
+  max_retries_per_phase: z.number().default(5).describe("Default retry limit per phase."),
+  build_locally: z.boolean().default(true).describe("Whether local build phases should run."),
+  eas_profile: z.string().default("preview").describe("EAS profile name for Expo-based builds."),
+  visual_qa_max_iterations: z.number().default(3).describe("Maximum visual QA repair loop count."),
+  visual_qa_pass_threshold: z.enum(["strict", "normal"]).default("normal").describe("Visual QA acceptance strictness."),
+  use_devtools: z.boolean().default(false).describe("Whether visual QA may use browser devtools."),
 }).strict();
 
 export type RunConfig = z.infer<typeof RunConfigSchema>;
