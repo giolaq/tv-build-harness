@@ -1,5 +1,7 @@
 # TV Build
 
+[![CI](https://github.com/giolaq/your-harness-repo/actions/workflows/ci.yml/badge.svg)](https://github.com/giolaq/your-harness-repo/actions/workflows/ci.yml)
+
 You feed it a JSON with your content and some brand colors. It spits out a multi-platform TV app that actually works. D-pad navigation, proper focus states, the whole thing.
 
 Supports **React Native** (Android TV, Apple TV, Fire TV, web) and **Kotlin Multiplatform** (Compose TV). No templates that look like every other app. Each run produces something visually distinct.

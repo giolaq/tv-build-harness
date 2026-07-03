@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: packages/harness
+            typecheck: true
+          - package: packages/verification
+            typecheck: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-node22-yarn-${{ matrix.package }}-${{ hashFiles(format('{0}/yarn.lock', matrix.package)) }}
+          restore-keys: |
+            ${{ runner.os }}-node22-yarn-${{ matrix.package }}-
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.package }}
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck
+        if: ${{ matrix.typecheck }}
+        working-directory: ${{ matrix.package }}
+        run: yarn typecheck
+
+      - name: Test
+        working-directory: ${{ matrix.package }}
+        run: yarn test

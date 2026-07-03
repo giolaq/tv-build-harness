@@ -34,19 +34,35 @@ load_when: short trigger description
 
 ## Inventory
 
-| Skill | Loaded for |
-|-------|-----------|
-| `template-anatomy.md` | Anything that touches files |
-| `shared-ui-catalog.md` | Screen customization, add/remove screen |
-| `theming.md` | Brand application phase |
-| `manifest-wiring.md` | Content injection phase |
-| `spatial-navigation.md` | New screen generation, focus-check failures |
-| `vega-sdk.md` | Vega target build phase |
-| `firetv-leanback.md` | Fire OS / Android TV build phase |
-| `expo-tv-config.md` | Prebuild phase |
-| `video-player.md` | Player screen customization |
-| `eas-build.md` | EAS Build phase |
-| `10ft-ui.md` | New screen generation (not template reuse) |
+Generated with:
+
+```bash
+find skills -maxdepth 2 -name SKILL.md | sort
+```
+
+| Skill | Loaded for | File |
+|-------|------------|------|
+| `10ft-ui` | `[phase_screens]` | `skills/10ft-ui/SKILL.md` |
+| `android-tv-testing` | `[android_test_loop]` | `skills/android-tv-testing/SKILL.md` |
+| `creative-tv-ui` | `[creative_ui]` | `skills/creative-tv-ui/SKILL.md` |
+| `eas-build` | `[phase_eas_build]` | `skills/eas-build/SKILL.md` |
+| `expo-tv-config` | `[phase_clone, phase_prebuild]` | `skills/expo-tv-config/SKILL.md` |
+| `firetv-leanback` | `[phase_brand, phase_build]` | `skills/firetv-leanback/SKILL.md` |
+| `kmp-build-commands` | `[scaffold, screens, branding, content]` | `skills/kmp-build-commands/SKILL.md` |
+| `kmp-compose-tv` | `[screens, content, scaffold]` | `skills/kmp-compose-tv/SKILL.md` |
+| `kmp-data-layer` | `[content, scaffold, screens]` | `skills/kmp-data-layer/SKILL.md` |
+| `kmp-navigation` | `[screens, scaffold]` | `skills/kmp-navigation/SKILL.md` |
+| `kmp-template-anatomy` | `[scaffold, branding, content, screens]` | `skills/kmp-template-anatomy/SKILL.md` |
+| `kmp-theming` | `[branding, screens]` | `skills/kmp-theming/SKILL.md` |
+| `kmp-verify-patterns` | `[scaffold, screens, branding, content]` | `skills/kmp-verify-patterns/SKILL.md` |
+| `meta` | `[all]` | `skills/meta/SKILL.md` |
+| `rn-manifest-wiring` | `[phase_manifest, phase_screens]` | `skills/rn-manifest-wiring/SKILL.md` |
+| `rn-shared-ui-catalog` | `[phase_screens, phase_navigation]` | `skills/rn-shared-ui-catalog/SKILL.md` |
+| `rn-spatial-navigation` | `[phase_screens, phase_static_check]` | `skills/rn-spatial-navigation/SKILL.md` |
+| `rn-template-anatomy` | `[phase_clone, phase_brand, phase_manifest, phase_screens, phase_build]` | `skills/rn-template-anatomy/SKILL.md` |
+| `rn-theming` | `[phase_brand]` | `skills/rn-theming/SKILL.md` |
+| `vega-sdk` | `[phase_vega_build]` | `skills/vega-sdk/SKILL.md` |
+| `video-player` | `[phase_screens, phase_manifest]` | `skills/video-player/SKILL.md` |
 
 ## Auto-skills
 

@@ -1,0 +1,43 @@
+name: Skill proposal
+description: Propose a new harness skill or a change to an existing skill.
+title: "[Skill]: "
+labels:
+  - skill
+body:
+  - type: input
+    id: skill-name
+    attributes:
+      label: Skill name
+      description: Use the exact `skills/<name>/SKILL.md` name.
+      placeholder: rn-example-skill
+    validations:
+      required: true
+  - type: input
+    id: phases
+    attributes:
+      label: Applies to
+      description: List phase names for `applies_to`.
+      placeholder: phase_screens, phase_verify
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: State the repeated failure, decision, or platform knowledge this skill should encode.
+    validations:
+      required: true
+  - type: textarea
+    id: guidance
+    attributes:
+      label: Proposed guidance
+      description: Include concrete commands, file paths, anti-patterns, and failure handling.
+    validations:
+      required: true
+  - type: textarea
+    id: test
+    attributes:
+      label: How to test it
+      description: Name the example, phase, or unit test that should prove the skill works.
+    validations:
+      required: true

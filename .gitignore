@@ -10,3 +10,4 @@ packages/harness/app/
 .DS_Store
 *.pkg
 .thumbnails/
+video/
