@@ -1,10 +1,20 @@
 import { EventEmitter } from "node:events";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { ClaudeCliError, invokeClaude, type ClaudeSpawn } from "../src/claude-cli.js";
+import { ClaudePhaseExecutor } from "../src/claude-phase-executor.js";
+import { mergeHarnessConfig } from "../src/harness-config.js";
 import { runPipeline } from "../src/pipeline-engine.js";
+import { PromptLoader } from "../src/prompt-loader.js";
+import { ReplayClient } from "../src/recorder.js";
+import { RunLog } from "../src/run-log.js";
+import { createRunContext } from "../src/run-context.js";
+import { SkillLibrary } from "../src/skill-library.js";
 import type { PhaseSpec } from "../src/harness-config.js";
-import type { PhaseResult } from "../src/types.js";
+import type { AppSpec, HarnessInput, PhaseResult } from "../src/types.js";
 
 describe("Claude CLI executor subprocess behavior", () => {
   it("delivers the prompt via stdin while using stream-json mode", async () => {
@@ -45,7 +55,12 @@ describe("Claude CLI executor subprocess behavior", () => {
       onEvent: (event) => events.push(event),
     });
 
-    expect(result).toEqual({ text: "final text", tokensUsed: 18, costUsd: 0.1234 });
+    expect(result).toEqual({
+      text: "final text",
+      tokensUsed: 18,
+      costUsd: 0.1234,
+      usage: { input_tokens: 11, output_tokens: 7 },
+    });
     expect(events.map((event) => event.type)).toEqual(["assistant", "result"]);
   });
 
@@ -84,6 +99,50 @@ describe("Claude CLI executor subprocess behavior", () => {
     expect(calls).toBe(2);
     expect(retries).toEqual(["1/2:failed"]);
     expect(results.get("branding")).toEqual({ phase: "branding", status: "success", iterations: 2 });
+  });
+
+  it("records claude-run stream events to recording.json that ReplayClient can load", async () => {
+    const workdir = mkdtempSync(join(tmpdir(), "tv-build-claude-recording-"));
+    const promptsDir = join(workdir, "prompts");
+    const skillsDir = join(workdir, "skills");
+    mkdirSync(promptsDir, { recursive: true });
+    mkdirSync(join(skillsDir, "meta"), { recursive: true });
+    writeFileSync(join(promptsDir, "plan.md"), "{{brief}}");
+    writeFileSync(join(skillsDir, "meta", "SKILL.md"), "---\nname: meta\napplies_to: [all]\n---\n\n# Meta");
+
+    const input = harnessInput(workdir, skillsDir);
+    const ctx = createRunContext(input);
+    const fake = createFakeSpawn({
+      stdout: [
+        {
+          type: "result",
+          subtype: "success",
+          result: JSON.stringify(appSpec()),
+          usage: { input_tokens: 13, output_tokens: 21 },
+          total_cost_usd: 0.05,
+        },
+      ],
+      code: 0,
+    });
+    const executor = new ClaudePhaseExecutor({
+      state: ctx.state,
+      input,
+      events: {},
+      harness: ctx.harness,
+      log: new RunLog(join(ctx.state.workdir, "run.log")),
+      skills: new SkillLibrary(skillsDir),
+      prompts: new PromptLoader(promptsDir),
+      record: true,
+      spawnImpl: fake.spawn,
+    });
+
+    const result = await executor.executePhase(phase("plan", { kind: "plan" }));
+    const recordingPath = join(ctx.state.workdir, "recording.json");
+    const replay = new ReplayClient(recordingPath);
+
+    expect(result.status).toBe("success");
+    expect(existsSync(recordingPath)).toBe(true);
+    expect(replay.total).toBe(1);
   });
 });
 
@@ -141,5 +200,84 @@ function phase(name: string, override: Partial<PhaseSpec> = {}): PhaseSpec {
     cwd: "app",
     verify: [],
     ...override,
+  };
+}
+
+function harnessInput(workdir: string, skillsDir: string): HarnessInput {
+  return {
+    prompt: "Build a test app",
+    content: {
+      title: "Test TV",
+      description: "Catalog",
+      categories: [{ id: "featured", name: "Featured", items: ["v1"] }],
+      videos: [{
+        id: "v1",
+        title: "Video",
+        description: "A video",
+        duration_sec: 60,
+        thumbnail_url: "https://example.com/thumb.jpg",
+        stream_url: "https://example.com/stream.m3u8",
+        stream_type: "hls",
+        tags: ["test"],
+      }],
+      featured: ["v1"],
+    },
+    brand: {
+      name: "Test TV",
+      primary_color: "#111111",
+      accent_color: "#222222",
+      background_color: "#000000",
+      font_family: "Inter",
+      logo_path: "",
+      splash_path: "",
+    },
+    config: {
+      platforms: ["web"],
+      max_iterations: 90,
+      max_retries_per_phase: 2,
+      build_locally: true,
+      eas_profile: "preview",
+      visual_qa_max_iterations: 1,
+      visual_qa_pass_threshold: "normal",
+      use_devtools: false,
+    },
+    design: {
+      template: "classic",
+      hero_height: 500,
+      show_hero: true,
+      tile_size: "medium",
+      tile_ratio: "16:9",
+      spacing: "normal",
+      corner_radius: 8,
+      rails_per_screen: 4,
+      font_scale: 1,
+      show_descriptions: true,
+      show_duration: true,
+      navigation_style: "drawer",
+      focus_style: "border+scale",
+      animation_speed: "normal",
+      surface_style: "gradient",
+      card_style: "rounded",
+    },
+    workdir,
+    skillsDir,
+    harness: mergeHarnessConfig({
+      template: { repo: "https://example.com/template.git" },
+      models: { plan: "claude-plan-test", execution: "claude-exec-test" },
+      tokenBudget: 1000,
+    }),
+  };
+}
+
+function appSpec(): AppSpec {
+  return {
+    app_name: "Test TV",
+    theme: { mode: "dark", tokens: {} },
+    navigation: { type: "drawer", routes: [{ id: "home", label: "Home", icon: "home" }] },
+    screens: [{ id: "home", route: "home", layout: "hero+rails", sections: [] }],
+    components_to_customize: [],
+    components_to_add: [],
+    data_bindings: [],
+    player: { lib: "react-native-video" },
   };
 }

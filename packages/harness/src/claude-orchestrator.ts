@@ -6,6 +6,7 @@ export {
 } from "./executors/claude-cli.js";
 export type {
   HarnessEvents,
+  ClaudeOrchestratorOptions,
   PhaseMessage,
   RunOptions,
 } from "./executors/claude-cli.js";

@@ -70,6 +70,7 @@ export interface ClaudeResult {
   text: string;
   tokensUsed: number;
   costUsd: number;
+  usage: { input_tokens: number; output_tokens: number };
 }
 
 /** Carries whatever usage was parsed before the CLI failed, so callers can still book it. */
@@ -120,7 +121,7 @@ export function invokeClaude(opts: ClaudeInvocation): Promise<ClaudeResult> {
 
     let buffer = "";
     let stderr = "";
-    const result: ClaudeResult = { text: "", tokensUsed: 0, costUsd: 0 };
+    const result: ClaudeResult = { text: "", tokensUsed: 0, costUsd: 0, usage: { input_tokens: 0, output_tokens: 0 } };
 
     const consumeLine = (line: string) => {
       if (!line.trim()) return;
@@ -129,7 +130,11 @@ export function invokeClaude(opts: ClaudeInvocation): Promise<ClaudeResult> {
         onEvent?.(event);
         if (event.type === "result") {
           result.text = event.result ?? "";
-          result.tokensUsed = (event.usage?.input_tokens ?? 0) + (event.usage?.output_tokens ?? 0);
+          result.usage = {
+            input_tokens: event.usage?.input_tokens ?? 0,
+            output_tokens: event.usage?.output_tokens ?? 0,
+          };
+          result.tokensUsed = result.usage.input_tokens + result.usage.output_tokens;
           result.costUsd = event.total_cost_usd ?? 0;
         }
       } catch {}

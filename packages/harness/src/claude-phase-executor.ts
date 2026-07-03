@@ -8,6 +8,7 @@ import type { PromptLoader } from "./prompt-loader.js";
 import type { SkillLibrary } from "./skill-library.js";
 import { runVerifyChecks } from "./verification.js";
 import { invokeClaude, ClaudeCliError } from "./claude-cli.js";
+import type { ClaudeSpawn } from "./claude-cli.js";
 import { runVisualQALoop } from "./visual-qa.js";
 import { buildPlanPrompt } from "./phase-prompts.js";
 import type { PhasePromptContext } from "./phase-prompts.js";
@@ -19,12 +20,14 @@ import {
 } from "./run-context.js";
 import { buildClaudeSkillContext, getPhaseInstructions, promptContext } from "./phase-context.js";
 import type { HarnessEvents } from "./executors/claude-cli.js";
+import { Recorder } from "./recorder.js";
 
 export class ClaudePhaseExecutor {
   private lastPhaseCost = 0;
   private totalCost = 0;
   private phaseCosts: Map<string, number> = new Map();
   private lastVerifyError: Map<string, string> = new Map();
+  private recorder?: Recorder;
 
   constructor(private ctx: {
     state: SessionState;
@@ -34,7 +37,11 @@ export class ClaudePhaseExecutor {
     log: RunLog;
     skills: SkillLibrary;
     prompts: PromptLoader;
-  }) {}
+    record?: boolean;
+    spawnImpl?: ClaudeSpawn;
+  }) {
+    this.recorder = new Recorder(join(ctx.state.workdir, "recording.json"), ctx.record ?? true);
+  }
 
   async executePhase(spec: PhaseSpec): Promise<PhaseResult> {
     this.ctx.state.totalIterations++;
@@ -83,7 +90,13 @@ export class ClaudePhaseExecutor {
       const cwd = spec.cwd === "out" ? this.ctx.state.workdir : appDir;
       mkdirSync(cwd, { recursive: true });
 
-      const output = await this.runClaude(fullPrompt, cwd, spec.timeoutMs, spec.model);
+      const output = await this.runClaude(fullPrompt, cwd, {
+        timeoutMs: spec.timeoutMs,
+        model: spec.model,
+        recordedModel: spec.model ?? this.ctx.harness.models.execution,
+        phase,
+        system: "claude-run phase prompt",
+      });
       writeFileSync(join(this.ctx.state.workdir, `response-${phase}.txt`), output);
 
       this.ctx.log.log({
@@ -125,7 +138,13 @@ export class ClaudePhaseExecutor {
       prompts: this.ctx.prompts,
       useDevtools: this.ctx.input.config.use_devtools ?? false,
       runClaude: (prompt: string, cwd: string, timeoutMs?: number, allowedTools?: string) =>
-        this.runClaude(prompt, cwd, timeoutMs, undefined, allowedTools),
+        this.runClaude(prompt, cwd, {
+          timeoutMs,
+          allowedTools,
+          recordedModel: this.ctx.harness.models.execution,
+          phase: "visual_qa_loop",
+          system: "claude-run visual QA prompt",
+        }),
       onLog: (msg: string) => this.ctx.events.onLog?.(msg),
       onIteration: (current: number, max: number) => this.ctx.events.onIteration?.("visual_qa_loop", current, max),
     });
@@ -179,7 +198,11 @@ export class ClaudePhaseExecutor {
     );
 
     try {
-      const output = await this.runClaude(planPrompt, this.ctx.state.workdir);
+      const output = await this.runClaude(planPrompt, this.ctx.state.workdir, {
+        recordedModel: this.ctx.harness.models.plan,
+        phase: "plan",
+        system: "claude-run plan prompt",
+      });
       writeFileSync(join(this.ctx.state.workdir, "plan-response.txt"), output);
 
       if (!output.trim()) {
@@ -200,23 +223,63 @@ export class ClaudePhaseExecutor {
     }
   }
 
-  private async runClaude(prompt: string, cwd: string, timeoutMs?: number, model?: string, allowedTools?: string): Promise<string> {
-    const phase = this.ctx.state.currentPhase;
+  private async runClaude(prompt: string, cwd: string, options: {
+    timeoutMs?: number;
+    model?: string;
+    allowedTools?: string;
+    recordedModel: string;
+    phase: Phase;
+    system: string;
+  }): Promise<string> {
+    const phase = options.phase;
+    const events: Record<string, unknown>[] = [];
     try {
       const result = await invokeClaude({
         prompt,
         cwd,
-        timeoutMs,
-        model,
-        allowedTools,
-        onEvent: (event) => this.handleStreamEvent(phase, event),
+        timeoutMs: options.timeoutMs,
+        model: options.model,
+        allowedTools: options.allowedTools,
+        spawnImpl: this.ctx.spawnImpl,
+        onEvent: (event) => {
+          events.push(event);
+          this.handleStreamEvent(phase, event);
+        },
       });
       this.bookUsage(result);
+      this.recordTurn(phase, options.recordedModel, options.system, prompt, events, result.usage);
       return result.text;
     } catch (err) {
-      if (err instanceof ClaudeCliError) this.bookUsage(err.partial);
+      if (err instanceof ClaudeCliError) {
+        this.bookUsage(err.partial);
+        if (events.length > 0) {
+          this.recordTurn(phase, options.recordedModel, options.system, prompt, events, err.partial.usage);
+        }
+      }
       throw err;
     }
+  }
+
+  private recordTurn(
+    phase: Phase,
+    model: string,
+    system: string,
+    prompt: string,
+    response: Record<string, unknown>[],
+    usage: { input_tokens: number; output_tokens: number }
+  ): void {
+    this.recorder?.record({
+      timestamp: new Date().toISOString(),
+      phase,
+      request: {
+        model,
+        system,
+        messages: [{ role: "user", content: prompt }],
+      },
+      response,
+      usage,
+    });
+    this.recorder?.save();
   }
 
   private bookUsage(result: { tokensUsed: number; costUsd: number }): void {

@@ -23,6 +23,10 @@ export interface RunOptions {
   fromPhase?: string;
 }
 
+export interface ClaudeOrchestratorOptions {
+  record?: boolean;
+}
+
 export interface PhaseMessage {
   type: "text" | "tool_use" | "tool_result";
   content: string;
@@ -47,14 +51,16 @@ export class ClaudeOrchestrator {
   private harness: HarnessConfig;
   private prompts: PromptLoader;
   private executor: ClaudePhaseExecutor;
+  private options: ClaudeOrchestratorOptions;
   private resumedPhases: Set<string> = new Set();
   // Resolved by the engine at run start; checkpoints are built from this.
   private effectiveCompleted: Set<string> = new Set();
 
-  constructor(input: HarnessInput, events: HarnessEvents = {}) {
+  constructor(input: HarnessInput, events: HarnessEvents = {}, options: ClaudeOrchestratorOptions = {}) {
     this.skills = new SkillLibrary(input.skillsDir);
     this.input = input;
     this.events = events;
+    this.options = options;
     this.prompts = createPromptLoader(input);
 
     const ctx = createRunContext(input);
@@ -69,23 +75,34 @@ export class ClaudeOrchestrator {
       log: this.log,
       skills: this.skills,
       prompts: this.prompts,
+      record: this.options.record,
     });
   }
 
-  static fromExistingRun(outDir: string, input: HarnessInput, events: HarnessEvents = {}): ClaudeOrchestrator {
-    const instance = new ClaudeOrchestrator(input, events);
+  static fromExistingRun(outDir: string, input: HarnessInput, events: HarnessEvents = {}, options: ClaudeOrchestratorOptions = {}): ClaudeOrchestrator {
+    const instance = new ClaudeOrchestrator(input, events, options);
     instance.state.workdir = outDir;
     instance.state.runId = outDir.split("/").pop() ?? "rerun";
 
     loadSpecIfPresent(instance.state, outDir);
 
     instance.log = new RunLog(join(outDir, "run.log"));
+    instance.executor = new ClaudePhaseExecutor({
+      state: instance.state,
+      input: instance.input,
+      events: instance.events,
+      harness: instance.harness,
+      log: instance.log,
+      skills: instance.skills,
+      prompts: instance.prompts,
+      record: instance.options.record,
+    });
     return instance;
   }
 
   /** Resumes a previous run from its checkpoint, skipping completed phases. */
-  static resume(outDir: string, input: HarnessInput, events: HarnessEvents = {}): ClaudeOrchestrator {
-    const instance = ClaudeOrchestrator.fromExistingRun(outDir, input, events);
+  static resume(outDir: string, input: HarnessInput, events: HarnessEvents = {}, options: ClaudeOrchestratorOptions = {}): ClaudeOrchestrator {
+    const instance = ClaudeOrchestrator.fromExistingRun(outDir, input, events, options);
     const checkpoint = loadCheckpoint(outDir);
     if (checkpoint) {
       instance.resumedPhases = new Set(checkpoint.completedPhases);

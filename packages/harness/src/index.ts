@@ -332,6 +332,7 @@ async function runWithClaude() {
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
   const generateOnly = args.includes("--generate-only");
+  const record = !args.includes("--no-record");
 
   const fromFlag = args.indexOf("--from-phase");
   const fromPhase = fromFlag >= 0 ? args[fromFlag + 1] : undefined;
@@ -354,8 +355,8 @@ async function runWithClaude() {
 
   const makeOrchestrator = (events: ConstructorParameters<typeof ClaudeOrchestrator>[1]) =>
     resumeDir
-      ? ClaudeOrchestrator.resume(resumeDir, input, events)
-      : new ClaudeOrchestrator(input, events);
+      ? ClaudeOrchestrator.resume(resumeDir, input, events, { record })
+      : new ClaudeOrchestrator(input, events, { record });
 
   const resumeBanner = (harness: ClaudeOrchestrator) =>
     `Resuming ${resumeDir}${fromPhase
@@ -796,6 +797,7 @@ function printUsage() {
     --from-phase <name>    Skip phases before <name> (use with --resume to rerun a phase)
     --config <path>        Use a harness.config.json (custom template/phases/skills/models)
     --no-tui               Plain console output instead of the TUI
+    --no-record            Disable recording.json creation in claude-run mode
     --app=<path>           Specify app directory for add-screen/review/test-ui
     --close                Close browser after test-ui completes (default: stay open)
     --fix                  With doctor: print exact fix commands for failing checks
