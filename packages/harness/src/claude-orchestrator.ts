@@ -28,6 +28,7 @@ import { runVisualQALoop } from "./visual-qa.js";
 import { writeRunReport } from "./run-report.js";
 import { buildPhaseInstructions, buildPlanPrompt, buildDesignContext } from "./phase-prompts.js";
 import type { PhasePromptContext } from "./phase-prompts.js";
+import { writeVegaReport } from "./vega-tools.js";
 
 export interface RunOptions {
   generateOnly?: boolean;
@@ -499,6 +500,15 @@ export class ClaudeOrchestrator {
   }
 
   private writeReport(): void {
+    if (this.input.config.platforms.includes("firetv-vega")) {
+      writeVegaReport({
+        outDir: this.state.workdir,
+        checks: [],
+        budgets: this.harness.vega,
+        phaseResults: this.state.phaseResults,
+      });
+    }
+
     writeRunReport({
       outDir: this.state.workdir,
       runId: this.state.runId,

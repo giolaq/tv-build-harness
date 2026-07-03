@@ -12,13 +12,16 @@ import {
 } from "../src/types.js";
 
 describe("V1_PHASES", () => {
-  it("contains exactly 10 active phases", () => {
-    expect(V1_PHASES).toHaveLength(10);
+  it("contains the active default phase sequence", () => {
+    expect(V1_PHASES).toHaveLength(16);
   });
 
-  it("starts with plan and ends with visual_qa_loop", () => {
+  it("starts with plan and ends with android_test_loop", () => {
     expect(V1_PHASES[0]).toBe("plan");
-    expect(V1_PHASES[V1_PHASES.length - 1]).toBe("visual_qa_loop");
+    expect(V1_PHASES[V1_PHASES.length - 1]).toBe("android_test_loop");
+    expect(V1_PHASES).toContain("vega_setup_check");
+    expect(V1_PHASES).toContain("vega_build_loop");
+    expect(V1_PHASES).toContain("vega_perf_trace");
   });
 });
 

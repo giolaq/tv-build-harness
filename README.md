@@ -207,12 +207,36 @@ You can swap the template, add custom phases, change retry counts:
 | `run [dir]` | Full pipeline (Strands SDK) |
 | `claude-run [dir]` | Full pipeline (Claude CLI) |
 | `doctor [--fix]` | Check prerequisites |
+| `vega-doctor [--fix]` | Check Kepler, VDA, Vega manifest, and Amazon Devices Builder Tools |
 | `visual-qa` | Re-run visual QA on existing app |
 | `test-ui` | Open app in a browser you can watch |
 | `--resume [runId]` | Continue from checkpoint |
 | `--from-phase <name>` | Jump to a phase |
 | `--generate-only` | No build, no QA |
 | `--no-tui` | Plain output |
+
+## Vega optimization
+
+When `firetv-vega` is targeted, the pipeline adds Vega-specific phases:
+
+- `vega_setup_check`: validates Kepler, VDA, Amazon Devices Builder Tools MCP, the Vega manifest, and non-portable shared UI imports.
+- `vega_build_loop`: builds the Kepler/Vega app.
+- `vega_qa_loop`: installs, launches, screenshots, and D-pad tests on the Vega Virtual Device.
+- `vega_perf_trace`: uses Amazon Devices Builder Tools `analyze_perfetto_traces` when available.
+- `vega_hot_functions`: uses Amazon Devices Builder Tools `get_app_hot_functions` when available.
+
+Configure budgets in `harness.config.json`:
+
+```json
+{
+  "vega": {
+    "ttff_ms_max": 1500,
+    "ttfd_ms_max": 3000,
+    "max_hot_function_percent": 20,
+    "max_js_frame_drop_percent": 2
+  }
+}
+```
 
 ## Verification suite
 

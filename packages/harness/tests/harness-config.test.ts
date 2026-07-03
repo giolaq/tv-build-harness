@@ -19,7 +19,10 @@ describe("harness config defaults", () => {
   it("default pipeline matches the documented v1 phase order", () => {
     expect(DEFAULT_PHASES.map((p) => p.name)).toEqual([
       "plan", "scaffold", "branding", "content", "screens",
-      "navigation", "verify", "build_loop", "vega_build_loop", "visual_qa_loop",
+      "creative_ui", "navigation", "verify", "build_loop",
+      "vega_setup_check", "vega_build_loop", "vega_qa_loop",
+      "vega_perf_trace", "vega_hot_functions",
+      "visual_qa_loop", "android_test_loop",
     ]);
   });
 
@@ -28,6 +31,8 @@ describe("harness config defaults", () => {
     expect(source).toBe("defaults");
     expect(config.template.repo).toContain("AmazonAppDev");
     expect(config.tokenBudget).toBe(500_000);
+    expect(config.vega.ttff_ms_max).toBe(1500);
+    expect(config.vega.max_hot_function_percent).toBe(20);
     expect(config.phases).toHaveLength(DEFAULT_PHASES.length);
   });
 
@@ -75,7 +80,7 @@ describe("mergeHarnessConfig", () => {
     });
     mergeHarnessConfig(user);
     const fresh = mergeHarnessConfig(HarnessConfigSchema.parse({}));
-    expect(fresh.phases.find((p) => p.name === "branding")!.skills).toContain("theming");
+    expect(fresh.phases.find((p) => p.name === "branding")!.skills).toContain("rn-theming");
   });
 });
 
@@ -86,6 +91,7 @@ describe("loadHarnessConfig", () => {
       JSON.stringify({
         template: { repo: "https://github.com/me/my-template.git", branch: "tv" },
         models: { plan: "claude-opus-4-6", execution: "claude-haiku-4-5-20251001" },
+        vega: { ttff_ms_max: 1200, max_hot_function_percent: 15 },
         tokenBudget: 100_000,
         phases: [{ name: "verify", verify: [{ type: "tsc" }] }],
       })
@@ -96,6 +102,8 @@ describe("loadHarnessConfig", () => {
     expect(config.template.repo).toBe("https://github.com/me/my-template.git");
     expect(config.template.branch).toBe("tv");
     expect(config.models.execution).toBe("claude-haiku-4-5-20251001");
+    expect(config.vega.ttff_ms_max).toBe(1200);
+    expect(config.vega.max_hot_function_percent).toBe(15);
     expect(config.tokenBudget).toBe(100_000);
     expect(config.phases.find((p) => p.name === "verify")!.verify).toEqual([{ type: "tsc" }]);
   });

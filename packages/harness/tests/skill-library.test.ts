@@ -15,13 +15,13 @@ beforeEach(() => {
   );
 
   writeFileSync(
-    join(TEST_SKILLS_DIR, "theming.md"),
-    `---\nname: theming\napplies_to: [branding]\n---\n\n# Theming\nBrand tokens.`
+    join(TEST_SKILLS_DIR, "rn-theming.md"),
+    `---\nname: rn-theming\napplies_to: [branding]\n---\n\n# Theming\nBrand tokens.`
   );
 
   writeFileSync(
-    join(TEST_SKILLS_DIR, "template-anatomy.md"),
-    `---\nname: template-anatomy\napplies_to: [scaffold, branding]\n---\n\n# Template Anatomy\nMonorepo layout.`
+    join(TEST_SKILLS_DIR, "rn-template-anatomy.md"),
+    `---\nname: rn-template-anatomy\napplies_to: [scaffold, branding]\n---\n\n# Template Anatomy\nMonorepo layout.`
   );
 });
 
@@ -51,7 +51,7 @@ describe("SkillLibrary", () => {
     const result = lib.loadOnDemand("them");
     expect(result.ok).toBe(false);
     expect(result.error).toBe("no such skill");
-    expect(result.suggested).toContain("theming");
+    expect(result.suggested).toContain("rn-theming");
   });
 
   it("createAutoSkill rejects short content", () => {

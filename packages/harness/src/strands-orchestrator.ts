@@ -23,6 +23,7 @@ import type { ModelProviderConfig } from "./model-factory.js";
 import { createStrandsTools } from "./strands-tools.js";
 import { runVisualQALoop } from "./visual-qa.js";
 import { PromptLoader } from "./prompt-loader.js";
+import { writeVegaReport } from "./vega-tools.js";
 import type { HarnessEvents } from "./claude-orchestrator.js";
 
 export interface StrandsRunOptions {
@@ -593,7 +594,10 @@ export class StrandsOrchestrator {
       navigation: `Update navigation at ${appDir}/packages/shared-ui/src/navigation/. Navigation type: ${this.state.spec?.navigation.type}. Routes: ${JSON.stringify(this.state.spec?.navigation.routes)}`,
       verify: `Run type checking at ${appDir}: npx tsc --noEmit. Fix any errors.`,
       build_loop: `Build the app at ${appDir} for platforms: ${this.state.config.platforms.join(", ")}. Use expo prebuild for iOS/Android.`,
+      vega_setup_check: `Prepare the Vega app at ${appDir}/apps/vega. Check Kepler CLI, Amazon Devices Builder Tools MCP status, VDA availability, the Vega manifest, and forbidden shared-ui imports such as react-native-video, expo-font, and expo-image. Use the amazon_devices_builder_tools tool first.`,
       vega_build_loop: `Build the Vega OS variant at ${appDir}/apps/vega.`,
+      vega_perf_trace: `Analyze Vega launch/render performance for ${appDir}/apps/vega. Use Amazon Devices Builder Tools MCP analyze_perfetto_traces when configured. Budgets: TTFF <= ${this.harness.vega.ttff_ms_max}ms, TTFD <= ${this.harness.vega.ttfd_ms_max}ms, JS frame drop <= ${this.harness.vega.max_js_frame_drop_percent}%. Write vega-perf-summary.md in ${this.state.workdir}.`,
+      vega_hot_functions: `Analyze Vega CPU hot functions for ${appDir}/apps/vega. Use Amazon Devices Builder Tools MCP get_app_hot_functions when configured. Budget: top app-owned hot function <= ${this.harness.vega.max_hot_function_percent}% CPU share. Write vega-hot-functions.md in ${this.state.workdir}.`,
       visual_smoke_test: `Verify build artifacts exist at ${appDir} and capture screenshots from any running simulators.`,
     };
 
@@ -601,6 +605,15 @@ export class StrandsOrchestrator {
   }
 
   private writeReport(): void {
+    if (this.input.config.platforms.includes("firetv-vega")) {
+      writeVegaReport({
+        outDir: this.state.workdir,
+        checks: [],
+        budgets: this.harness.vega,
+        phaseResults: this.state.phaseResults,
+      });
+    }
+
     writeRunReport({
       outDir: this.state.workdir,
       runId: this.state.runId,

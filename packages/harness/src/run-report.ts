@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AppSpec, BrandKit, PhaseResult } from "./types.js";
 import { generateScreenshotReport } from "./screenshot-report.js";
@@ -84,6 +84,9 @@ export function writeRunReport(input: RunReportInput): void {
   const screenshotReportPath = generateScreenshotReport(input.outDir, spec?.app_name ?? "TV App");
   if (screenshotReportPath) {
     lines.push("- `screenshots.html` — Visual comparison report");
+  }
+  if (existsSync(join(input.outDir, "vega-report.md"))) {
+    lines.push("- `vega-report.md` — Vega tooling, phase, and performance budget report");
   }
 
   lines.push("");

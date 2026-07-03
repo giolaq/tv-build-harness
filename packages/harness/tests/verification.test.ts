@@ -91,6 +91,23 @@ describe("runVerifyChecks", () => {
     expect(fail.error).toBe("expected failure");
   });
 
+  it("forbidden_import fails when a forbidden module is referenced", async () => {
+    writeFileSync(join(APP_DIR, "src", "Player.tsx"), "import Video from 'react-native-video';");
+
+    const fail = await runVerifyChecks(
+      [{ type: "forbidden_import", pattern: "react-native-video|expo-font", path: "src", error: "bad vega import" }],
+      { appDir: APP_DIR, vars }
+    );
+    expect(fail.ok).toBe(false);
+    expect(fail.error).toBe("bad vega import");
+
+    const ok = await runVerifyChecks(
+      [{ type: "forbidden_import", pattern: "expo-image", path: "src" }],
+      { appDir: APP_DIR, vars }
+    );
+    expect(ok.ok).toBe(true);
+  });
+
   it("stops at the first failing check", async () => {
     const result = await runVerifyChecks(
       [

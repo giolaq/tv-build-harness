@@ -25,6 +25,12 @@ export const VerifyCheckSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("tsc"), error: z.string().optional() }),
   z.object({ type: z.literal("focus_check"), error: z.string().optional() }),
+  z.object({
+    type: z.literal("forbidden_import"),
+    pattern: z.string(),
+    path: z.string().default("."),
+    error: z.string().optional(),
+  }),
   // Arbitrary shell command; non-zero exit fails the check.
   z.object({
     type: z.literal("command"),
@@ -66,6 +72,24 @@ export const PhaseSpecSchema = z.object({
 
 export type PhaseSpec = z.infer<typeof PhaseSpecSchema>;
 
+export const PhaseOverrideSchema = z.object({
+  name: z.string(),
+  kind: z.enum(["agent", "plan", "visual_qa"]).optional(),
+  prompt: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  deps: z.array(z.string()).optional(),
+  retries: z.number().optional(),
+  timeoutMs: z.number().optional(),
+  model: z.string().optional(),
+  requiresPlatform: z.string().optional(),
+  buildPhase: z.boolean().optional(),
+  internalLoop: z.boolean().optional(),
+  abortOnFailure: z.boolean().optional(),
+  cwd: z.enum(["app", "out"]).optional(),
+  verify: z.array(VerifyCheckSchema).optional(),
+  insertAfter: z.string().optional(),
+});
+
 // ─── Harness Config ──────────────────────────────────────────────────────────
 
 export const TemplateConfigSchema = z.object({
@@ -90,18 +114,36 @@ export const ModelsConfigSchema = z.object({
   phaseModels: z.record(z.string(), ModelProviderConfigSchema).optional(),
 });
 
+export const VegaConfigSchema = z.object({
+  ttff_ms_max: z.number().default(1500),
+  ttfd_ms_max: z.number().default(3000),
+  max_hot_function_percent: z.number().default(20),
+  max_js_frame_drop_percent: z.number().default(2),
+  require_builder_tools: z.boolean().default(false),
+});
+
+export const DEFAULT_VEGA_CONFIG = {
+  ttff_ms_max: 1500,
+  ttfd_ms_max: 3000,
+  max_hot_function_percent: 20,
+  max_js_frame_drop_percent: 2,
+  require_builder_tools: false,
+};
+
 export const HarnessConfigSchema = z.object({
   template: TemplateConfigSchema.default({
     repo: "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git",
   }),
   models: ModelsConfigSchema.default({ plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" }),
+  vega: VegaConfigSchema.default(DEFAULT_VEGA_CONFIG),
   tokenBudget: z.number().default(500_000),
-  phases: z.array(PhaseSpecSchema.partial().extend({ name: z.string() })).optional(),
+  phases: z.array(PhaseOverrideSchema).optional(),
 });
 
 export interface HarnessConfig {
   template: z.infer<typeof TemplateConfigSchema>;
   models: z.infer<typeof ModelsConfigSchema>;
+  vega: z.infer<typeof VegaConfigSchema>;
   tokenBudget: number;
   phases: PhaseSpec[];
 }
@@ -175,13 +217,35 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
     abortOnFailure: false, cwd: "app", verify: [],
   },
   {
+    name: "vega_setup_check", kind: "agent", prompt: "vega_setup_check",
+    skills: ["vega-sdk", "amazon-devices-vega-setup-sdk", "amazon-devices-vega-best-practices"],
+    deps: ["verify"], timeoutMs: 600_000, requiresPlatform: "firetv-vega",
+    buildPhase: true, internalLoop: false, abortOnFailure: false, cwd: "app",
+    verify: [
+      { type: "file_exists", path: "apps/vega/package.json", error: "No apps/vega package found for Vega target" },
+      { type: "forbidden_import", pattern: "react-native-video|expo-font|expo-image", path: "packages/shared-ui/src", error: "Vega-consumed shared UI imports a non-portable mobile/native package" },
+    ],
+  },
+  {
     name: "vega_build_loop", kind: "agent", prompt: "vega_build_loop", skills: ["vega-sdk"],
-    deps: ["verify"], timeoutMs: 900_000, requiresPlatform: "firetv-vega",
+    deps: ["vega_setup_check"], timeoutMs: 900_000, requiresPlatform: "firetv-vega",
     buildPhase: true, internalLoop: false, abortOnFailure: false, cwd: "app", verify: [],
   },
   {
     name: "vega_qa_loop", kind: "agent", prompt: "vega_qa_loop", skills: ["vega-sdk", "rn-spatial-navigation"],
     deps: ["vega_build_loop"], timeoutMs: 1_800_000, requiresPlatform: "firetv-vega",
+    buildPhase: true, internalLoop: true, abortOnFailure: false, cwd: "app", verify: [],
+  },
+  {
+    name: "vega_perf_trace", kind: "agent", prompt: "vega_perf_trace",
+    skills: ["vega-sdk", "amazon-devices-vega-app-performance"],
+    deps: ["vega_qa_loop"], timeoutMs: 1_200_000, requiresPlatform: "firetv-vega",
+    buildPhase: true, internalLoop: true, abortOnFailure: false, cwd: "app", verify: [],
+  },
+  {
+    name: "vega_hot_functions", kind: "agent", prompt: "vega_hot_functions",
+    skills: ["vega-sdk", "amazon-devices-vega-app-performance"],
+    deps: ["vega_perf_trace"], timeoutMs: 1_200_000, requiresPlatform: "firetv-vega",
     buildPhase: true, internalLoop: true, abortOnFailure: false, cwd: "app", verify: [],
   },
   {
@@ -214,6 +278,7 @@ Object.assign(DEFAULT_PHASE_SKILLS, {
 export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
   template: { repo: "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git" },
   models: { plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" },
+  vega: DEFAULT_VEGA_CONFIG,
   tokenBudget: 500_000,
   phases: DEFAULT_PHASES,
 };
@@ -243,6 +308,7 @@ export function mergeHarnessConfig(user: z.infer<typeof HarnessConfigSchema>): H
   return {
     template: user.template,
     models: user.models,
+    vega: user.vega,
     tokenBudget: user.tokenBudget,
     phases,
   };

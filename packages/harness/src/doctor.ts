@@ -1,8 +1,9 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolveClaude } from "./claude-cli.js";
+import { checkVegaTooling } from "./vega-tools.js";
 
-interface CheckResult {
+export interface CheckResult {
   name: string;
   ok: boolean;
   detail: string;
@@ -12,7 +13,7 @@ interface CheckResult {
   optional?: boolean;
 }
 
-export async function runDoctor(): Promise<CheckResult[]> {
+export async function runDoctor(options: { vega?: boolean; appDir?: string } = {}): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
   results.push(checkCommand("node", "node --version", "Node.js", "Install Node 20+: https://nodejs.org or `brew install node`"));
@@ -31,6 +32,10 @@ export async function runDoctor(): Promise<CheckResult[]> {
   results.push(checkAgentDevice());
   results.push(checkTvOSSimulator());
   results.push(checkDiskSpace());
+
+  if (options.vega) {
+    results.push(...checkVegaTooling(options.appDir));
+  }
 
   return results;
 }

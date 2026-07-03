@@ -57,7 +57,10 @@ Pre-flight check for all prerequisites: Node, Yarn, Git, Claude CLI, API key, Ex
 ```bash
 npx tsx src/index.ts doctor
 npx tsx src/index.ts doctor --fix
+npx tsx src/index.ts vega-doctor --fix
 ```
+
+For Vega-targeted runs, `vega-doctor` checks the Kepler CLI, Vega Virtual Device, `apps/vega`, manifest presence, and Amazon Devices Builder Tools MCP configuration.
 
 ### `replay <file>`
 Replays a recorded API-mode run from a `recording.json` file. Shows turn-by-turn token usage.
@@ -78,7 +81,7 @@ npx tsx src/index.ts update-skills
 
 ## Pipeline Phases (V1)
 
-The pipeline runs these 10 phases in order. Each phase has its own retry budget, skill set, and verification step.
+The default pipeline is config-driven. Non-targeted platform phases are skipped automatically; Vega phases run only when `firetv-vega` is in `run.json`.
 
 | # | Phase | What it does | Skills loaded |
 |---|-------|-------------|--------------|
@@ -87,11 +90,17 @@ The pipeline runs these 10 phases in order. Each phase has its own retry budget,
 | 3 | `branding` | Applies app name, colors, fonts to existing theme files | template-anatomy, theming, firetv-leanback |
 | 4 | `content` | Injects content.json, creates/updates data hooks, wires screens | template-anatomy, manifest-wiring |
 | 5 | `screens` | Adds/modifies screens per AppSpec (reuse-first) | template-anatomy, shared-ui-catalog, 10ft-ui |
-| 6 | `navigation` | Updates drawer/tab/hidden route table to match AppSpec routes | template-anatomy, shared-ui-catalog, spatial-navigation |
-| 7 | `verify` | Runs static checks, fixes TypeScript and TV-focus regressions | (prompt-driven static checks) |
-| 8 | `build_loop` | Verifies web build, then runs native prebuilds for requested platforms | (prompt-driven build checks) |
-| 9 | `vega_build_loop` | Builds the Vega OS app, only when firetv-vega is targeted | vega-sdk |
-| 10 | `visual_qa_loop` | Captures browser screenshots, analyzes 10-foot UI defects, and applies fixes | 10ft-ui, theming, spatial-navigation |
+| 6 | `creative_ui` | Applies run-specific visual identity and focus styling | template-anatomy, shared-ui-catalog, 10ft-ui, creative-tv-ui |
+| 7 | `navigation` | Updates drawer/tab/hidden route table to match AppSpec routes | template-anatomy, shared-ui-catalog, spatial-navigation |
+| 8 | `verify` | Runs static checks, fixes TypeScript and TV-focus regressions | (prompt-driven static checks) |
+| 9 | `build_loop` | Verifies web build, then runs native prebuilds for requested platforms | (prompt-driven build checks) |
+| 10 | `vega_setup_check` | Checks Kepler, VDA, Builder Tools MCP, manifest, and Vega portability | vega-sdk, Amazon Devices Vega skills |
+| 11 | `vega_build_loop` | Builds the Vega OS app, only when firetv-vega is targeted | vega-sdk |
+| 12 | `vega_qa_loop` | Installs, launches, screenshots, and D-pad tests on Vega VDA | vega-sdk, spatial-navigation |
+| 13 | `vega_perf_trace` | Uses Builder Tools Perfetto analysis when configured | vega-sdk, Amazon Devices performance skills |
+| 14 | `vega_hot_functions` | Uses Builder Tools hot-function analysis when configured | vega-sdk, Amazon Devices performance skills |
+| 15 | `visual_qa_loop` | Captures browser screenshots, analyzes 10-foot UI defects, and applies fixes | 10ft-ui, theming, spatial-navigation |
+| 16 | `android_test_loop` | Runs Android TV device smoke tests when androidtv is targeted | android-tv-testing |
 
 ---
 

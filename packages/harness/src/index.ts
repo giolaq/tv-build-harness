@@ -80,6 +80,9 @@ async function main() {
     case "doctor":
       await runDoctorCommand();
       break;
+    case "vega-doctor":
+      await runVegaDoctorCommand();
+      break;
     case "replay":
       await runReplay();
       break;
@@ -551,7 +554,13 @@ function loadSkillsForCommand(skillsDir: string, skillNames: string[]): string {
 }
 
 async function runDoctorCommand() {
-  const results = await runDoctor();
+  const results = await runDoctor({ vega: args.includes("--vega") });
+  printDoctorReport(results, args.includes("--fix"));
+}
+
+async function runVegaDoctorCommand() {
+  const appDir = args.some((arg) => arg.startsWith("--app=")) ? findAppDir() : undefined;
+  const results = await runDoctor({ vega: true, appDir });
   printDoctorReport(results, args.includes("--fix"));
 }
 
@@ -777,6 +786,7 @@ function printUsage() {
     add-screen <Name>      Add a screen to the generated app (--type=grid|hero+rails|detail|...)
     review [scope]         Review the generated app code for TV-specific issues
     doctor                 Check prerequisites
+    vega-doctor            Check Vega SDK, VDA, manifest, and Amazon Devices Builder Tools
     replay <file>          Replay a recorded run
 
   Options:
@@ -809,6 +819,7 @@ function printUsage() {
     npx tv-build test-ui
     npx tv-build test-ui --app=./my-app --close
     npx tv-build visual-qa
+    npx tv-build vega-doctor --fix
     npx tv-build visual-qa --app=out/d811afcb
     npx tv-build add-screen Watchlist --type=grid
     npx tv-build add-screen Home --type=hero+rails

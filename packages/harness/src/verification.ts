@@ -90,6 +90,23 @@ async function runCheck(
       return fail(`Focus check failed: ${String(result.output ?? result.error).slice(0, 1500)}`);
     }
 
+    case "forbidden_import": {
+      const pattern = substituteVars(check.pattern, ctx.vars);
+      const path = substituteVars(check.path, ctx.vars);
+      try {
+        const out = execSync(
+          `grep -RInE ${JSON.stringify(pattern)} ${JSON.stringify(path)} --include='*.ts' --include='*.tsx' 2>/dev/null | head -20`,
+          { cwd: ctx.appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+        );
+        if (out.trim()) {
+          return fail(`Forbidden import matched in ${path}: ${out.slice(0, 1000)}`);
+        }
+      } catch {
+        // grep exits non-zero when nothing matched, which is the success case.
+      }
+      return { ok: true };
+    }
+
     case "command": {
       try {
         execSync(substituteVars(check.run, ctx.vars), {

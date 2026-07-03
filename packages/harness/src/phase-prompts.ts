@@ -208,6 +208,12 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
       });
     }
 
+    case "vega_setup_check":
+      return prompts.load("vega_setup_check", {
+        appDir,
+        appName: spec?.app_name ?? input.content.title,
+      });
+
     case "vega_build_loop":
       return prompts.load("vega_build_loop", {
         appDir,
@@ -221,6 +227,22 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
         screenshotDir,
       });
     }
+
+    case "vega_perf_trace":
+      return prompts.load("vega_perf_trace", {
+        appDir,
+        artifactDir: ctx.outDir,
+        ttffBudget: String(ctx.harness.vega.ttff_ms_max),
+        ttfdBudget: String(ctx.harness.vega.ttfd_ms_max),
+        frameDropBudget: String(ctx.harness.vega.max_js_frame_drop_percent),
+      });
+
+    case "vega_hot_functions":
+      return prompts.load("vega_hot_functions", {
+        appDir,
+        artifactDir: ctx.outDir,
+        hotFunctionBudget: String(ctx.harness.vega.max_hot_function_percent),
+      });
 
     case "visual_correctness": {
       const routes = spec?.navigation.routes ?? [];

@@ -3,6 +3,12 @@ import { z } from "zod";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
+import {
+  builderToolsInitContext,
+  builderToolsStatus,
+  checkVegaTooling,
+  expectedBuilderToolsCapabilities,
+} from "./vega-tools.js";
 
 export interface StrandsToolsContext {
   appDir: string;
@@ -167,6 +173,33 @@ export function createStrandsTools(ctx: StrandsToolsContext) {
     },
   });
 
+  const amazonDevicesBuilderToolsTool = tool({
+    name: "amazon_devices_builder_tools",
+    description: "Check or initialize Amazon Devices Builder Tools MCP configuration for Vega development. Use before Vega setup, performance, crash, or documentation tasks.",
+    inputSchema: z.object({
+      action: z.enum(["check_status", "init_context", "expected_capabilities", "vega_tooling"]),
+      agent: z.string().optional().describe("Optional agent name for init_context, for example claude, kiro, cursor"),
+    }),
+    callback: async ({ action, agent }) => {
+      try {
+        switch (action) {
+          case "check_status":
+            return builderToolsStatus();
+          case "init_context":
+            return builderToolsInitContext(agent);
+          case "expected_capabilities":
+            return expectedBuilderToolsCapabilities();
+          case "vega_tooling":
+            return checkVegaTooling(appDir)
+              .map((check) => `${check.ok ? "PASS" : check.optional ? "WARN" : "FAIL"} ${check.name}: ${check.detail}${check.fix ? `\n  fix: ${check.fix}` : ""}`)
+              .join("\n");
+        }
+      } catch (err) {
+        return `Amazon Devices Builder Tools action failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  });
+
   return [
     bashTool,
     readFileTool,
@@ -175,5 +208,6 @@ export function createStrandsTools(ctx: StrandsToolsContext) {
     listFilesTool,
     gitTool,
     grepTool,
+    amazonDevicesBuilderToolsTool,
   ];
 }
