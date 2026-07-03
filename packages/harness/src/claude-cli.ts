@@ -1,6 +1,8 @@
 import { accessSync, constants } from "node:fs";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+import type { ChildProcessByStdio } from "node:child_process";
+import type { Writable, Readable } from "node:stream";
 
 let resolvedClaude: string | null | undefined;
 
@@ -60,6 +62,8 @@ export interface ClaudeInvocation {
   allowedTools?: string;
   /** Raw stream-json events, in order. Fires for every parsed line. */
   onEvent?: (event: Record<string, unknown>) => void;
+  /** Test seam for subprocess injection. Defaults to node:child_process spawn. */
+  spawnImpl?: ClaudeSpawn;
 }
 
 export interface ClaudeResult {
@@ -77,6 +81,12 @@ export class ClaudeCliError extends Error {
 }
 
 const STDERR_CAP = 4096;
+export type ClaudeChild = ChildProcessByStdio<Writable, Readable, Readable>;
+export type ClaudeSpawn = (
+  command: string,
+  args: string[],
+  options: Parameters<typeof spawn>[2]
+) => ClaudeChild;
 
 /**
  * Runs `claude -p` with stream-json output. The prompt goes via stdin (shell
@@ -92,10 +102,11 @@ export function invokeClaude(opts: ClaudeInvocation): Promise<ClaudeResult> {
     model,
     allowedTools = "Bash,Read,Write,Edit",
     onEvent,
+    spawnImpl = spawn as ClaudeSpawn,
   } = opts;
 
   return new Promise((resolve, reject) => {
-    const child = spawn(findClaude(), [
+    const child = spawnImpl(findClaude(), [
       "-p", "-",
       "--allowedTools", allowedTools,
       "--output-format", "stream-json",
