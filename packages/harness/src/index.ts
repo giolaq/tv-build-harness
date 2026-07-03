@@ -10,8 +10,8 @@ if (perf?.clearMeasures) {
   const perfCleaner = setInterval(() => { perf.clearMeasures(); perf.clearMarks(); }, 60_000);
   perfCleaner.unref();
 }
-import { TVAppHarness } from "./orchestrator.js";
-import { ClaudeOrchestrator } from "./claude-orchestrator.js";
+import { TVAppHarness } from "./executors/agent-sdk.js";
+import { ClaudeOrchestrator } from "./executors/claude-cli.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
 import { ReplayClient } from "./recorder.js";
 import { SkillLibrary } from "./skill-library.js";
@@ -269,7 +269,7 @@ async function runHarness() {
 
   const input = { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
 
-  const { StrandsOrchestrator } = await import("./strands-orchestrator.js");
+  const { StrandsOrchestrator } = await import("./executors/strands.js");
   const { selectActivePhases } = await import("./pipeline-engine.js");
 
   const { active } = selectActivePhases(harnessConfig.phases, {

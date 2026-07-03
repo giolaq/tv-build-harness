@@ -18,7 +18,7 @@ import {
   writeSpec,
 } from "./run-context.js";
 import { buildClaudeSkillContext, getPhaseInstructions, promptContext } from "./phase-context.js";
-import type { HarnessEvents } from "./claude-orchestrator.js";
+import type { HarnessEvents } from "./executors/claude-cli.js";
 
 export class ClaudePhaseExecutor {
   private lastPhaseCost = 0;

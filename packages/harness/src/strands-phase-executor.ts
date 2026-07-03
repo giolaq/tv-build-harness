@@ -19,7 +19,7 @@ import {
   writeSpec,
 } from "./run-context.js";
 import { buildAgentPhaseUserMessage, buildSdkSystemPrompt, buildStrandsSkillsPlugin } from "./phase-context.js";
-import type { HarnessEvents } from "./claude-orchestrator.js";
+import type { HarnessEvents } from "./executors/claude-cli.js";
 
 export class StrandsPhaseExecutor {
   private phaseCosts: Map<Phase, number> = new Map();

@@ -4,8 +4,8 @@ import { createServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { ClaudeOrchestrator } from "./claude-orchestrator.js";
-import type { PhaseMessage, HarnessEvents } from "./claude-orchestrator.js";
+import { ClaudeOrchestrator } from "./executors/claude-cli.js";
+import type { PhaseMessage, HarnessEvents } from "./executors/claude-cli.js";
 import type { PhaseResult } from "./types.js";
 import {
   ContentManifestSchema,

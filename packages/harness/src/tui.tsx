@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { render, Box, Text, useInput } from "ink";
 import Spinner from "ink-spinner";
 import type { Phase, PhaseResult } from "./types.js";
-import type { PhaseMessage } from "./claude-orchestrator.js";
+import type { PhaseMessage } from "./executors/claude-cli.js";
 
 export interface TUIState {
   appName: string;
