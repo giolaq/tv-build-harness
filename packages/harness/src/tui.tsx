@@ -6,6 +6,7 @@ import type { PhaseMessage } from "./executors/claude-cli.js";
 
 export interface TUIState {
   appName: string;
+  modeLabel?: string;
   platforms: string[];
   design: { template: string; navigation_style: string };
   phases: Phase[];
@@ -72,6 +73,12 @@ function Header({ state }: DashboardProps) {
         <TVFace tick={state.animTick} />
         <Text> </Text>
         <Text bold color="cyan">TV Build</Text>
+        {state.modeLabel ? (
+          <>
+            <Text> </Text>
+            <Text bold color="yellow">[{state.modeLabel}]</Text>
+          </>
+        ) : null}
         <Text color="gray"> │ </Text>
         <Text bold>{state.appName}</Text>
       </Box>
@@ -314,10 +321,17 @@ export class TUI {
   private animTimer: NodeJS.Timer | null = null;
   private startTime: number;
 
-  constructor(appName: string, platforms: string[], design: { template: string; navigation_style: string }, phases: Phase[]) {
+  constructor(
+    appName: string,
+    platforms: string[],
+    design: { template: string; navigation_style: string },
+    phases: Phase[],
+    options: { tokenBudget?: number; modeLabel?: string } = {}
+  ) {
     this.startTime = Date.now();
     this.state = {
       appName,
+      modeLabel: options.modeLabel,
       platforms,
       design,
       phases,
@@ -327,7 +341,7 @@ export class TUI {
       phaseIterations: new Map(),
       phaseMessages: new Map(),
       totalTokens: 0,
-      tokenBudget: 500_000,
+      tokenBudget: options.tokenBudget ?? 500_000,
       totalCost: 0,
       elapsed: 0,
       animTick: 0,
@@ -382,6 +396,16 @@ export class TUI {
 
   addTokens(tokens: number): void {
     this.state.totalTokens += tokens;
+    this.notify();
+  }
+
+  addCost(cost: number): void {
+    this.state.totalCost += cost;
+    this.notify();
+  }
+
+  setPhaseCost(phase: Phase, cost: number): void {
+    this.state.phaseCosts.set(phase, cost);
     this.notify();
   }
 

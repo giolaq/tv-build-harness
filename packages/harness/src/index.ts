@@ -13,13 +13,14 @@ if (perf?.clearMeasures) {
 import { TVAppHarness } from "./executors/agent-sdk.js";
 import { ClaudeOrchestrator } from "./executors/claude-cli.js";
 import { runDoctor, printDoctorReport } from "./doctor.js";
-import { ReplayClient } from "./recorder.js";
+import { costFromResponse, ReplayClient } from "./recorder.js";
 import { SkillLibrary } from "./skill-library.js";
 import { SkillFetcher } from "./skill-fetcher.js";
 import { loadHarnessConfig } from "./harness-config.js";
 import type { HarnessConfig } from "./harness-config.js";
 import { findResumableRun } from "./checkpoint.js";
 import { resolveClaude, invokeClaude } from "./claude-cli.js";
+import type { PhaseMessage } from "./executors/claude-cli.js";
 import {
   ContentManifestSchema,
   BrandKitSchema,
@@ -27,6 +28,7 @@ import {
   DesignTokensSchema,
   ScreenTreeSchema,
 } from "./types.js";
+import type { Phase, PhaseResult } from "./types.js";
 import type { TypeOf, ZodError, ZodTypeAny } from "zod";
 
 loadEnvFile();
@@ -146,7 +148,7 @@ function parseInputFile<S extends ZodTypeAny>(path: string, schema: S, label: st
 }
 
 // Flags that consume the next argument as their value.
-const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type"]);
+const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed"]);
 // --resume takes an optional value (a runId, never starting with --).
 const OPTIONAL_VALUE_FLAGS = new Set(["--resume"]);
 
@@ -566,22 +568,172 @@ async function runVegaDoctorCommand() {
 }
 
 async function runReplay() {
-  const recordingPath = resolve(positionalArgs()[0] ?? "recording.json");
+  const recordingPath = resolveReplayRecording(positionalArgs()[0]);
   if (!existsSync(recordingPath)) {
     console.error(`Recording not found: ${recordingPath}`);
     process.exit(1);
   }
 
-  const client = new ReplayClient(recordingPath);
-  console.log(`\n  Replaying ${client.total} turns from ${recordingPath}\n`);
+  const speed = replaySpeed();
+  const client = new ReplayClient(recordingPath, { speed });
+  const summary = client.totals;
+  const useTui = !args.includes("--no-tui") && process.stdout.isTTY;
 
-  let turn = await client.nextResponse();
-  while (turn) {
-    console.log(`  Turn ${client.total - client.remaining}/${client.total} — ${turn.usage.input_tokens + turn.usage.output_tokens} tokens`);
-    turn = await client.nextResponse();
+  if (useTui) {
+    const { TUI } = await import("./tui.js");
+    const tui = new TUI(
+      "Recorded run",
+      ["replay"],
+      { template: "recording", navigation_style: "recording" },
+      client.phases,
+      { tokenBudget: Math.max(summary.tokens, 1), modeLabel: "REPLAY" }
+    );
+    tui.start();
+    await replayTurns(client, {
+      onPhaseStart: (phase) => tui.setPhase(phase),
+      onPhaseMessage: (phase, message) => tui.addPhaseMessage(phase, message),
+      onUsage: (phase, tokens, cost, phaseCost) => {
+        tui.addTokens(tokens);
+        tui.addCost(cost);
+        tui.setPhaseCost(phase, phaseCost);
+      },
+      onPhaseEnd: (phase, result) => tui.phaseComplete(phase, result),
+    });
+    tui.finish("done");
+  } else {
+    console.log(`\n  REPLAY ${client.total} turns from ${recordingPath}`);
+    console.log(`  Speed: ${speed}x\n`);
+    await replayTurns(client, {
+      onTurn: (index, total, phase, tokens, cost) => {
+        console.log(`  Turn ${index}/${total} ${phase} — ${tokens} tokens, $${cost.toFixed(4)}`);
+      },
+    });
   }
 
-  console.log(`\n  Replay complete.\n`);
+  console.log(`\n  Replay complete. Turns: ${client.total}. Tokens: ${summary.tokens.toLocaleString()}. Cost: $${summary.costUsd.toFixed(4)}.\n`);
+}
+
+function resolveReplayRecording(arg?: string): string {
+  if (!arg) return resolve("recording.json");
+
+  const direct = resolve(arg);
+  if (existsSync(direct)) return direct;
+
+  if (arg.includes("/") || arg.includes("\\") || arg.endsWith(".json")) return direct;
+
+  const fixtureCandidates = [
+    resolve("docs", "course", "fixtures", arg, "recording.json"),
+    resolve("..", "..", "docs", "course", "fixtures", arg, "recording.json"),
+  ];
+  return fixtureCandidates.find((candidate) => existsSync(candidate)) ?? fixtureCandidates[0];
+}
+
+function replaySpeed(): number {
+  const equals = args.find((arg) => arg.startsWith("--speed="));
+  const value = equals?.slice("--speed=".length) ?? (args.includes("--speed") ? args[args.indexOf("--speed") + 1] : undefined);
+  const speed = value ? Number(value) : 1;
+  return Number.isFinite(speed) && speed > 0 ? speed : 1;
+}
+
+async function replayTurns(
+  client: ReplayClient,
+  events: {
+    onTurn?: (index: number, total: number, phase: Phase, tokens: number, cost: number) => void;
+    onPhaseStart?: (phase: Phase) => void;
+    onPhaseMessage?: (phase: Phase, message: PhaseMessage) => void;
+    onUsage?: (phase: Phase, tokens: number, cost: number, phaseCost: number) => void;
+    onPhaseEnd?: (phase: Phase, result: PhaseResult) => void;
+  }
+): Promise<void> {
+  let activePhase: Phase | null = null;
+  const phaseTurns = new Map<Phase, number>();
+  const phaseCosts = new Map<Phase, number>();
+
+  let turn = await client.nextTurn();
+  while (turn) {
+    const phase = turn.phase;
+    if (activePhase !== phase) {
+      if (activePhase) completeReplayPhase(activePhase, phaseTurns, events);
+      activePhase = phase;
+      events.onPhaseStart?.(phase);
+    }
+
+    const tokens = turn.usage.input_tokens + turn.usage.output_tokens;
+    const cost = costFromResponse(turn.response);
+    const phaseCost = (phaseCosts.get(phase) ?? 0) + cost;
+    phaseCosts.set(phase, phaseCost);
+    phaseTurns.set(phase, (phaseTurns.get(phase) ?? 0) + 1);
+
+    for (const message of replayMessages(turn.response)) {
+      events.onPhaseMessage?.(phase, message);
+    }
+
+    events.onUsage?.(phase, tokens, cost, phaseCost);
+    events.onTurn?.(client.total - client.remaining, client.total, phase, tokens, cost);
+    turn = await client.nextTurn();
+  }
+
+  if (activePhase) completeReplayPhase(activePhase, phaseTurns, events);
+}
+
+function completeReplayPhase(
+  phase: Phase,
+  phaseTurns: Map<Phase, number>,
+  events: { onPhaseEnd?: (phase: Phase, result: PhaseResult) => void }
+): void {
+  events.onPhaseEnd?.(phase, {
+    phase,
+    status: "success",
+    iterations: phaseTurns.get(phase) ?? 1,
+  });
+}
+
+function replayMessages(response: unknown): PhaseMessage[] {
+  const events = Array.isArray(response) ? response : [response];
+  const messages: PhaseMessage[] = [];
+
+  for (const event of events) {
+    if (!event || typeof event !== "object") continue;
+    const typed = event as {
+      type?: string;
+      message?: { content?: unknown };
+      content?: unknown;
+      result?: unknown;
+    };
+
+    if (typed.type === "assistant" && Array.isArray(typed.message?.content)) {
+      for (const block of typed.message.content) {
+        if (!block || typeof block !== "object") continue;
+        const item = block as { type?: string; text?: unknown; input?: unknown; name?: string };
+        if (item.type === "text" && typeof item.text === "string") {
+          messages.push({ type: "text", content: item.text });
+        } else if (item.type === "tool_use") {
+          const content = typeof item.input === "string"
+            ? item.input.slice(0, 200)
+            : JSON.stringify(item.input ?? "").slice(0, 200);
+          messages.push({ type: "tool_use", content, toolName: item.name });
+        }
+      }
+    } else if (typed.type === "tool_result" || (typed.type === "user" && typed.message?.content)) {
+      const content = typed.message?.content ?? typed.content;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (!block || typeof block !== "object") continue;
+          const item = block as { type?: string; content?: unknown; tool_use_id?: string };
+          if (item.type === "tool_result" && item.content) {
+            const text = typeof item.content === "string"
+              ? item.content.slice(0, 300)
+              : JSON.stringify(item.content).slice(0, 300);
+            messages.push({ type: "tool_result", content: text, toolName: item.tool_use_id });
+          }
+        }
+      }
+    } else if (typed.type === "result" && typeof typed.result === "string" && messages.length === 0) {
+      messages.push({ type: "text", content: typed.result.slice(0, 300) });
+    }
+  }
+
+  return messages;
 }
 
 async function runVisualQA() {
@@ -788,7 +940,7 @@ function printUsage() {
     review [scope]         Review the generated app code for TV-specific issues
     doctor                 Check prerequisites
     vega-doctor            Check Vega SDK, VDA, manifest, and Amazon Devices Builder Tools
-    replay <file>          Replay a recorded run
+    replay <file|fixture>  Replay a recorded run
 
   Options:
     --example <name>       Use a bundled example (e.g. cooking-shows)
@@ -798,6 +950,7 @@ function printUsage() {
     --config <path>        Use a harness.config.json (custom template/phases/skills/models)
     --no-tui               Plain console output instead of the TUI
     --no-record            Disable recording.json creation in claude-run mode
+    --speed <x>            With replay: divide stored turn delays by this multiplier
     --app=<path>           Specify app directory for add-screen/review/test-ui
     --close                Close browser after test-ui completes (default: stay open)
     --fix                  With doctor: print exact fix commands for failing checks
