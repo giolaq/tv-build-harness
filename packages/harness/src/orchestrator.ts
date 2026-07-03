@@ -1,29 +1,26 @@
-import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
-import { z } from "zod";
-import { randomUUID } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
 import type {
-  AppSpec,
-  BrandKit,
-  ContentManifest,
-  DesignTokens,
   Phase,
   PhaseResult,
-  RunConfig,
-  ScreenTree,
   SessionState,
   HarnessInput,
 } from "./types.js";
 import { AppSpecSchema } from "./types.js";
 import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
-import { writeRunReport } from "./run-report.js";
-import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
 import { buildDesignContext } from "./phase-prompts.js";
+import {
+  createRunContext,
+  executeClonePhase,
+  writeHarnessReports,
+  writeSpec,
+} from "./run-context.js";
+import { buildAgentPhaseUserMessage, buildSdkSystemPrompt } from "./phase-context.js";
+import { createAgentSdkToolServer } from "./agent-sdk-tools.js";
 
 export interface RunOptions {
   generateOnly?: boolean;
@@ -40,28 +37,10 @@ export class TVAppHarness {
   constructor(input: HarnessInput) {
     this.skills = new SkillLibrary(input.skillsDir);
     this.input = input;
-    this.harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
-
-    const runId = randomUUID().slice(0, 8);
-    const outDir = join(input.workdir, "out", runId);
-    mkdirSync(outDir, { recursive: true });
-    mkdirSync(join(outDir, "screenshots"), { recursive: true });
-
-    this.log = new RunLog(join(outDir, "run.log"));
-
-    this.state = {
-      runId,
-      workdir: outDir,
-      config: input.config,
-      spec: null,
-      currentPhase: "plan",
-      phaseResults: new Map(),
-      iteration: 0,
-      totalIterations: 0,
-      tokenBudget: this.harness.tokenBudget,
-      tokensUsed: 0,
-      messages: [],
-    };
+    const ctx = createRunContext(input);
+    this.harness = ctx.harness;
+    this.log = ctx.log;
+    this.state = ctx.state;
   }
 
   async run(options: RunOptions = {}): Promise<{ state: SessionState; outDir: string }> {
@@ -126,10 +105,25 @@ export class TVAppHarness {
     const appDir = join(this.state.workdir, "app");
     mkdirSync(appDir, { recursive: true });
 
-    const systemPrompt = this.buildSystemPrompt(spec);
-    const userMessage = this.buildPhaseUserMessage(phase);
+    const systemPrompt = buildSdkSystemPrompt({
+      spec,
+      state: this.state,
+      harnessInput: this.input,
+      skills: this.skills,
+    });
+    const userMessage = buildAgentPhaseUserMessage({
+      phase,
+      state: this.state,
+      harnessInput: this.input,
+      harness: this.harness,
+    });
 
-    const mcpServer = this.createToolServer(appDir);
+    const mcpServer = createAgentSdkToolServer({
+      appDir,
+      workdir: this.state.workdir,
+      templateRepo: this.harness.template.repo,
+      skills: this.skills,
+    });
 
     // Log prompts to file for debugging
     const promptLogPath = join(this.state.workdir, `prompt-${phase}.md`);
@@ -245,39 +239,6 @@ export class TVAppHarness {
     }
   }
 
-  private buildNavigationPrompt(appDir: string): string {
-    const spec = this.state.spec;
-    if (!spec) return "No AppSpec. Skip.";
-
-    const navType = spec.navigation.type;
-    const navStyle = this.input.design.navigation_style;
-    const resolvedType = navStyle === "hidden" ? "hidden" : navType;
-
-    const routesList = spec.navigation.routes.map(r =>
-      `- id="${r.id}", label="${r.label}"${r.icon ? `, icon="${r.icon}"` : ""}`
-    ).join("\n");
-
-    let typeInstruction = "";
-    if (resolvedType === "tabs") {
-      typeInstruction = `The template uses a drawer — REPLACE it with a top tab navigator. Install @react-navigation/material-top-tabs if needed (yarn workspace add). Create a tab navigator with tabBarPosition:'top', remove drawer imports and CustomDrawerContent.`;
-    } else if (resolvedType === "hidden") {
-      typeInstruction = `REMOVE visible navigation. Replace the drawer with a plain Stack navigator. No tabs, no drawer — users navigate by selecting content. Remove hamburger icons and drawer toggles.`;
-    } else {
-      typeInstruction = `Keep the drawer navigator. Update its items to match the routes below.`;
-    }
-
-    return `Update navigation at ${appDir}/packages/shared-ui/src/navigation/.
-
-Navigation type: ${resolvedType}
-${typeInstruction}
-
-Routes:
-${routesList}
-
-IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/shared-ui/src/screens/ to check. Do NOT import non-existent screens. After edits, run: npx tsc --noEmit to confirm it compiles.`;
-  }
-
-
   private summarizeMessage(message: unknown): Record<string, unknown> {
     const msg = message as Record<string, unknown>;
     if (msg.type === "assistant") {
@@ -314,31 +275,7 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
   }
 
   private executeClonePhase(): PhaseResult {
-    const appDir = join(this.state.workdir, "app");
-
-    if (existsSync(join(appDir, "package.json"))) {
-      return { phase: "scaffold", status: "success", iterations: 0 };
-    }
-
-    try {
-      console.log("  Cloning template...");
-      const branchFlag = this.harness.template.branch ? ` --branch ${this.harness.template.branch}` : "";
-      execSync(
-        `git clone --depth 1${branchFlag} ${this.harness.template.repo} "${appDir}"`,
-        { stdio: "pipe", timeout: 60_000 }
-      );
-      execSync(`rm -rf "${join(appDir, ".git")}"`, { stdio: "pipe" });
-      execSync("git init && git add -A && git commit -m \"initial template\"", {
-        cwd: appDir, stdio: "pipe",
-      });
-      console.log("  Installing dependencies...");
-      execSync("yarn install", { cwd: appDir, stdio: "pipe", timeout: 180_000 });
-      console.log("  Template ready.");
-      return { phase: "scaffold", status: "success", iterations: 0 };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { phase: "scaffold", status: "failed", iterations: 0, error: message.slice(0, 200) };
-    }
+    return executeClonePhase(this.state.workdir, this.harness, (msg) => console.log(`  ${msg}`));
   }
 
   private async executePlanPhase(): Promise<PhaseResult> {
@@ -409,10 +346,7 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
       const spec = AppSpecSchema.parse(parsed);
       this.state.spec = spec;
 
-      writeFileSync(
-        join(this.state.workdir, "spec.json"),
-        JSON.stringify(this.state.spec, null, 2)
-      );
+      writeSpec(this.state.workdir, this.state.spec);
 
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
@@ -421,275 +355,14 @@ IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/sh
     }
   }
 
-  private createToolServer(appDir: string) {
-    const skills = this.skills;
-
-    const templateRepo = this.harness.template.repo;
-    const cloneTemplateTool = tool(
-      "scaffold",
-      "Clone the app template, strip git history, install deps",
-      { target_dir: z.string(), app_name: z.string() },
-      async ({ target_dir, app_name }) => {
-        if (existsSync(join(target_dir, "package.json"))) {
-          return { content: [{ type: "text" as const, text: `Template already exists at ${target_dir}` }] };
-        }
-        execSync(`git clone --depth 1 ${templateRepo} "${target_dir}"`, { stdio: "pipe", timeout: 60_000 });
-        execSync(`rm -rf "${join(target_dir, ".git")}"`, { stdio: "pipe" });
-        execSync(`git init && git add -A && git commit -m "initial template"`, { cwd: target_dir, stdio: "pipe" });
-        execSync("yarn install", { cwd: target_dir, stdio: "pipe", timeout: 120_000 });
-        return { content: [{ type: "text" as const, text: `Template cloned to ${target_dir}, deps installed. App: ${app_name}` }] };
-      }
-    );
-
-    const applyThemeTool = tool(
-      "apply_theme",
-      "Replace theme tokens in packages/shared-ui with brand colors",
-      {
-        primary_color: z.string(),
-        accent_color: z.string(),
-        background_color: z.string(),
-        font_family: z.string().optional(),
-      },
-      async ({ primary_color, accent_color, background_color, font_family }) => {
-        const themeDir = join(appDir, "packages", "shared-ui", "src", "theme");
-        if (!existsSync(themeDir)) {
-          return { content: [{ type: "text" as const, text: `Theme dir not found at ${themeDir}` }], isError: true };
-        }
-        // Delegate actual file edits to Claude's native Edit tool via instructions
-        return { content: [{ type: "text" as const, text: `Apply these colors to ${themeDir}: primary=${primary_color}, accent=${accent_color}, bg=${background_color}` }] };
-      }
-    );
-
-    const injectContentTool = tool(
-      "inject_content",
-      "Write content manifest and generate data hooks",
-      { manifest_json: z.string().describe("Stringified JSON of the content manifest") },
-      async ({ manifest_json }) => {
-        const manifest = JSON.parse(manifest_json);
-        const dataDir = join(appDir, "packages", "shared-ui", "src", "data");
-        mkdirSync(dataDir, { recursive: true });
-        writeFileSync(join(dataDir, "content.json"), JSON.stringify(manifest, null, 2));
-
-        const hookContent = `import contentData from './content.json';\n\nexport type Video = typeof contentData.videos[number];\nexport type Category = typeof contentData.categories[number];\n\nexport function useVideos() { return contentData.videos; }\nexport function useFeatured() { return contentData.videos.filter((v) => contentData.featured.includes(v.id)); }\nexport function useCategories() { return contentData.categories; }\nexport function useVideoById(id: string) { return contentData.videos.find((v) => v.id === id); }\nexport function useVideosByCategory(categoryId: string) {\n  const cat = contentData.categories.find((c) => c.id === categoryId);\n  return cat ? contentData.videos.filter((v) => cat.items.includes(v.id)) : [];\n}\n`;
-        writeFileSync(join(dataDir, "useContent.ts"), hookContent);
-        if (!existsSync(join(dataDir, "index.ts"))) {
-          writeFileSync(join(dataDir, "index.ts"), `export * from './useContent';\n`);
-        }
-        return { content: [{ type: "text" as const, text: `Injected ${manifest.videos.length} videos, ${manifest.categories.length} categories. Hooks written.` }] };
-      }
-    );
-
-    const addScreenTool = tool(
-      "add_screen",
-      "Generate a new screen component with a specific layout",
-      { name: z.string(), layout: z.string(), data_source: z.string().optional() },
-      async ({ name, layout }) => {
-        return { content: [{ type: "text" as const, text: `Create screen ${name} with layout ${layout} at packages/shared-ui/src/screens/${name}Screen.tsx` }] };
-      }
-    );
-
-    const removeScreenTool = tool(
-      "remove_screen",
-      "Remove a screen and its navigation references",
-      { name: z.string() },
-      async ({ name }) => {
-        return { content: [{ type: "text" as const, text: `Remove screen ${name} from screens/ and navigation config` }] };
-      }
-    );
-
-    const installDepTool = tool(
-      "install_dep",
-      "Install a package into a workspace",
-      { package_name: z.string(), workspace: z.string(), dev: z.boolean().optional() },
-      async ({ package_name, workspace, dev }) => {
-        const devFlag = dev ? " -D" : "";
-        execSync(`yarn workspace ${workspace} add${devFlag} ${package_name}`, { cwd: appDir, stdio: "pipe", timeout: 120_000 });
-        return { content: [{ type: "text" as const, text: `Installed ${package_name} in ${workspace}` }] };
-      }
-    );
-
-    const focusCheckTool = tool(
-      "run_focus_check",
-      "Static lint for TV focus/accessibility issues",
-      {},
-      async () => {
-        return { content: [{ type: "text" as const, text: "Run focus check on the screens directory" }] };
-      }
-    );
-
-    const gitCommitTool = tool(
-      "git_commit",
-      "Create a git commit to snapshot progress",
-      { message: z.string() },
-      async ({ message }) => {
-        const status = execSync("git status --porcelain", { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-        if (!status.trim()) return { content: [{ type: "text" as const, text: "No changes to commit" }] };
-        execSync("git add -A", { cwd: appDir, stdio: "pipe" });
-        execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: appDir, stdio: "pipe" });
-        return { content: [{ type: "text" as const, text: `Committed: ${message}` }] };
-      }
-    );
-
-    const requestSkillLoadTool = tool(
-      "request_skill_load",
-      "Load a domain skill on-demand",
-      { name: z.string() },
-      async ({ name }) => {
-        const result = skills.loadOnDemand(name);
-        if (!result.ok) {
-          return { content: [{ type: "text" as const, text: `Skill not found: ${result.error}. Suggestions: ${result.suggested?.join(", ") ?? "none"}` }], isError: true };
-        }
-        return { content: [{ type: "text" as const, text: result.content! }] };
-      }
-    );
-
-    const listSkillsTool = tool(
-      "list_skills",
-      "List available skills",
-      { scope: z.enum(["core", "auto", "all"]).optional() },
-      async ({ scope }) => {
-        const list = skills.listSkills(scope ?? "all");
-        const text = list.map(s => `- ${s.name} (applies_to: ${s.applies_to.join(", ")})`).join("\n");
-        return { content: [{ type: "text" as const, text: text || "No skills found" }] };
-      }
-    );
-
-    const writeAutoSkillTool = tool(
-      "write_auto_skill",
-      "Create a new auto-skill from a solved problem (≥500 chars, needs Gotchas section + code example)",
-      { name: z.string(), applies_to: z.array(z.string()), content: z.string() },
-      async ({ name, applies_to, content }) => {
-        const result = skills.createAutoSkill(name, { applies_to }, content);
-        if (!result.ok) {
-          return { content: [{ type: "text" as const, text: result.error! }], isError: true };
-        }
-        return { content: [{ type: "text" as const, text: `Skill "${name}" created.` }] };
-      }
-    );
-
-    const expoPrebuildTool = tool(
-      "expo_prebuild",
-      "Run EXPO_TV=1 expo prebuild for a platform",
-      { platform: z.enum(["android", "ios"]) },
-      async ({ platform }) => {
-        try {
-          execSync(`EXPO_TV=1 npx expo prebuild --platform ${platform} --no-install`, {
-            cwd: join(appDir, "apps", "expo-multi-tv"),
-            stdio: "pipe",
-            timeout: 600_000,
-          });
-          return { content: [{ type: "text" as const, text: `Prebuild succeeded for ${platform}` }] };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          return { content: [{ type: "text" as const, text: `Prebuild failed: ${msg.slice(0, 300)}` }], isError: true };
-        }
-      }
-    );
-
-    const captureScreenshotTool = tool(
-      "capture_screenshot",
-      "Capture a screenshot from a running simulator",
-      { platform: z.enum(["androidtv", "appletv"]), screen_name: z.string().optional() },
-      async ({ platform, screen_name }) => {
-        const name = screen_name ?? "home";
-        const outPath = join(this.state.workdir, "screenshots", `${platform}-${name}.png`);
-        try {
-          if (platform === "appletv") {
-            execSync(`xcrun simctl io booted screenshot "${outPath}"`, { stdio: "pipe", timeout: 10_000 });
-          } else {
-            execSync(`adb exec-out screencap -p > "${outPath}"`, { stdio: "pipe", timeout: 10_000 });
-          }
-          return { content: [{ type: "text" as const, text: `Screenshot saved: ${outPath}` }] };
-        } catch {
-          return { content: [{ type: "text" as const, text: `No ${platform} simulator running` }], isError: true };
-        }
-      }
-    );
-
-    return createSdkMcpServer({
-      name: "tv-build",
-      version: "0.1.0",
-      instructions: "TV app development tools for building multi-platform TV applications from templates.",
-      tools: [
-        cloneTemplateTool,
-        applyThemeTool,
-        injectContentTool,
-        addScreenTool,
-        removeScreenTool,
-        installDepTool,
-        focusCheckTool,
-        gitCommitTool,
-        requestSkillLoadTool,
-        listSkillsTool,
-        writeAutoSkillTool,
-        expoPrebuildTool,
-        captureScreenshotTool,
-      ],
-    });
-  }
-
-  private buildSystemPrompt(spec: PhaseSpec): string {
-    const metaSkill = this.skills.alwaysLoad();
-    const phaseSkills = this.skills.loadSkills(spec.skills);
-
-    const parts = [
-      "You are a TV app development agent. You have access to specialized TV app tools and standard file tools (Bash, Read, Write, Edit).",
-      "Execute the current phase by using the appropriate tools. Prefer the specialized tools when they fit, but use Bash/Edit for file modifications.",
-      "",
-      "## App Spec",
-      JSON.stringify(this.state.spec, null, 2),
-      "",
-      "## Design System",
-      buildDesignContext(this.input.design),
-      "",
-      "## Skills (domain knowledge)",
-      metaSkill,
-      ...phaseSkills,
-    ];
-
-    return parts.join("\n");
-  }
-
-  private buildPhaseUserMessage(phase: Phase): string {
-    const appDir = join(this.state.workdir, "app");
-    const messages: Record<string, string> = {
-      scaffold: `Clone the react-native-multi-tv-app-sample template into "${appDir}" and install dependencies. App name: "${this.state.spec?.app_name}".`,
-      branding: `Apply branding to the app at ${appDir}. Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color}, accent=${this.input.brand.accent_color}, bg=${this.input.brand.background_color}, font=${this.input.brand.font_family}. Find and edit the theme token files in packages/shared-ui/. Update app.json with the app name.`,
-      content: `Wire this content manifest into the app at ${appDir}.
-
-You MUST do ALL of these steps:
-1. Write the content JSON to packages/shared-ui/src/data/content.json
-2. Create data hooks in packages/shared-ui/src/data/useContent.ts (useFeatured, useCategories, useVideosByCategory, useVideoById, useVideos)
-3. CRITICAL: Find the existing screen files (especially HomeScreen.tsx) and REPLACE their old data imports. The template uses "fetchMoviesData" or "moviesData" — you must replace these with your new useContent hooks. grep for "moviesData|fetchMovies|sampleData|mockData" in the screens directory and update every file that uses old data.
-4. Update the screen rendering to use the new data shape (Video type with: id, title, description, thumbnail_url, stream_url, stream_type, duration_sec, tags)
-
-Content manifest:
-${JSON.stringify(this.input.content, null, 2)}`,
-      screens: `Customize screens at ${appDir}/packages/shared-ui/src/screens/ per the AppSpec. IMPORTANT: Only rename or modify EXISTING screen files. Do NOT import screens that don't exist. First run: ls packages/shared-ui/src/screens/ to see what's available. After edits, run: npx tsc --noEmit to verify no broken imports.`,
-      navigation: this.buildNavigationPrompt(appDir),
-      verify: `Run type checking at ${appDir}: npx tsc --noEmit. Fix any errors.`,
-      build_loop: `Build the app at ${appDir} for platforms: ${this.state.config.platforms.join(", ")}. Use expo prebuild for iOS/Android.`,
-      vega_build_loop: `Build the Vega OS variant at ${appDir}/apps/vega.`,
-      visual_smoke_test: `Verify build artifacts exist at ${appDir} and capture screenshots from any running simulators.`,
-    };
-
-    return messages[phase] ?? `Execute phase: ${phase}`;
-  }
-
   private writeReport(): void {
-    writeRunReport({
-      outDir: this.state.workdir,
-      runId: this.state.runId,
-      mode: "Agent SDK (Messages API)",
-      platforms: this.state.config.platforms,
-      templateRepo: this.harness.template.repo,
-      tokensUsed: this.state.tokensUsed,
-      tokenBudget: this.state.tokenBudget,
-      totalCost: [...this.phaseCosts.values()].reduce((sum, c) => sum + c, 0),
-      phaseResults: this.state.phaseResults,
-      phaseCosts: this.phaseCosts,
-      spec: this.state.spec,
+    writeHarnessReports({
+      state: this.state,
+      harness: this.harness,
       brand: this.input.brand,
+      mode: "Agent SDK (Messages API)",
+      totalCost: [...this.phaseCosts.values()].reduce((sum, c) => sum + c, 0),
+      phaseCosts: this.phaseCosts,
     });
   }
 

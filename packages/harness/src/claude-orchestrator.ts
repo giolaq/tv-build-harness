@@ -1,34 +1,34 @@
-import { execSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
-  AppSpec,
-  BrandKit,
-  ContentManifest,
-  DesignTokens,
   Phase,
   PhaseResult,
-  RunConfig,
   SessionState,
   HarnessInput,
 } from "./types.js";
-import { AppSpecSchema, ScreenTreeSchema } from "./types.js";
-import type { ScreenTree } from "./types.js";
+import { AppSpecSchema } from "./types.js";
 import { SkillLibrary } from "./skill-library.js";
 import { RunLog } from "./run-log.js";
 import { PromptLoader } from "./prompt-loader.js";
-import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
 import { runVerifyChecks } from "./verification.js";
 import { saveCheckpoint, loadCheckpoint } from "./checkpoint.js";
 import { invokeClaude, ClaudeCliError } from "./claude-cli.js";
 import { runVisualQALoop } from "./visual-qa.js";
-import { writeRunReport } from "./run-report.js";
-import { buildPhaseInstructions, buildPlanPrompt, buildDesignContext } from "./phase-prompts.js";
+import { buildPlanPrompt } from "./phase-prompts.js";
 import type { PhasePromptContext } from "./phase-prompts.js";
-import { writeVegaReport } from "./vega-tools.js";
+import {
+  buildVerifyVars,
+  commitAfterPhase,
+  createPromptLoader,
+  createRunContext,
+  executeClonePhase,
+  loadSpecIfPresent,
+  writeHarnessReports,
+  writeSpec,
+} from "./run-context.js";
+import { buildClaudeSkillContext, getPhaseInstructions, promptContext } from "./phase-context.js";
 
 export interface RunOptions {
   generateOnly?: boolean;
@@ -71,33 +71,12 @@ export class ClaudeOrchestrator {
     this.skills = new SkillLibrary(input.skillsDir);
     this.input = input;
     this.events = events;
-    this.harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
+    this.prompts = createPromptLoader(input);
 
-    const builtinPrompts = join(import.meta.dirname ?? __dirname, "..", "prompts");
-    // Project-local prompts/ take precedence so custom phases (and overrides
-    // of built-in phase prompts) need no source changes.
-    this.prompts = new PromptLoader([join(input.workdir, "prompts"), builtinPrompts]);
-
-    const runId = randomUUID().slice(0, 8);
-    const outDir = join(input.workdir, "out", runId);
-    mkdirSync(outDir, { recursive: true });
-    mkdirSync(join(outDir, "screenshots"), { recursive: true });
-
-    this.log = new RunLog(join(outDir, "run.log"));
-
-    this.state = {
-      runId,
-      workdir: outDir,
-      config: input.config,
-      spec: null,
-      currentPhase: "plan",
-      phaseResults: new Map(),
-      iteration: 0,
-      totalIterations: 0,
-      tokenBudget: this.harness.tokenBudget,
-      tokensUsed: 0,
-      messages: [],
-    };
+    const ctx = createRunContext(input);
+    this.harness = ctx.harness;
+    this.log = ctx.log;
+    this.state = ctx.state;
   }
 
   static fromExistingRun(outDir: string, input: HarnessInput, events: HarnessEvents = {}): ClaudeOrchestrator {
@@ -105,10 +84,7 @@ export class ClaudeOrchestrator {
     instance.state.workdir = outDir;
     instance.state.runId = outDir.split("/").pop() ?? "rerun";
 
-    const specPath = join(outDir, "spec.json");
-    if (existsSync(specPath)) {
-      instance.state.spec = JSON.parse(readFileSync(specPath, "utf-8"));
-    }
+    loadSpecIfPresent(instance.state, outDir);
 
     instance.log = new RunLog(join(outDir, "run.log"));
     return instance;
@@ -251,7 +227,12 @@ export class ClaudeOrchestrator {
       return { phase, status: "degraded", iterations: 1, error: `No instructions for phase: ${phase}` };
     }
 
-    const skillContext = this.buildSkillContext(spec);
+    const skillContext = buildClaudeSkillContext({
+      spec,
+      state: this.state,
+      harnessInput: this.input,
+      skills: this.skills,
+    });
 
     const previousFailure = this.lastVerifyError.get(phase);
     const fullPrompt = [
@@ -296,7 +277,7 @@ export class ClaudeOrchestrator {
 
       const verification = await runVerifyChecks(spec.verify, {
         appDir,
-        vars: this.buildVerifyVars(),
+        vars: buildVerifyVars(this.input, this.state),
       });
       if (!verification.ok) {
         this.log.error(phase, this.state.totalIterations, verification.error!);
@@ -313,29 +294,18 @@ export class ClaudeOrchestrator {
     }
   }
 
-  private buildVerifyVars(): Record<string, string> {
-    return {
-      "brand.primary_color": this.input.brand.primary_color,
-      "brand.accent_color": this.input.brand.accent_color,
-      "brand.background_color": this.input.brand.background_color,
-      "brand.name": this.input.brand.name,
-      "content.title": this.input.content.title,
-      "app.name": this.state.spec?.app_name ?? this.input.content.title,
-    };
-  }
-
   private getPhaseInstructions(phaseSpec: PhaseSpec): string | null {
-    return buildPhaseInstructions(phaseSpec, this.promptContext());
+    return getPhaseInstructions(phaseSpec, this.promptContext());
   }
 
   private promptContext(): PhasePromptContext {
-    return {
+    return promptContext({
       outDir: this.state.workdir,
       input: this.input,
-      spec: this.state.spec,
+      state: this.state,
       harness: this.harness,
       prompts: this.prompts,
-    };
+    });
   }
 
   private async executePlanPhase(): Promise<PhaseResult> {
@@ -365,10 +335,7 @@ export class ClaudeOrchestrator {
       const parsed = JSON.parse(jsonMatch[0]);
       this.state.spec = AppSpecSchema.parse(parsed);
 
-      writeFileSync(
-        join(this.state.workdir, "spec.json"),
-        JSON.stringify(this.state.spec, null, 2)
-      );
+      writeSpec(this.state.workdir, this.state.spec);
 
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
@@ -395,133 +362,18 @@ export class ClaudeOrchestrator {
     });
   }
 
-  private buildSkillContext(spec: PhaseSpec): string {
-    const meta = this.skills.alwaysLoad();
-    const phaseSkills = this.skills.loadSkills(spec.skills);
-    const skillsDir = this.input.skillsDir;
-
-    const parts = [
-      "## Context: You are a TV app development agent.",
-      "",
-      "## App Spec",
-      JSON.stringify(this.state.spec, null, 2),
-      "",
-      "## Design System",
-      buildDesignContext(this.input.design),
-      "",
-      "## Skills (domain knowledge for this phase)",
-      meta,
-      ...phaseSkills,
-      "",
-      "## Auto-Skillify",
-      "",
-      "After completing your task, check: did you fix or discover a REUSABLE PATTERN that would prevent the same issue in future TV app generations?",
-      "",
-      "Rate the fix on reusability (1-5):",
-      "1 = only applies to this exact app",
-      "2 = might apply to similar apps",
-      "3 = applies to most TV apps with this nav style",
-      "4 = applies to ANY TV app using react-tv-space-navigation",
-      "5 = universal React Native TV pattern",
-      "",
-      "Only skillify if score >= 4.",
-      "",
-      "Before creating, check for duplicates:",
-      `Run: grep -rl "<main-keyword-of-your-fix>" ${skillsDir}/auto/ ${skillsDir}/ 2>/dev/null | head -5`,
-      "If a similar skill exists, UPDATE it instead of creating a duplicate.",
-      "",
-      "If no duplicate and score >= 4, create:",
-      `Run: mkdir -p ${skillsDir}/auto`,
-      `Then write a file at ${skillsDir}/auto/<pattern-name>.md:`,
-      "",
-      "```",
-      "---",
-      "name: <kebab-case-name>",
-      `applies_to: [${spec.name}]`,
-      "meta:",
-      `  created_by_run: ${this.state.runId}`,
-      `  created_at: ${new Date().toISOString().slice(0, 10)}`,
-      "  times_loaded: 0",
-      "  times_defect_recurred: 0",
-      "---",
-      "",
-      "# <Pattern Title>",
-      "",
-      "## Problem",
-      "<What goes wrong and why>",
-      "",
-      "## Fix Pattern",
-      "```typescript",
-      "// BEFORE (broken)",
-      "<code>",
-      "",
-      "// AFTER (fixed)",
-      "<code>",
-      "```",
-      "",
-      "## Gotchas",
-      "- <Edge case or look-alike>",
-      "```",
-      "",
-      "Do NOT skillify: app-specific content, one-off typos, issues already in loaded skills.",
-      "",
-      "⚠️ FILE WRITE RESTRICTIONS: You may ONLY write/edit files in:",
-      "1. The generated app directory (where you are working)",
-      `2. ${skillsDir}/auto/ (for new skills ONLY)`,
-      "NEVER modify files in src/, prompts/, or any harness source code.",
-      "NEVER modify the harness package.json, tsconfig, or build files.",
-      "You are testing and improving the GENERATED APP, not the harness itself.",
-    ];
-
-    return parts.join("\n");
-  }
-
-
   private commitAfterPhase(phase: Phase): void {
-    const appDir = join(this.state.workdir, "app");
-    if (!existsSync(join(appDir, ".git"))) return;
-
-    try {
-      const status = execSync("git status --porcelain", {
-        cwd: appDir,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      if (!status.trim()) return;
-
-      execSync("git add -A", { cwd: appDir, stdio: ["pipe", "pipe", "pipe"] });
-      execSync(`git commit -m "harness: complete phase ${phase}"`, {
-        cwd: appDir,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-    } catch {
-      // non-fatal — commit is best-effort
-    }
+    commitAfterPhase(this.state.workdir, phase);
   }
 
   private writeReport(): void {
-    if (this.input.config.platforms.includes("firetv-vega")) {
-      writeVegaReport({
-        outDir: this.state.workdir,
-        checks: [],
-        budgets: this.harness.vega,
-        phaseResults: this.state.phaseResults,
-      });
-    }
-
-    writeRunReport({
-      outDir: this.state.workdir,
-      runId: this.state.runId,
-      mode: "claude-run (CLI subprocess)",
-      platforms: this.state.config.platforms,
-      templateRepo: this.harness.template.repo,
-      tokensUsed: this.state.tokensUsed,
-      tokenBudget: this.state.tokenBudget,
-      totalCost: this.totalCost,
-      phaseResults: this.state.phaseResults,
-      phaseCosts: this.phaseCosts,
-      spec: this.state.spec,
+    writeHarnessReports({
+      state: this.state,
+      harness: this.harness,
       brand: this.input.brand,
+      mode: "claude-run (CLI subprocess)",
+      totalCost: this.totalCost,
+      phaseCosts: this.phaseCosts,
     });
   }
 

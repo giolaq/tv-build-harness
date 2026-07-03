@@ -1,10 +1,7 @@
 import { Agent } from "@strands-agents/sdk";
-import { AgentSkills, Skill } from "@strands-agents/sdk/vended-plugins/skills";
 import type { AgentStreamEvent, AgentResult } from "@strands-agents/sdk";
-import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
 import type {
   Phase,
   PhaseResult,
@@ -13,8 +10,6 @@ import type {
 } from "./types.js";
 import { AppSpecSchema } from "./types.js";
 import { RunLog } from "./run-log.js";
-import { writeRunReport } from "./run-report.js";
-import { DEFAULT_HARNESS_CONFIG } from "./harness-config.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import { runPipeline, selectActivePhases } from "./pipeline-engine.js";
 import { buildDesignContext } from "./phase-prompts.js";
@@ -23,8 +18,16 @@ import type { ModelProviderConfig } from "./model-factory.js";
 import { createStrandsTools } from "./strands-tools.js";
 import { runVisualQALoop } from "./visual-qa.js";
 import { PromptLoader } from "./prompt-loader.js";
-import { writeVegaReport } from "./vega-tools.js";
 import type { HarnessEvents } from "./claude-orchestrator.js";
+import {
+  commitAfterPhase,
+  createPromptLoader,
+  createRunContext,
+  executeClonePhase,
+  writeHarnessReports,
+  writeSpec,
+} from "./run-context.js";
+import { buildAgentPhaseUserMessage, buildSdkSystemPrompt, buildStrandsSkillsPlugin } from "./phase-context.js";
 
 export interface StrandsRunOptions {
   generateOnly?: boolean;
@@ -38,11 +41,17 @@ export class StrandsOrchestrator {
   private harness: HarnessConfig;
   private phaseCosts: Map<Phase, number> = new Map();
   private modelConfig: ModelProviderConfig;
+  private prompts: PromptLoader;
 
   constructor(input: HarnessInput, events: HarnessEvents = {}) {
     this.input = input;
     this.events = events;
-    this.harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
+    this.prompts = createPromptLoader(input);
+
+    const ctx = createRunContext(input, { tokenBudget: 0 });
+    this.harness = ctx.harness;
+    this.log = ctx.log;
+    this.state = ctx.state;
 
     if (this.harness.models.strandsProvider) {
       this.modelConfig = this.harness.models.strandsProvider;
@@ -53,27 +62,6 @@ export class StrandsOrchestrator {
         maxTokens: 8192,
       };
     }
-
-    const runId = randomUUID().slice(0, 8);
-    const outDir = join(input.workdir, "out", runId);
-    mkdirSync(outDir, { recursive: true });
-    mkdirSync(join(outDir, "screenshots"), { recursive: true });
-
-    this.log = new RunLog(join(outDir, "run.log"));
-
-    this.state = {
-      runId,
-      workdir: outDir,
-      config: input.config,
-      spec: null,
-      currentPhase: "plan",
-      phaseResults: new Map(),
-      iteration: 0,
-      totalIterations: 0,
-      tokenBudget: 0, // unlimited in API mode — cost is tracked but not capped
-      tokensUsed: 0,
-      messages: [],
-    };
   }
 
   async run(options: StrandsRunOptions = {}): Promise<{ state: SessionState; outDir: string }> {
@@ -134,8 +122,19 @@ export class StrandsOrchestrator {
     const appDir = join(this.state.workdir, "app");
     mkdirSync(appDir, { recursive: true });
 
-    const systemPrompt = this.buildSystemPrompt(spec);
-    const userMessage = this.buildPhaseUserMessage(phase);
+    const systemPrompt = buildSdkSystemPrompt({
+      spec,
+      state: this.state,
+      harnessInput: this.input,
+      strands: true,
+    });
+    const userMessage = buildAgentPhaseUserMessage({
+      phase,
+      state: this.state,
+      harnessInput: this.input,
+      harness: this.harness,
+      concise: true,
+    });
 
     // Log prompts for debugging
     const promptLogPath = join(this.state.workdir, `prompt-${phase}.md`);
@@ -169,7 +168,7 @@ export class StrandsOrchestrator {
 
       const phaseModelConfig = this.harness.models.phaseModels?.[phase] ?? this.modelConfig;
       const model = createModel(phaseModelConfig);
-      const skillsPlugin = this.buildSkillsPlugin(spec);
+      const skillsPlugin = buildStrandsSkillsPlugin(this.input.skillsDir, spec);
 
       const agent = new Agent({
         model,
@@ -265,13 +264,7 @@ export class StrandsOrchestrator {
       }
 
       // Auto-commit after each phase (mirrors claude-run git snapshots)
-      try {
-        execSync("git add -A && git diff --cached --quiet || git commit -m \"phase: " + phase + "\"", {
-          cwd: join(this.state.workdir, "app"),
-          stdio: ["pipe", "pipe", "pipe"],
-          timeout: 10_000,
-        });
-      } catch { /* no changes to commit or git not initialized */ }
+      commitAfterPhase(this.state.workdir, phase);
 
       // Write phase response for debugging (mirrors claude-run behavior)
       let responseText = "";
@@ -440,10 +433,7 @@ export class StrandsOrchestrator {
       const spec = AppSpecSchema.parse(parsed);
       this.state.spec = spec;
 
-      writeFileSync(
-        join(this.state.workdir, "spec.json"),
-        JSON.stringify(this.state.spec, null, 2)
-      );
+      writeSpec(this.state.workdir, this.state.spec);
 
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
@@ -454,8 +444,6 @@ export class StrandsOrchestrator {
 
   private async executeVisualQALoop(): Promise<PhaseResult> {
     const appDir = join(this.state.workdir, "app");
-    const prompts = new PromptLoader(join(import.meta.dirname ?? ".", "../prompts"));
-
     const runClaude = async (prompt: string, cwd: string, timeoutMs?: number, allowedTools?: string): Promise<string> => {
       // Use the Strands agent for visual QA sub-tasks
       const model = createModel(this.harness.models.phaseModels?.["visual_qa_loop"] ?? this.modelConfig);
@@ -478,7 +466,7 @@ export class StrandsOrchestrator {
       design: this.input.design,
       spec: this.state.spec,
       platforms: this.input.config.platforms,
-      prompts,
+      prompts: this.prompts,
       useDevtools: this.input.config.use_devtools,
       runClaude,
       onLog: (msg) => this.events.onLog?.(msg),
@@ -487,31 +475,7 @@ export class StrandsOrchestrator {
   }
 
   private executeClonePhase(): PhaseResult {
-    const appDir = join(this.state.workdir, "app");
-
-    if (existsSync(join(appDir, "package.json"))) {
-      return { phase: "scaffold", status: "success", iterations: 0 };
-    }
-
-    try {
-      this.events.onLog?.("Cloning template...");
-      const branchFlag = this.harness.template.branch ? ` --branch ${this.harness.template.branch}` : "";
-      execSync(
-        `git clone --depth 1${branchFlag} ${this.harness.template.repo} "${appDir}"`,
-        { stdio: "pipe", timeout: 60_000 }
-      );
-      execSync(`rm -rf "${join(appDir, ".git")}"`, { stdio: "pipe" });
-      execSync("git init && git add -A && git commit -m \"initial template\"", {
-        cwd: appDir, stdio: "pipe",
-      });
-      this.events.onLog?.("Installing dependencies...");
-      execSync("yarn install", { cwd: appDir, stdio: "pipe", timeout: 180_000 });
-      this.events.onLog?.("Template ready.");
-      return { phase: "scaffold", status: "success", iterations: 0 };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { phase: "scaffold", status: "failed", iterations: 0, error: message.slice(0, 200) };
-    }
+    return executeClonePhase(this.state.workdir, this.harness, (msg) => this.events.onLog?.(msg));
   }
 
   private getMaxTurns(phase: Phase): number {
@@ -529,104 +493,14 @@ export class StrandsOrchestrator {
     return limits[phase] ?? 30;
   }
 
-  private buildSystemPrompt(_spec: PhaseSpec): string {
-    const parts = [
-      "You are a TV app development agent. You have access to specialized TV app tools.",
-      "Execute the current phase by using the appropriate tools.",
-      "Use the `skills` tool to load domain knowledge when needed — available skills are listed in <available_skills>.",
-      "",
-      "## App Spec",
-      JSON.stringify(this.state.spec, null, 2),
-      "",
-      "## Design System",
-      buildDesignContext(this.input.design),
-    ];
-
-    return parts.join("\n");
-  }
-
-  private buildSkillsPlugin(spec: PhaseSpec): AgentSkills {
-    const skillSources: (string | Skill)[] = [];
-
-    // Always load the meta skill (new dir format first, then flat file fallback)
-    const metaDirPath = join(this.input.skillsDir, "meta");
-    const metaFlatPath = join(this.input.skillsDir, "meta.md");
-    if (existsSync(join(metaDirPath, "SKILL.md"))) {
-      skillSources.push(Skill.fromFile(metaDirPath, { strict: false }));
-    } else if (existsSync(metaFlatPath)) {
-      const content = readFileSync(metaFlatPath, "utf-8");
-      skillSources.push(Skill.fromContent(content, { strict: false }));
-    }
-
-    // Load phase-specific skills (new dir format first, then flat file fallback)
-    for (const skillName of spec.skills) {
-      const skillDirPath = join(this.input.skillsDir, skillName);
-      const skillFlatPath = join(this.input.skillsDir, `${skillName}.md`);
-      if (existsSync(join(skillDirPath, "SKILL.md"))) {
-        skillSources.push(Skill.fromFile(skillDirPath, { strict: false }));
-      } else if (existsSync(skillFlatPath)) {
-        const content = readFileSync(skillFlatPath, "utf-8");
-        skillSources.push(Skill.fromContent(content, { strict: false }));
-      }
-    }
-
-    // Also load auto-skills if they exist (flat files in auto/)
-    const autoDir = join(this.input.skillsDir, "auto");
-    if (existsSync(autoDir)) {
-      const autoFiles = readdirSync(autoDir).filter(f => f.endsWith(".md"));
-      for (const file of autoFiles) {
-        const filePath = join(autoDir, file);
-        const content = readFileSync(filePath, "utf-8");
-        skillSources.push(Skill.fromContent(content, { strict: false }));
-      }
-    }
-
-    return new AgentSkills({ skills: skillSources, strict: false });
-  }
-
-  private buildPhaseUserMessage(phase: Phase): string {
-    const appDir = join(this.state.workdir, "app");
-    const messages: Record<string, string> = {
-      scaffold: `Clone the react-native-multi-tv-app-sample template into "${appDir}" and install dependencies. App name: "${this.state.spec?.app_name}".`,
-      branding: `Apply branding to the app at ${appDir}. Brand: name="${this.input.brand.name}", primary=${this.input.brand.primary_color}, accent=${this.input.brand.accent_color}, bg=${this.input.brand.background_color}, font=${this.input.brand.font_family}. Find and edit the theme token files in packages/shared-ui/. Update app.json with the app name.`,
-      content: `Wire this content manifest into the app at ${appDir}.\n\nYou MUST do ALL of these steps:\n1. Write the content JSON to packages/shared-ui/src/data/content.json\n2. Create data hooks in packages/shared-ui/src/data/useContent.ts\n3. CRITICAL: Find the existing screen files and REPLACE their old data imports with the new useContent hooks.\n4. Update the screen rendering to use the new data shape\n\nContent manifest:\n${JSON.stringify(this.input.content, null, 2)}`,
-      screens: `Customize screens at ${appDir}/packages/shared-ui/src/screens/ per the AppSpec. Only rename or modify EXISTING screen files. Do NOT import screens that don't exist.`,
-      navigation: `Update navigation at ${appDir}/packages/shared-ui/src/navigation/. Navigation type: ${this.state.spec?.navigation.type}. Routes: ${JSON.stringify(this.state.spec?.navigation.routes)}`,
-      verify: `Run type checking at ${appDir}: npx tsc --noEmit. Fix any errors.`,
-      build_loop: `Build the app at ${appDir} for platforms: ${this.state.config.platforms.join(", ")}. Use expo prebuild for iOS/Android.`,
-      vega_setup_check: `Prepare the Vega app at ${appDir}/apps/vega. Check Kepler CLI, Amazon Devices Builder Tools MCP status, VDA availability, the Vega manifest, and forbidden shared-ui imports such as react-native-video, expo-font, and expo-image. Use the amazon_devices_builder_tools tool first.`,
-      vega_build_loop: `Build the Vega OS variant at ${appDir}/apps/vega.`,
-      vega_perf_trace: `Analyze Vega launch/render performance for ${appDir}/apps/vega. Use Amazon Devices Builder Tools MCP analyze_perfetto_traces when configured. Budgets: TTFF <= ${this.harness.vega.ttff_ms_max}ms, TTFD <= ${this.harness.vega.ttfd_ms_max}ms, JS frame drop <= ${this.harness.vega.max_js_frame_drop_percent}%. Write vega-perf-summary.md in ${this.state.workdir}.`,
-      vega_hot_functions: `Analyze Vega CPU hot functions for ${appDir}/apps/vega. Use Amazon Devices Builder Tools MCP get_app_hot_functions when configured. Budget: top app-owned hot function <= ${this.harness.vega.max_hot_function_percent}% CPU share. Write vega-hot-functions.md in ${this.state.workdir}.`,
-      visual_smoke_test: `Verify build artifacts exist at ${appDir} and capture screenshots from any running simulators.`,
-    };
-
-    return messages[phase] ?? `Execute phase: ${phase}`;
-  }
-
   private writeReport(): void {
-    if (this.input.config.platforms.includes("firetv-vega")) {
-      writeVegaReport({
-        outDir: this.state.workdir,
-        checks: [],
-        budgets: this.harness.vega,
-        phaseResults: this.state.phaseResults,
-      });
-    }
-
-    writeRunReport({
-      outDir: this.state.workdir,
-      runId: this.state.runId,
-      mode: "Strands Agent SDK",
-      platforms: this.state.config.platforms,
-      templateRepo: this.harness.template.repo,
-      tokensUsed: this.state.tokensUsed,
-      tokenBudget: this.state.tokenBudget,
-      totalCost: [...this.phaseCosts.values()].reduce((sum, c) => sum + c, 0),
-      phaseResults: this.state.phaseResults,
-      phaseCosts: this.phaseCosts,
-      spec: this.state.spec,
+    writeHarnessReports({
+      state: this.state,
+      harness: this.harness,
       brand: this.input.brand,
+      mode: "Strands Agent SDK",
+      totalCost: [...this.phaseCosts.values()].reduce((sum, c) => sum + c, 0),
+      phaseCosts: this.phaseCosts,
     });
   }
 
