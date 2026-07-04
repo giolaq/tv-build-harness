@@ -12,6 +12,7 @@ import type { HarnessConfig } from "../harness-config.js";
 import { runPipeline, selectActivePhases } from "../pipeline-engine.js";
 import { saveCheckpoint, loadCheckpoint } from "../checkpoint.js";
 import {
+  budgetStopReason,
   createPromptLoader,
   createRunContext,
   loadSpecIfPresent,
@@ -160,6 +161,7 @@ export class ClaudeOrchestrator {
           this.log.phaseEnd(spec.name, this.state.totalIterations, result.status);
           const phaseCost = this.executor.finishPhaseCost(spec.name);
           this.events.onPhaseEnd?.(spec.name, result, phaseCost);
+          if (result.status === "aborted") this.checkpoint();
 
           const label = result.status === "failed" ? "FAILED" : result.status === "degraded" ? "DEGRADED" : result.status;
           const detail = result.error ? `: ${result.error}` : "";
@@ -187,9 +189,10 @@ export class ClaudeOrchestrator {
           this.events.onLog?.(msg);
         },
         shouldStop: () =>
-          this.state.tokensUsed >= this.state.tokenBudget
+          budgetStopReason(this.state) ??
+          (this.state.tokensUsed >= this.state.tokenBudget
             ? `Token budget exhausted (${this.state.tokensUsed}/${this.state.tokenBudget})`
-            : null,
+            : null),
       },
     });
 
@@ -212,6 +215,7 @@ export class ClaudeOrchestrator {
     saveCheckpoint(this.state.workdir, {
       runId: this.state.runId,
       creativeSeed: this.state.creativeSeed,
+      abortReason: this.state.abortReason,
       completedPhases,
     });
   }

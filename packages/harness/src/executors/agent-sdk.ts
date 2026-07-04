@@ -6,7 +6,7 @@ import { SkillLibrary } from "../skill-library.js";
 import { RunLog } from "../run-log.js";
 import type { HarnessConfig } from "../harness-config.js";
 import { runPipeline, selectActivePhases } from "../pipeline-engine.js";
-import { createRunContext } from "../run-context.js";
+import { budgetStopReason, createRunContext } from "../run-context.js";
 import { AgentSdkPhaseExecutor } from "../agent-sdk-phase-executor.js";
 
 export interface RunOptions {
@@ -71,9 +71,10 @@ export class TVAppHarness {
         },
         onLog: (msg) => console.log(`  ${msg}`),
         shouldStop: () =>
-          this.state.tokensUsed >= this.state.tokenBudget
+          budgetStopReason(this.state) ??
+          (this.state.tokensUsed >= this.state.tokenBudget
             ? `Token budget exhausted (${this.state.tokensUsed}/${this.state.tokenBudget})`
-            : null,
+            : null),
       },
     });
 

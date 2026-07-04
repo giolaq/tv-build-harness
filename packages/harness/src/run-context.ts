@@ -41,6 +41,8 @@ export function createRunContext(input: HarnessInput, options: { tokenBudget?: n
       totalIterations: 0,
       tokenBudget: options.tokenBudget ?? harness.tokenBudget,
       tokensUsed: 0,
+      costSoFar: 0,
+      maxCostUsd: input.maxCostUsd ?? harness.maxCostUsd,
       messages: [],
     },
   };
@@ -153,6 +155,7 @@ export function writeHarnessReports(input: {
     tokensUsed: input.state.tokensUsed,
     tokenBudget: input.state.tokenBudget,
     totalCost: input.totalCost,
+    maxCostUsd: input.state.maxCostUsd,
     phaseResults: input.state.phaseResults,
     phaseCosts: input.phaseCosts,
     spec: input.state.spec,
@@ -170,4 +173,33 @@ export function writeSpec(outDir: string, spec: unknown, creativeSeed?: string):
 function normalizeCreativeSeed(seed: string | undefined): string {
   const trimmed = seed?.trim();
   return trimmed || randomUUID().slice(0, 12);
+}
+
+export class BudgetAbortError extends Error {
+  reason = "budget" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "BudgetAbortError";
+  }
+}
+
+export function bookCost(state: SessionState, costUsd: number): void {
+  if (!Number.isFinite(costUsd) || costUsd <= 0) return;
+  state.costSoFar += costUsd;
+  if (state.maxCostUsd !== undefined && state.costSoFar > state.maxCostUsd) {
+    state.abortReason = "budget";
+    throw new BudgetAbortError(`Cost budget exceeded: $${state.costSoFar.toFixed(4)} > $${state.maxCostUsd.toFixed(4)}`);
+  }
+}
+
+export function budgetStopReason(state: SessionState): string | null {
+  if (state.abortReason === "budget") {
+    return `Cost budget exceeded ($${state.costSoFar.toFixed(4)}/${state.maxCostUsd?.toFixed(4) ?? "unknown"})`;
+  }
+  return null;
+}
+
+export function isBudgetAbort(err: unknown): err is BudgetAbortError {
+  return err instanceof BudgetAbortError;
 }

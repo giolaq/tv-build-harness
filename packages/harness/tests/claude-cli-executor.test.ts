@@ -144,6 +144,49 @@ describe("Claude CLI executor subprocess behavior", () => {
     expect(existsSync(recordingPath)).toBe(true);
     expect(replay.total).toBe(1);
   });
+
+  it("aborts a phase when a model turn exceeds the max cost", async () => {
+    const workdir = mkdtempSync(join(tmpdir(), "tv-build-claude-budget-"));
+    const promptsDir = join(workdir, "prompts");
+    const skillsDir = join(workdir, "skills");
+    mkdirSync(promptsDir, { recursive: true });
+    mkdirSync(join(skillsDir, "meta"), { recursive: true });
+    writeFileSync(join(promptsDir, "plan.md"), "{{brief}}");
+    writeFileSync(join(skillsDir, "meta", "SKILL.md"), "---\nname: meta\napplies_to: [all]\n---\n\n# Meta");
+
+    const input = { ...harnessInput(workdir, skillsDir), maxCostUsd: 0.01 };
+    const ctx = createRunContext(input);
+    const fake = createFakeSpawn({
+      stdout: [
+        {
+          type: "result",
+          subtype: "success",
+          result: JSON.stringify(appSpec()),
+          usage: { input_tokens: 13, output_tokens: 21 },
+          total_cost_usd: 0.05,
+        },
+      ],
+      code: 0,
+    });
+    const executor = new ClaudePhaseExecutor({
+      state: ctx.state,
+      input,
+      events: {},
+      harness: ctx.harness,
+      log: new RunLog(join(ctx.state.workdir, "run.log")),
+      skills: new SkillLibrary(skillsDir),
+      prompts: new PromptLoader(promptsDir),
+      record: false,
+      spawnImpl: fake.spawn,
+    });
+
+    const result = await executor.executePhase(phase("plan", { kind: "plan" }));
+
+    expect(result.status).toBe("aborted");
+    expect(result.error).toContain("Cost budget exceeded");
+    expect(ctx.state.abortReason).toBe("budget");
+    expect(ctx.state.costSoFar).toBe(0.05);
+  });
 });
 
 function createFakeSpawn(input: {

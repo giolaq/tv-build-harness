@@ -82,7 +82,7 @@ export interface PhaseConfig {
   systemPrompt: string;
 }
 
-export type PhaseStatus = "pending" | "running" | "success" | "degraded" | "failed";
+export type PhaseStatus = "pending" | "running" | "success" | "degraded" | "failed" | "aborted";
 
 export interface PhaseResult {
   phase: Phase;
@@ -330,6 +330,9 @@ export interface SessionState {
   totalIterations: number;
   tokenBudget: number;
   tokensUsed: number;
+  costSoFar: number;
+  maxCostUsd?: number;
+  abortReason?: "budget" | "user";
   messages: Array<{ role: "user" | "assistant"; content: unknown }>;
 }
 
@@ -346,6 +349,7 @@ export interface SkillMeta {
 export interface HarnessInput {
   prompt: string;
   creativeSeed?: string;
+  maxCostUsd?: number;
   content: ContentManifest;
   brand: BrandKit;
   config: RunConfig;

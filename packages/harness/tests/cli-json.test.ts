@@ -30,6 +30,17 @@ describe("CLI JSON contract", () => {
     });
   });
 
+  it("rejects invalid max-cost values as JSON input errors", () => {
+    const result = runCli(["src/index.ts", "claude-run", "--example", "changelog-site", "--plan", "--json", "--max-cost", "nope"]);
+
+    expect(result.status).toBe(1);
+    const payload = parseJson(result.stdout);
+    expect(payload.error).toMatchObject({
+      code: "invalid_max_cost",
+      hint: expect.stringContaining("--max-cost"),
+    });
+  });
+
   it("prints environment failures as JSON errors with exit code 3", () => {
     const result = runCli(
       ["src/index.ts", "run", "--example", "changelog-site", "--json"],

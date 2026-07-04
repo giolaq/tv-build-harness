@@ -13,6 +13,7 @@ export interface RunReportInput {
   tokensUsed: number;
   tokenBudget: number;
   totalCost: number;
+  maxCostUsd?: number;
   phaseResults: Map<string, PhaseResult>;
   phaseCosts?: Map<string, number>;
   spec: AppSpec | null;
@@ -42,6 +43,7 @@ export function writeRunReport(input: RunReportInput): void {
     `| Budget | ${input.tokenBudget.toLocaleString()} |`,
     `| Utilization | ${Math.round((input.tokensUsed / input.tokenBudget) * 100)}% |`,
     `| Total cost | $${input.totalCost.toFixed(4)} |`,
+    `| Cost cap | ${input.maxCostUsd === undefined ? "none" : `$${input.maxCostUsd.toFixed(2)}`} |`,
     ``,
     `## Phases`,
     ``,

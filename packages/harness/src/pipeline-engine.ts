@@ -70,6 +70,12 @@ export async function runPipeline(opts: PipelineOptions): Promise<Map<string, Ph
     results.set(spec.name, result);
     hooks.onPhaseEnd?.(spec, result);
 
+    if (result.status === "aborted") {
+      failed.add(spec.name);
+      hooks.onLog?.(`Aborting: phase "${spec.name}" aborted${result.error ? `: ${result.error}` : "."}`);
+      break;
+    }
+
     if (result.status === "failed") {
       failed.add(spec.name);
       if (spec.abortOnFailure) {

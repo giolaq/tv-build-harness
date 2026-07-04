@@ -180,7 +180,7 @@ function humanLog(message = ""): void {
 }
 
 // Flags that consume the next argument as their value.
-const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed"]);
+const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed", "--max-cost"]);
 // --resume takes an optional value (a runId, never starting with --).
 const OPTIONAL_VALUE_FLAGS = new Set(["--resume"]);
 
@@ -261,14 +261,28 @@ function loadInputs() {
   const harness = loadHarness(inputDir);
 
   const creativeSeed = seedFlag();
+  const maxCostUsd = maxCostFlag(harness.maxCostUsd, exampleFlag >= 0);
 
-  return { inputDir, content, brand, config, design, screenTree, prompt, harness, creativeSeed };
+  return { inputDir, content, brand, config, design, screenTree, prompt, harness, creativeSeed, maxCostUsd };
 }
 
 function seedFlag(): string | undefined {
   const equals = args.find((arg) => arg.startsWith("--seed="));
   const value = equals?.slice("--seed=".length) ?? (args.includes("--seed") ? args[args.indexOf("--seed") + 1] : undefined);
   return value?.trim() || undefined;
+}
+
+function maxCostFlag(configValue: number | undefined, isExample: boolean): number | undefined {
+  const equals = args.find((arg) => arg.startsWith("--max-cost="));
+  const value = equals?.slice("--max-cost=".length) ?? (args.includes("--max-cost") ? args[args.indexOf("--max-cost") + 1] : undefined);
+  if (value !== undefined) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      fail("invalid_max_cost", `Invalid --max-cost value "${value}".`, "Pass a positive dollar amount, for example --max-cost 5.", EXIT.input);
+    }
+    return parsed;
+  }
+  return configValue ?? (isExample ? undefined : 10);
 }
 
 function loadHarness(inputDir: string): HarnessConfig {
@@ -409,14 +423,14 @@ async function runHarness() {
     );
   }
 
-  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed } = loadInputs();
+  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed, maxCostUsd } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
   const generateOnly = args.includes("--generate-only");
   const useTui = !jsonMode && !args.includes("--no-tui") && process.stdout.isTTY;
 
-  const input = { prompt, creativeSeed, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
+  const input = { prompt, creativeSeed, maxCostUsd, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
 
   const { StrandsOrchestrator } = await import("./executors/strands.js");
   const { selectActivePhases } = await import("./pipeline-engine.js");
@@ -449,6 +463,8 @@ async function runHarness() {
     const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
     tui.finish(failed ? "failed" : "done");
     tui.log(`Output: ${outDir}`);
+    if (state.abortReason) process.exitCode = EXIT.aborted;
+    else if (failed) process.exitCode = EXIT.runFailure;
   } else if (jsonMode) {
     const harness = new StrandsOrchestrator(input, {
       onPhaseStart: (phase) => writeEvent("phase_start", { phase }),
@@ -472,9 +488,13 @@ async function runHarness() {
       seed: state.creativeSeed,
       status: failed ? "failed" : "success",
       tokensUsed: state.tokensUsed,
+      costSoFar: state.costSoFar,
+      budget: state.maxCostUsd,
+      reason: state.abortReason,
       phases: [...state.phaseResults.values()],
     });
-    if (failed) process.exitCode = EXIT.runFailure;
+    if (state.abortReason) process.exitCode = EXIT.aborted;
+    else if (failed) process.exitCode = EXIT.runFailure;
   } else {
     const harness = new StrandsOrchestrator(input, {
       onPhaseStart: (phase) => console.log(`\n  Phase: ${phase}`),
@@ -491,6 +511,9 @@ async function runHarness() {
 
     const { state, outDir } = await harness.run({ generateOnly });
     console.log(`\n  Output: ${outDir}`);
+    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
+    if (state.abortReason) process.exitCode = EXIT.aborted;
+    else if (failed) process.exitCode = EXIT.runFailure;
   }
 }
 
@@ -504,7 +527,7 @@ async function runWithClaude() {
     );
   }
 
-  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed } = loadInputs();
+  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed, maxCostUsd } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
@@ -530,7 +553,7 @@ async function runWithClaude() {
     }
   }
 
-  const input = { prompt, creativeSeed, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
+  const input = { prompt, creativeSeed, maxCostUsd, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
   const useTui = !jsonMode && !args.includes("--no-tui");
 
   const makeOrchestrator = (events: ConstructorParameters<typeof ClaudeOrchestrator>[1]) =>
@@ -575,6 +598,8 @@ async function runWithClaude() {
     const failed = [...state.phaseResults.values()].some(r => r.status === "failed" && state.phaseResults.keys().next().value === "plan");
     tui.finish(failed ? "failed" : "done");
     tui.log(`Output: ${outDir}`);
+    if (state.abortReason) process.exitCode = EXIT.aborted;
+    else if (failed) process.exitCode = EXIT.runFailure;
   } else if (jsonMode) {
     const harness = makeOrchestrator({
       onPhaseStart: (phase) => writeEvent("phase_start", { phase }),
@@ -601,9 +626,13 @@ async function runWithClaude() {
       seed: state.creativeSeed,
       status: failed ? "failed" : "success",
       tokensUsed: state.tokensUsed,
+      costSoFar: state.costSoFar,
+      budget: state.maxCostUsd,
+      reason: state.abortReason,
       phases: [...state.phaseResults.values()],
     });
-    if (failed) process.exitCode = EXIT.runFailure;
+    if (state.abortReason) process.exitCode = EXIT.aborted;
+    else if (failed) process.exitCode = EXIT.runFailure;
   } else {
     const harness = makeOrchestrator({});
 
@@ -625,6 +654,9 @@ async function runWithClaude() {
       const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
       console.log(`    ${icon} ${phase}: ${result.status} (${result.iterations} iterations)`);
     }
+    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
+    if (state.abortReason) process.exitCode = EXIT.aborted;
+    else if (failed) process.exitCode = EXIT.runFailure;
   }
 }
 
@@ -1218,6 +1250,7 @@ function printUsage() {
     --no-record            Disable recording.json creation in claude-run mode
     --speed <x>            With replay: divide stored turn delays by this multiplier
     --seed <value>         Fix the creative seed for repeatable creative constraints
+    --max-cost <usd>       Abort if model cost exceeds this amount; non-examples default to 10
     --app=<path>           Specify app directory for add-screen/review/test-ui
     --close                Close browser after test-ui completes (default: stay open)
     --fix                  With doctor: print exact fix commands for failing checks

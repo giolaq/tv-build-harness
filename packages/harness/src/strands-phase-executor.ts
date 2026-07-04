@@ -13,8 +13,10 @@ import type { ModelProviderConfig } from "./model-factory.js";
 import { createStrandsTools } from "./strands-tools.js";
 import { runVisualQALoop } from "./visual-qa.js";
 import {
+  bookCost,
   commitAfterPhase,
   executeClonePhase,
+  isBudgetAbort,
   writeHarnessReports,
   writeSpec,
 } from "./run-context.js";
@@ -107,6 +109,11 @@ export class StrandsPhaseExecutor {
       return { phase, status: "success", iterations: turns };
     } catch (err) {
       if (useTui) { console.warn = origWarn; console.log = origLog; }
+      if (isBudgetAbort(err)) {
+        this.ctx.log.error(phase, this.ctx.state.totalIterations, err.message);
+        this.ctx.events.onLog?.(`Phase ${phase} aborted: ${err.message}`);
+        return { phase, status: "aborted", iterations: turns || 1, error: err.message };
+      }
       const message = err instanceof Error ? err.message : String(err);
       const fullError = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : JSON.stringify(err);
       this.ctx.log.error(phase, this.ctx.state.totalIterations, message);
@@ -164,7 +171,9 @@ export class StrandsPhaseExecutor {
         const usage = result.metrics.accumulatedUsage;
         this.ctx.state.tokensUsed += usage.inputTokens + usage.outputTokens;
         this.ctx.events.onTokens?.(usage.inputTokens + usage.outputTokens);
-        this.phaseCosts.set("plan", (usage.inputTokens * 15 + usage.outputTokens * 75) / 1_000_000);
+        const cost = (usage.inputTokens * 15 + usage.outputTokens * 75) / 1_000_000;
+        this.phaseCosts.set("plan", cost);
+        bookCost(this.ctx.state, cost);
       }
 
       writeFileSync(join(this.ctx.state.workdir, "plan-response.txt"), resultText);
@@ -176,6 +185,9 @@ export class StrandsPhaseExecutor {
       writeSpec(this.ctx.state.workdir, this.ctx.state.spec, this.ctx.state.creativeSeed);
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
+      if (isBudgetAbort(err)) {
+        return { phase: "plan", status: "aborted", iterations: 1, error: err.message };
+      }
       const message = err instanceof Error ? `${err.message}\n${err.stack}` : JSON.stringify(err);
       return { phase: "plan", status: "failed", iterations: 1, error: message };
     }
@@ -271,6 +283,7 @@ export class StrandsPhaseExecutor {
       this.ctx.state.tokensUsed += usageTracker.totalTokens;
       this.ctx.events.onTokens?.(usageTracker.totalTokens);
       this.phaseCosts.set(phase, cost);
+      bookCost(this.ctx.state, cost);
       usageTracker.reset();
     }
     if (agentResult?.metrics) {
@@ -278,7 +291,9 @@ export class StrandsPhaseExecutor {
         { inputTokens?: number; outputTokens?: number; input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
       const input = usage.inputTokens ?? usage.input_tokens ?? usage.prompt_tokens ?? 0;
       const output = usage.outputTokens ?? usage.output_tokens ?? usage.completion_tokens ?? 0;
-      this.phaseCosts.set(phase, (input * 3 + output * 15) / 1_000_000);
+      const cost = (input * 3 + output * 15) / 1_000_000;
+      this.phaseCosts.set(phase, cost);
+      bookCost(this.ctx.state, cost);
       if (this.ctx.state.tokensUsed === 0 && input + output > 0) {
         this.ctx.state.tokensUsed += input + output;
         this.ctx.events.onTokens?.(input + output);

@@ -137,6 +137,7 @@ export const HarnessConfigSchema = z.object({
   models: ModelsConfigSchema.default({ plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" }).describe("Model selection."),
   vega: VegaConfigSchema.default(DEFAULT_VEGA_CONFIG).describe("Vega build and performance thresholds."),
   tokenBudget: z.number().default(500_000).describe("Maximum token budget for a run."),
+  maxCostUsd: z.number().optional().describe("Optional maximum run cost in US dollars."),
   phases: z.array(PhaseOverrideSchema).optional().describe("Phase overrides or additional phases."),
 });
 
@@ -145,6 +146,7 @@ export interface HarnessConfig {
   models: z.infer<typeof ModelsConfigSchema>;
   vega: z.infer<typeof VegaConfigSchema>;
   tokenBudget: number;
+  maxCostUsd?: number;
   phases: PhaseSpec[];
 }
 
@@ -280,6 +282,7 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
   models: { plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" },
   vega: DEFAULT_VEGA_CONFIG,
   tokenBudget: 500_000,
+  maxCostUsd: undefined,
   phases: DEFAULT_PHASES,
 };
 
@@ -310,6 +313,7 @@ export function mergeHarnessConfig(user: z.infer<typeof HarnessConfigSchema>): H
     models: user.models,
     vega: user.vega,
     tokenBudget: user.tokenBudget,
+    maxCostUsd: user.maxCostUsd,
     phases,
   };
 }

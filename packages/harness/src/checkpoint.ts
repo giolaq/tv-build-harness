@@ -4,6 +4,7 @@ import { join } from "node:path";
 export interface Checkpoint {
   runId: string;
   creativeSeed?: string;
+  abortReason?: "budget" | "user";
   completedPhases: string[];
   updatedAt: string;
 }

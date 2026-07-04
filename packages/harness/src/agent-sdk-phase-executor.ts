@@ -8,7 +8,7 @@ import type { RunLog } from "./run-log.js";
 import type { SkillLibrary } from "./skill-library.js";
 import { buildDesignContext } from "./phase-prompts.js";
 import { createAgentSdkToolServer } from "./agent-sdk-tools.js";
-import { executeClonePhase, writeHarnessReports, writeSpec } from "./run-context.js";
+import { bookCost, executeClonePhase, isBudgetAbort, writeHarnessReports, writeSpec } from "./run-context.js";
 import { buildAgentPhaseUserMessage, buildSdkSystemPrompt } from "./phase-context.js";
 
 export class AgentSdkPhaseExecutor {
@@ -112,12 +112,16 @@ export class AgentSdkPhaseExecutor {
         if (message.type === "result") {
           if (message.subtype === "success") {
             this.phaseCosts.set(phase, message.total_cost_usd);
+            bookCost(this.ctx.state, message.total_cost_usd);
             if (verbose) console.log(`    [done] ${message.num_turns} turns, $${message.total_cost_usd.toFixed(4)}`);
             return { phase, status: "success", iterations: message.num_turns };
           }
 
           const resultMsg = message as unknown as { result?: string; subtype: string; total_cost_usd?: number };
-          if (resultMsg.total_cost_usd) this.phaseCosts.set(phase, resultMsg.total_cost_usd);
+          if (resultMsg.total_cost_usd) {
+            this.phaseCosts.set(phase, resultMsg.total_cost_usd);
+            bookCost(this.ctx.state, resultMsg.total_cost_usd);
+          }
           if (resultMsg.subtype.includes("max_turns")) {
             return { phase, status: "degraded", iterations: turns, error: "Hit turn limit — partial work done" };
           }
@@ -132,6 +136,10 @@ export class AgentSdkPhaseExecutor {
 
       return { phase, status: "success", iterations: turns };
     } catch (err) {
+      if (isBudgetAbort(err)) {
+        this.ctx.log.error(phase, this.ctx.state.totalIterations, err.message);
+        return { phase, status: "aborted", iterations: 1, error: err.message };
+      }
       const message = err instanceof Error ? err.message : String(err);
       this.ctx.log.error(phase, this.ctx.state.totalIterations, message);
       return { phase, status: "failed", iterations: 1, error: message };
@@ -203,6 +211,7 @@ export class AgentSdkPhaseExecutor {
           resultText = message.result;
           this.ctx.state.tokensUsed += message.usage.input_tokens + message.usage.output_tokens;
           this.phaseCosts.set("plan", message.total_cost_usd);
+          bookCost(this.ctx.state, message.total_cost_usd);
           if (verbose) {
             console.log(`    [done] $${message.total_cost_usd.toFixed(4)}, tokens: in=${message.usage.input_tokens} out=${message.usage.output_tokens}`);
           }
@@ -218,6 +227,9 @@ export class AgentSdkPhaseExecutor {
       writeSpec(this.ctx.state.workdir, this.ctx.state.spec, this.ctx.state.creativeSeed);
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
+      if (isBudgetAbort(err)) {
+        return { phase: "plan", status: "aborted", iterations: 1, error: err.message };
+      }
       const message = err instanceof Error ? err.message : String(err);
       return { phase: "plan", status: "failed", iterations: 1, error: message };
     }
