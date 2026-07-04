@@ -3,7 +3,7 @@ import type { AppSpec, DesignTokens, HarnessInput } from "./types.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import type { PromptLoader } from "./prompt-loader.js";
 
-function generateCreativeSeed(): string {
+export function generateCreativeSeed(seed: string): string {
   const focusTreatments = [
     "Double-ring: two concentric borders with a gap between them (inner = accent, outer = accent at 30% opacity)",
     "Underline slide: a thick accent line slides in from the left beneath the focused card",
@@ -52,12 +52,12 @@ function generateCreativeSeed(): string {
     "Nothing: use generous whitespace only (60px+) with NO visible divider",
   ];
 
-  const focus = focusTreatments[Math.floor(Math.random() * focusTreatments.length)];
-  const atmosphere = atmosphereStyles[Math.floor(Math.random() * atmosphereStyles.length)];
-  const typography = typographyStyles[Math.floor(Math.random() * typographyStyles.length)];
-  const divider = sectionDividers[Math.floor(Math.random() * sectionDividers.length)];
+  const focus = pickSeeded(focusTreatments, seed, "focus");
+  const atmosphere = pickSeeded(atmosphereStyles, seed, "atmosphere");
+  const typography = pickSeeded(typographyStyles, seed, "typography");
+  const divider = pickSeeded(sectionDividers, seed, "divider");
 
-  return `## YOUR CREATIVE DIRECTION (this run's unique identity — follow these exactly)
+  return `## YOUR CREATIVE DIRECTION (creative seed: ${seed})
 
 **Focus treatment:** ${focus}
 **Background atmosphere:** ${atmosphere}
@@ -67,12 +67,26 @@ function generateCreativeSeed(): string {
 These choices are NON-NEGOTIABLE for this run. Do not substitute safer alternatives. Implement them as described. This is what makes this app different from every other generated app.`;
 }
 
+function pickSeeded<T>(items: T[], seed: string, salt: string): T {
+  return items[hashString(`${seed}:${salt}`) % items.length];
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 export interface PhasePromptContext {
   outDir: string;
   input: HarnessInput;
   spec: AppSpec | null;
   harness: HarnessConfig;
   prompts: PromptLoader;
+  creativeSeed: string;
 }
 
 /**
@@ -146,7 +160,7 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
         focusStyle: input.design.focus_style,
         surfaceStyle: input.design.surface_style,
         cardStyle: input.design.card_style,
-        creativeSeed: generateCreativeSeed(),
+        creativeSeed: generateCreativeSeed(ctx.creativeSeed),
       });
 
     case "navigation": {

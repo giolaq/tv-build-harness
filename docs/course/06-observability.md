@@ -14,6 +14,8 @@ Replay is driven by `ReplayClient` in `packages/harness/src/recorder.ts:46` and 
 
 Replay supports file paths and fixture names in `packages/harness/src/index.ts:616`, speed control in `packages/harness/src/index.ts:631`, and token/cost totals in `packages/harness/src/recorder.ts:94`.
 
+Creative UI runs include controlled randomness through a creative seed. The seed is selected at run start, written into `spec.json`, `report.md`, checkpoints, and recordings, and reused by replay fixtures. Fix the seed when you regenerate fixtures or compare verification runs; leave it random when you want demo variety.
+
 The mini harness adds the simplest observable Git trail: each successful phase commits in `packages/mini-harness/src/index.ts:136`.
 
 ## Exercise

@@ -107,6 +107,10 @@ export class ClaudeOrchestrator {
     if (checkpoint) {
       instance.resumedPhases = new Set(checkpoint.completedPhases);
       instance.state.runId = checkpoint.runId;
+      if (checkpoint.creativeSeed) {
+        instance.state.creativeSeed = checkpoint.creativeSeed;
+        instance.input.creativeSeed = checkpoint.creativeSeed;
+      }
     }
     return instance;
   }
@@ -205,7 +209,11 @@ export class ClaudeOrchestrator {
         completedPhases.push(name);
       }
     }
-    saveCheckpoint(this.state.workdir, { runId: this.state.runId, completedPhases });
+    saveCheckpoint(this.state.workdir, {
+      runId: this.state.runId,
+      creativeSeed: this.state.creativeSeed,
+      completedPhases,
+    });
   }
 
   getState(): SessionState {

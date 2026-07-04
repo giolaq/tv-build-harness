@@ -21,6 +21,7 @@ export function promptContext(input: {
     spec: input.state.spec,
     harness: input.harness,
     prompts: input.prompts,
+    creativeSeed: input.state.creativeSeed,
   };
 }
 

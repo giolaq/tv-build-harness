@@ -20,6 +20,8 @@ export interface CreatedRunContext {
 export function createRunContext(input: HarnessInput, options: { tokenBudget?: number } = {}): CreatedRunContext {
   const harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
   const runId = randomUUID().slice(0, 8);
+  const creativeSeed = normalizeCreativeSeed(input.creativeSeed);
+  input.creativeSeed = creativeSeed;
   const outDir = join(input.workdir, "out", runId);
   mkdirSync(outDir, { recursive: true });
   mkdirSync(join(outDir, "screenshots"), { recursive: true });
@@ -30,6 +32,7 @@ export function createRunContext(input: HarnessInput, options: { tokenBudget?: n
     state: {
       runId,
       workdir: outDir,
+      creativeSeed,
       config: input.config,
       spec: null,
       currentPhase: "plan",
@@ -143,6 +146,7 @@ export function writeHarnessReports(input: {
   writeRunReport({
     outDir: input.state.workdir,
     runId: input.state.runId,
+    creativeSeed: input.state.creativeSeed,
     mode: input.mode,
     platforms: input.state.config.platforms,
     templateRepo: input.harness.template.repo,
@@ -156,6 +160,14 @@ export function writeHarnessReports(input: {
   });
 }
 
-export function writeSpec(outDir: string, spec: unknown): void {
-  writeFileSync(join(outDir, "spec.json"), JSON.stringify(spec, null, 2));
+export function writeSpec(outDir: string, spec: unknown, creativeSeed?: string): void {
+  const withSeed = creativeSeed && spec && typeof spec === "object"
+    ? { ...(spec as Record<string, unknown>), creative_seed: creativeSeed }
+    : spec;
+  writeFileSync(join(outDir, "spec.json"), JSON.stringify(withSeed, null, 2));
+}
+
+function normalizeCreativeSeed(seed: string | undefined): string {
+  const trimmed = seed?.trim();
+  return trimmed || randomUUID().slice(0, 12);
 }

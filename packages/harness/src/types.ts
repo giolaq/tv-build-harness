@@ -167,6 +167,7 @@ export const DataBindingSchema = z.object({
 
 export const AppSpecSchema = z.object({
   app_name: z.string(),
+  creative_seed: z.string().optional(),
   theme: z.object({
     mode: z.enum(["dark", "light"]),
     tokens: z.record(z.string(), z.string()).default({}),
@@ -320,6 +321,7 @@ export type ToolHandler = (input: Record<string, unknown>) => Promise<ToolResult
 export interface SessionState {
   runId: string;
   workdir: string;
+  creativeSeed: string;
   config: RunConfig;
   spec: AppSpec | null;
   currentPhase: Phase;
@@ -343,6 +345,7 @@ export interface SkillMeta {
 
 export interface HarnessInput {
   prompt: string;
+  creativeSeed?: string;
   content: ContentManifest;
   brand: BrandKit;
   config: RunConfig;

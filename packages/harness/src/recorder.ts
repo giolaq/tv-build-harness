@@ -4,6 +4,7 @@ import { join, dirname } from "node:path";
 export interface RecordedTurn {
   timestamp: string;
   phase: string;
+  seed?: string;
   request: {
     model: string;
     system: string;
@@ -84,6 +85,10 @@ export class ReplayClient {
 
   get phases(): string[] {
     return [...new Set(this.turns.map((turn) => turn.phase))];
+  }
+
+  get seed(): string | undefined {
+    return this.turns.find((turn) => turn.seed)?.seed;
   }
 
   get totals(): { tokens: number; costUsd: number } {

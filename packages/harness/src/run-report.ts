@@ -6,6 +6,7 @@ import { generateScreenshotReport } from "./screenshot-report.js";
 export interface RunReportInput {
   outDir: string;
   runId: string;
+  creativeSeed?: string;
   mode: string;
   platforms: string[];
   templateRepo: string;
@@ -26,6 +27,7 @@ export function writeRunReport(input: RunReportInput): void {
     `# Run Report`,
     ``,
     `**Run ID:** ${input.runId}`,
+    `**Creative seed:** ${input.creativeSeed ?? "unknown"}`,
     `**Date:** ${new Date().toISOString()}`,
     `**App:** ${spec?.app_name ?? "Unknown"}`,
     `**Platforms:** ${input.platforms.join(", ")}`,

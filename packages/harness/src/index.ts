@@ -157,7 +157,7 @@ function parseInputFile<S extends ZodTypeAny>(path: string, schema: S, label: st
 }
 
 // Flags that consume the next argument as their value.
-const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed"]);
+const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed"]);
 // --resume takes an optional value (a runId, never starting with --).
 const OPTIONAL_VALUE_FLAGS = new Set(["--resume"]);
 
@@ -230,7 +230,15 @@ function loadInputs() {
 
   const harness = loadHarness(inputDir);
 
-  return { inputDir, content, brand, config, design, screenTree, prompt, harness };
+  const creativeSeed = seedFlag();
+
+  return { inputDir, content, brand, config, design, screenTree, prompt, harness, creativeSeed };
+}
+
+function seedFlag(): string | undefined {
+  const equals = args.find((arg) => arg.startsWith("--seed="));
+  const value = equals?.slice("--seed=".length) ?? (args.includes("--seed") ? args[args.indexOf("--seed") + 1] : undefined);
+  return value?.trim() || undefined;
 }
 
 function loadHarness(inputDir: string): HarnessConfig {
@@ -282,14 +290,14 @@ async function runHarness() {
     process.exit(1);
   }
 
-  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig } = loadInputs();
+  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
   const generateOnly = args.includes("--generate-only");
   const useTui = !args.includes("--no-tui") && process.stdout.isTTY;
 
-  const input = { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
+  const input = { prompt, creativeSeed, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
 
   const { StrandsOrchestrator } = await import("./executors/strands.js");
   const { selectActivePhases } = await import("./pipeline-engine.js");
@@ -349,7 +357,7 @@ async function runWithClaude() {
     process.exit(1);
   }
 
-  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig } = loadInputs();
+  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
@@ -372,7 +380,7 @@ async function runWithClaude() {
     }
   }
 
-  const input = { prompt, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
+  const input = { prompt, creativeSeed, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
   const useTui = !args.includes("--no-tui");
 
   const makeOrchestrator = (events: ConstructorParameters<typeof ClaudeOrchestrator>[1]) =>
@@ -623,6 +631,7 @@ async function runReplay() {
   } else {
     console.log(`\n  REPLAY ${client.total} turns from ${recordingPath}`);
     console.log(`  Speed: ${speed}x\n`);
+    if (client.seed) console.log(`  Creative seed: ${client.seed}\n`);
     await replayTurns(client, {
       onTurn: (index, total, phase, tokens, cost) => {
         console.log(`  Turn ${index}/${total} ${phase} — ${tokens} tokens, $${cost.toFixed(4)}`);
@@ -972,6 +981,7 @@ function printUsage() {
     --no-tui               Plain console output instead of the TUI
     --no-record            Disable recording.json creation in claude-run mode
     --speed <x>            With replay: divide stored turn delays by this multiplier
+    --seed <value>         Fix the creative seed for repeatable creative constraints
     --app=<path>           Specify app directory for add-screen/review/test-ui
     --close                Close browser after test-ui completes (default: stay open)
     --fix                  With doctor: print exact fix commands for failing checks

@@ -71,6 +71,20 @@ describe("executor characterization", () => {
     expect(prompt).toContain("https://example.com/template.git");
   });
 
+  it("assembles repeatable creative constraints from the run seed", () => {
+    const prompts = promptLoader({
+      creative_ui: "{{creativeSeed}}",
+    });
+
+    const first = buildPhaseInstructions(phase("creative_ui"), phaseContext(prompts, "demo-seed"));
+    const second = buildPhaseInstructions(phase("creative_ui"), phaseContext(prompts, "demo-seed"));
+    const different = buildPhaseInstructions(phase("creative_ui"), phaseContext(prompts, "other-seed"));
+
+    expect(first).toBe(second);
+    expect(first).toContain("creative seed: demo-seed");
+    expect(different).not.toBe(first);
+  });
+
   it("loads nested skills by frontmatter name and ignores missing skill names", () => {
     const skillsDir = join(TEST_DIR, "skills");
     mkdirSync(join(skillsDir, "rn-demo"), { recursive: true });
@@ -104,10 +118,12 @@ describe("executor characterization", () => {
       phaseCosts: new Map([["plan", 0.01]]),
       spec: appSpec(),
       brand: input().brand,
+      creativeSeed: "demo-seed",
     });
 
     const report = readFileSync(join(TEST_DIR, "report.md"), "utf-8");
     expect(report).toContain("**Run ID:** run-123");
+    expect(report).toContain("**Creative seed:** demo-seed");
     expect(report).toContain("| ✓ plan | success | 1 | $0.0100 |");
     expect(report).toContain("Error: Type error in generated app");
     expect(report).toContain("**Result:** 1/2 phases succeeded");
@@ -121,6 +137,7 @@ describe("executor characterization", () => {
     recorder.record({
       timestamp: "2026-07-03T00:00:00.000Z",
       phase: "branding",
+      seed: "demo-seed",
       request: { model: "claude-test", system: "system", messages: [{ role: "user", content: "prompt" }] },
       response: { type: "message", content: "ok" },
       usage: { input_tokens: 11, output_tokens: 7 },
@@ -130,6 +147,7 @@ describe("executor characterization", () => {
     const loaded = Recorder.load(filePath);
     expect(loaded).toHaveLength(1);
     expect(loaded[0].phase).toBe("branding");
+    expect(loaded[0].seed).toBe("demo-seed");
     expect(loaded[0].request.messages).toEqual([{ role: "user", content: "prompt" }]);
     expect(loaded[0].usage).toEqual({ input_tokens: 11, output_tokens: 7 });
   });
@@ -199,12 +217,13 @@ function phase(name: string, override: Partial<PhaseSpec> = {}): PhaseSpec {
   };
 }
 
-function phaseContext(prompts: PromptLoader): {
+function phaseContext(prompts: PromptLoader, creativeSeed = "test-seed"): {
   outDir: string;
   input: HarnessInput;
   spec: AppSpec;
   harness: HarnessConfig;
   prompts: PromptLoader;
+  creativeSeed: string;
 } {
   return {
     outDir: TEST_DIR,
@@ -223,12 +242,14 @@ function phaseContext(prompts: PromptLoader): {
       },
     }),
     prompts,
+    creativeSeed,
   };
 }
 
 function input(): HarnessInput {
   return {
     prompt: "Make it editorial.",
+    creativeSeed: "test-seed",
     content: {
       title: "Acme Catalog",
       description: "A test catalog",

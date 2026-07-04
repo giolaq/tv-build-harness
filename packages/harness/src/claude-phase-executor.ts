@@ -215,7 +215,8 @@ export class ClaudePhaseExecutor {
       }
 
       this.ctx.state.spec = AppSpecSchema.parse(JSON.parse(jsonMatch[0]));
-      writeSpec(this.ctx.state.workdir, this.ctx.state.spec);
+      this.ctx.state.spec.creative_seed = this.ctx.state.creativeSeed;
+      writeSpec(this.ctx.state.workdir, this.ctx.state.spec, this.ctx.state.creativeSeed);
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -271,6 +272,7 @@ export class ClaudePhaseExecutor {
     this.recorder?.record({
       timestamp: new Date().toISOString(),
       phase,
+      seed: this.ctx.state.creativeSeed,
       request: {
         model,
         system,
