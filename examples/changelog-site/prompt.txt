@@ -1,0 +1,1 @@
+Build a static changelog and release-notes site for Atlas Docs. Treat content.videos as release entries, not media. The site should have a homepage, a releases page, and an about page. It should be plain web output with a local build command, not a TV app.

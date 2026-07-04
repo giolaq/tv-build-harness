@@ -1,0 +1,73 @@
+{
+  "tokenBudget": 120000,
+  "phases": [
+    { "name": "plan", "requiresPlatform": "__disabled__" },
+    { "name": "scaffold", "requiresPlatform": "__disabled__" },
+    { "name": "branding", "requiresPlatform": "__disabled__" },
+    { "name": "content", "requiresPlatform": "__disabled__" },
+    { "name": "screens", "requiresPlatform": "__disabled__" },
+    { "name": "creative_ui", "requiresPlatform": "__disabled__" },
+    { "name": "navigation", "requiresPlatform": "__disabled__" },
+    { "name": "verify", "requiresPlatform": "__disabled__" },
+    { "name": "build_loop", "requiresPlatform": "__disabled__" },
+    { "name": "vega_setup_check", "requiresPlatform": "__disabled__" },
+    { "name": "vega_build_loop", "requiresPlatform": "__disabled__" },
+    { "name": "vega_qa_loop", "requiresPlatform": "__disabled__" },
+    { "name": "vega_perf_trace", "requiresPlatform": "__disabled__" },
+    { "name": "vega_hot_functions", "requiresPlatform": "__disabled__" },
+    { "name": "visual_qa_loop", "requiresPlatform": "__disabled__" },
+    { "name": "android_test_loop", "requiresPlatform": "__disabled__" },
+    {
+      "name": "clone-template",
+      "kind": "agent",
+      "prompt": "changelog_clone_template",
+      "skills": ["changelog-static-site"],
+      "deps": [],
+      "retries": 2,
+      "cwd": "app",
+      "verify": [
+        { "type": "file_exists", "path": "package.json", "error": "Static site package.json was not created" }
+      ],
+      "insertAfter": "plan"
+    },
+    {
+      "name": "inject-content",
+      "kind": "agent",
+      "prompt": "changelog_inject_content",
+      "skills": ["changelog-static-site"],
+      "deps": ["clone-template"],
+      "retries": 2,
+      "cwd": "app",
+      "verify": [
+        { "type": "grep", "path": ".", "pattern": "2.3.0 - Search and Saved Views", "error": "Latest release title is missing from the generated site" }
+      ],
+      "insertAfter": "clone-template"
+    },
+    {
+      "name": "brand",
+      "kind": "agent",
+      "prompt": "changelog_brand",
+      "skills": ["changelog-static-site"],
+      "deps": ["inject-content"],
+      "retries": 2,
+      "cwd": "app",
+      "verify": [
+        { "type": "grep", "path": ".", "pattern": "Atlas Docs", "error": "Brand name is missing from the generated site" }
+      ],
+      "insertAfter": "inject-content"
+    },
+    {
+      "name": "verify-site",
+      "kind": "agent",
+      "prompt": "changelog_verify",
+      "skills": ["changelog-static-site"],
+      "deps": ["brand"],
+      "retries": 1,
+      "cwd": "app",
+      "verify": [
+        { "type": "command", "run": "npm run build", "timeoutMs": 120000, "error": "Static changelog build failed" }
+      ],
+      "insertAfter": "brand"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "platforms": ["web"],
+  "max_iterations": 30,
+  "max_retries_per_phase": 2,
+  "build_locally": true,
+  "eas_profile": "preview",
+  "visual_qa_max_iterations": 1,
+  "visual_qa_pass_threshold": "normal",
+  "use_devtools": false
+}

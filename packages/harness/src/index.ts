@@ -18,6 +18,7 @@ import { SkillLibrary } from "./skill-library.js";
 import { SkillFetcher } from "./skill-fetcher.js";
 import { loadHarnessConfig } from "./harness-config.js";
 import type { HarnessConfig } from "./harness-config.js";
+import { selectActivePhases } from "./pipeline-engine.js";
 import { findResumableRun } from "./checkpoint.js";
 import { resolveClaude, invokeClaude } from "./claude-cli.js";
 import type { PhaseMessage } from "./executors/claude-cli.js";
@@ -74,9 +75,17 @@ function loadEnvFile(): void {
 async function main() {
   switch (command) {
     case "run":
+      if (args.includes("--plan")) {
+        printResolvedPlan();
+        break;
+      }
       await runHarness();
       break;
     case "claude-run":
+      if (args.includes("--plan")) {
+        printResolvedPlan();
+        break;
+      }
       await runWithClaude();
       break;
     case "doctor":
@@ -237,6 +246,17 @@ function loadHarness(inputDir: string): HarnessConfig {
     console.error(`  Failed to load harness config: ${err instanceof Error ? err.message : err}`);
     process.exit(1);
   }
+}
+
+function printResolvedPlan(): void {
+  const { config, harness } = loadInputs();
+  const generateOnly = args.includes("--generate-only");
+  const { active } = selectActivePhases(harness.phases, {
+    platforms: config.platforms,
+    generateOnly,
+  });
+
+  console.log(JSON.stringify(active, null, 2));
 }
 
 function listExamples(): string[] {
@@ -948,6 +968,7 @@ function printUsage() {
     --resume [runId]       Resume a previous run from its checkpoint (latest if no runId)
     --from-phase <name>    Skip phases before <name> (use with --resume to rerun a phase)
     --config <path>        Use a harness.config.json (custom template/phases/skills/models)
+    --plan                 Print the resolved active PhaseSpec[] and exit
     --no-tui               Plain console output instead of the TUI
     --no-record            Disable recording.json creation in claude-run mode
     --speed <x>            With replay: divide stored turn delays by this multiplier

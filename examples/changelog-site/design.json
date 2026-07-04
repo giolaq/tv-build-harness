@@ -1,0 +1,19 @@
+{
+  "template": "minimal",
+  "hero_height": 360,
+  "show_hero": true,
+  "tile_size": "medium",
+  "tile_ratio": "16:9",
+  "spacing": "normal",
+  "corner_radius": 6,
+  "rails_per_screen": 3,
+  "font_scale": 1,
+  "show_descriptions": true,
+  "show_duration": false,
+  "navigation_style": "tabs",
+  "focus_style": "border",
+  "animation_speed": "subtle",
+  "mood": "minimal",
+  "surface_style": "flat",
+  "card_style": "sharp"
+}

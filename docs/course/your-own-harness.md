@@ -97,7 +97,15 @@ Mechanical verification: build command plus grep checks for release names and br
 
 What to log: generated prompts, report, build output, and commits per phase.
 
-The corresponding example is added in the next task as examples/changelog-site.
+Read the worked example:
+
+`examples/changelog-site/harness.config.json`
+
+`examples/changelog-site/content.json`
+
+`skills/changelog-static-site/SKILL.md`
+
+`packages/harness/prompts/changelog_inject_content.md`
 
 ## Source Edit Gaps
 
