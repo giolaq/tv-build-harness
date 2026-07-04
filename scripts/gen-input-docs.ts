@@ -1,13 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import {
-  BrandKitSchema,
-  ContentManifestSchema,
-  DesignTokensSchema,
-  RunConfigSchema,
-  ScreenTreeSchema,
-} from "../packages/harness/src/types.js";
-import { HarnessConfigSchema } from "../packages/harness/src/harness-config.js";
+import { INPUT_SCHEMAS } from "../packages/harness/src/input-schemas.js";
 
 type AnySchema = {
   def?: Record<string, unknown>;
@@ -29,12 +22,7 @@ const outPath = resolve("docs", "inputs.md");
 const check = process.argv.includes("--check");
 
 const sections: Array<{ file: string; schema?: AnySchema; rows?: Row[]; note?: string }> = [
-  { file: "content.json", schema: ContentManifestSchema as unknown as AnySchema },
-  { file: "brand.json", schema: BrandKitSchema as unknown as AnySchema },
-  { file: "screens.json", schema: ScreenTreeSchema as unknown as AnySchema },
-  { file: "design.json", schema: DesignTokensSchema as unknown as AnySchema },
-  { file: "run.json", schema: RunConfigSchema as unknown as AnySchema },
-  { file: "harness.config.json", schema: HarnessConfigSchema as unknown as AnySchema },
+  ...INPUT_SCHEMAS.map((entry) => ({ file: entry.file, schema: entry.schema as unknown as AnySchema })),
   {
     file: "prompt.txt",
     rows: [{ field: "body", type: "string", required: "yes", defaultValue: "", description: "Free-form build brief injected into every run." }],

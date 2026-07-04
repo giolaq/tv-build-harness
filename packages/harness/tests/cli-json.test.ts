@@ -67,6 +67,43 @@ describe("CLI JSON contract", () => {
     expect(payload.results).toEqual(expect.any(Array));
     expect(result.stdout).not.toContain("Pre-flight Check");
   });
+
+  it("lists available schemas as one schema-versioned JSON object", () => {
+    const result = runCli(["src/index.ts", "schema", "--json"]);
+
+    expect(result.status).toBe(0);
+    const payload = parseJson(result.stdout);
+    expect(payload).toMatchObject({
+      schemaVersion: 1,
+      command: "schema",
+      schemas: expect.arrayContaining([
+        expect.objectContaining({ name: "content", file: "content.json" }),
+        expect.objectContaining({ name: "config", file: "harness.config.json" }),
+      ]),
+    });
+  });
+
+  it("prints JSON Schema for a named input schema", () => {
+    const result = runCli(["src/index.ts", "schema", "content", "--json"]);
+
+    expect(result.status).toBe(0);
+    const payload = parseJson(result.stdout);
+    expect(payload).toMatchObject({
+      schemaVersion: 1,
+      command: "schema",
+      name: "content",
+      file: "content.json",
+    });
+    expect(payload.schema).toMatchObject({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      type: "object",
+      properties: {
+        title: expect.objectContaining({ type: "string", description: expect.any(String) }),
+        videos: expect.objectContaining({ type: "array", description: expect.any(String) }),
+      },
+      required: expect.arrayContaining(["title", "description", "categories", "videos", "featured"]),
+    });
+  });
 });
 
 function runCli(args: string[], env: Record<string, string> = {}) {

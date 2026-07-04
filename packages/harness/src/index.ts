@@ -31,7 +31,9 @@ import {
   ScreenTreeSchema,
 } from "./types.js";
 import type { Phase, PhaseResult } from "./types.js";
+import { toJSONSchema } from "zod";
 import type { TypeOf, ZodError, ZodTypeAny } from "zod";
+import { findInputSchema, INPUT_SCHEMAS } from "./input-schemas.js";
 
 loadEnvFile();
 
@@ -98,6 +100,9 @@ async function main() {
       break;
     case "replay":
       await runReplay();
+      break;
+    case "schema":
+      printSchema();
       break;
     case "add-screen":
       await addScreen();
@@ -312,6 +317,80 @@ function listExamples(): string[] {
     }
   }
   return [];
+}
+
+function printSchema(): void {
+  const name = positionalArgs()[0];
+  if (!name) {
+    const schemas = INPUT_SCHEMAS.map(({ name, file, description }) => ({ name, file, description }));
+    if (jsonMode) {
+      writeJson({ command: "schema", schemas });
+      return;
+    }
+
+    console.log("\n  Available input schemas\n");
+    for (const schema of schemas) {
+      console.log(`  ${schema.name.padEnd(8)} ${schema.file.padEnd(22)} ${schema.description}`);
+    }
+    console.log();
+    return;
+  }
+
+  const entry = findInputSchema(name);
+  if (!entry) {
+    fail(
+      "schema_not_found",
+      `Unknown schema "${name}". Available schemas: ${INPUT_SCHEMAS.map((schema) => schema.name).join(", ")}`,
+      "Run tv-build schema to list available schemas.",
+      EXIT.input
+    );
+  }
+
+  const schema = toJSONSchema(entry.schema);
+  if (jsonMode) {
+    writeJson({
+      command: "schema",
+      name: entry.name,
+      file: entry.file,
+      description: entry.description,
+      schema,
+    });
+    return;
+  }
+
+  console.log(`\n  ${entry.file} — ${entry.description}\n`);
+  printJsonSchemaTable(schema as JsonSchemaObject);
+}
+
+interface JsonSchemaObject {
+  type?: string | string[];
+  properties?: Record<string, JsonSchemaObject>;
+  required?: string[];
+  description?: string;
+  default?: unknown;
+  enum?: unknown[];
+  items?: JsonSchemaObject;
+  anyOf?: JsonSchemaObject[];
+  oneOf?: JsonSchemaObject[];
+}
+
+function printJsonSchemaTable(schema: JsonSchemaObject): void {
+  console.log("  Field                 Type                Required  Description");
+  console.log("  --------------------  ------------------  --------  -----------");
+  const required = new Set(schema.required ?? []);
+  for (const [field, property] of Object.entries(schema.properties ?? {})) {
+    console.log(`  ${field.padEnd(20)}  ${jsonSchemaType(property).padEnd(18)}  ${(required.has(field) ? "yes" : "no").padEnd(8)}  ${property.description ?? ""}`);
+  }
+  console.log();
+}
+
+function jsonSchemaType(schema: JsonSchemaObject): string {
+  if (schema.enum) return schema.enum.map(String).join(" | ");
+  if (schema.type === "array") return `${schema.items ? jsonSchemaType(schema.items) : "unknown"}[]`;
+  if (Array.isArray(schema.type)) return schema.type.join(" | ");
+  if (schema.anyOf) return schema.anyOf.map(jsonSchemaType).join(" | ");
+  if (schema.oneOf) return schema.oneOf.map(jsonSchemaType).join(" | ");
+  return schema.type ?? "unknown";
 }
 
 async function runHarness() {
@@ -1125,6 +1204,7 @@ function printUsage() {
     doctor                 Check prerequisites
     vega-doctor            Check Vega SDK, VDA, manifest, and Amazon Devices Builder Tools
     replay <file|fixture>  Replay a recorded run
+    schema [name]          List input schemas or print one schema
 
   Options:
     --example <name>       Use a bundled example (e.g. cooking-shows)
@@ -1170,6 +1250,7 @@ function printUsage() {
     npx tv-build visual-qa
     npx tv-build vega-doctor --fix
     npx tv-build visual-qa --app=out/d811afcb
+    npx tv-build schema content --json
     npx tv-build add-screen Watchlist --type=grid
     npx tv-build add-screen Home --type=hero+rails
     npx tv-build review
