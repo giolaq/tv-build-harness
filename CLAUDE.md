@@ -2,6 +2,8 @@
 
 Use this guide to locate the right file before editing. This repo builds TV apps with a phase-based harness, local skills, and verification checks.
 
+This file is for contributors changing the repository. For agents driving `tv-build` as a CLI tool, read `AGENTS.md`.
+
 ## Repo Map
 
 - `packages/harness/`: CLI, orchestrators, phase engine, prompts, local doctor, and run reports.

@@ -6,6 +6,7 @@ const prefixes = ["packages/", "docs/", "skills/", "examples/", "scripts/"];
 const files = readdirSync(courseDir)
   .filter((file) => file.endsWith(".md"))
   .map((file) => join(courseDir, file));
+files.push("AGENTS.md");
 
 const missing: string[] = [];
 
