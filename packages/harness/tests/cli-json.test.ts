@@ -115,6 +115,34 @@ describe("CLI JSON contract", () => {
       required: expect.arrayContaining(["title", "description", "categories", "videos", "featured"]),
     });
   });
+
+  it("detaches a run and reports failed status when the child exits early", async () => {
+    const detached = runCli(
+      ["src/index.ts", "run", "--example", "changelog-site", "--detach", "--yes", "--json"],
+      { ANTHROPIC_API_KEY: "", OPENROUTER_API_KEY: "", OPENAI_API_KEY: "", AWS_PROFILE: "", AWS_ACCESS_KEY_ID: "" }
+    );
+
+    expect(detached.status).toBe(0);
+    const payload = parseJson(detached.stdout);
+    expect(payload).toMatchObject({
+      schemaVersion: 1,
+      command: "detach",
+      runId: expect.any(String),
+      pid: expect.any(Number),
+      out: expect.any(String),
+    });
+
+    await sleep(500);
+    const status = runCli(["src/index.ts", "status", payload.runId, "--json"]);
+    expect(status.status).toBe(2);
+    const summary = parseJson(status.stdout);
+    expect(summary).toMatchObject({
+      command: "status",
+      runId: payload.runId,
+      state: "failed",
+      stalePid: true,
+    });
+  });
 });
 
 function runCli(args: string[], env: Record<string, string> = {}) {
@@ -129,4 +157,8 @@ function parseJson(stdout: string): Record<string, any> {
   const lines = stdout.trim().split("\n").filter(Boolean);
   expect(lines).toHaveLength(1);
   return JSON.parse(lines[0]);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

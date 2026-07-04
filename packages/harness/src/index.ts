@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync, mkdirSync, openSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 // Prevent perf_hooks buffer overflow warning from long-running TUI renders
 const { performance: perf } = globalThis;
@@ -34,6 +35,7 @@ import type { Phase, PhaseResult } from "./types.js";
 import { toJSONSchema } from "zod";
 import type { TypeOf, ZodError, ZodTypeAny } from "zod";
 import { findInputSchema, INPUT_SCHEMAS } from "./input-schemas.js";
+import { abortRun, initRunStatus, outDirForRun, summarizeRun, updateRunStatus } from "./status.js";
 
 loadEnvFile();
 
@@ -83,11 +85,19 @@ async function main() {
         printResolvedPlan();
         break;
       }
+      if (args.includes("--detach")) {
+        startDetachedRun("run");
+        break;
+      }
       await runHarness();
       break;
     case "claude-run":
       if (args.includes("--plan")) {
         printResolvedPlan();
+        break;
+      }
+      if (args.includes("--detach")) {
+        startDetachedRun("claude-run");
         break;
       }
       await runWithClaude();
@@ -100,6 +110,15 @@ async function main() {
       break;
     case "replay":
       await runReplay();
+      break;
+    case "status":
+      printRunStatus();
+      break;
+    case "logs":
+      await printRunLogs();
+      break;
+    case "abort":
+      abortDetachedRun();
       break;
     case "schema":
       printSchema();
@@ -180,7 +199,7 @@ function humanLog(message = ""): void {
 }
 
 // Flags that consume the next argument as their value.
-const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed", "--max-cost"]);
+const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed", "--max-cost", "--run-id"]);
 // --resume takes an optional value (a runId, never starting with --).
 const OPTIONAL_VALUE_FLAGS = new Set(["--resume"]);
 
@@ -260,10 +279,17 @@ function loadInputs() {
 
   const harness = loadHarness(inputDir);
 
+  const runId = runIdFlag();
   const creativeSeed = seedFlag();
   const maxCostUsd = maxCostFlag(harness.maxCostUsd, exampleFlag >= 0);
 
-  return { inputDir, content, brand, config, design, screenTree, prompt, harness, creativeSeed, maxCostUsd };
+  return { inputDir, content, brand, config, design, screenTree, prompt, harness, runId, creativeSeed, maxCostUsd };
+}
+
+function runIdFlag(): string | undefined {
+  const flag = args.indexOf("--run-id");
+  const value = flag >= 0 ? args[flag + 1] : undefined;
+  return value?.trim() || undefined;
 }
 
 function seedFlag(): string | undefined {
@@ -283,6 +309,48 @@ function maxCostFlag(configValue: number | undefined, isExample: boolean): numbe
     return parsed;
   }
   return configValue ?? (isExample ? undefined : 10);
+}
+
+function startDetachedRun(mode: "run" | "claude-run"): void {
+  if (jsonMode && !args.includes("--yes")) {
+    fail(
+      "confirmation_required",
+      "Detached JSON runs require --yes.",
+      "Show the human `tv-build claude-run --plan --json`, then rerun with --detach --yes.",
+      EXIT.input
+    );
+  }
+
+  const { harness, maxCostUsd } = loadInputs();
+  const runId = randomUUID().slice(0, 8);
+  const outDir = outDirForRun(resolve("."), runId);
+  mkdirSync(outDir, { recursive: true });
+  const logFd = openSync(join(outDir, "run.log"), "a");
+  const childArgs = process.argv.slice(2)
+    .filter((arg) => arg !== "--detach" && arg !== "--yes")
+    .flatMap((arg) => arg === "--json" ? [arg] : [arg]);
+  if (!childArgs.includes("--json")) childArgs.push("--json");
+  if (!childArgs.includes("--no-tui")) childArgs.push("--no-tui");
+  childArgs.push("--run-id", runId);
+
+  const script = process.argv[1];
+  const child = spawn(process.execPath, [...process.execArgv, script, ...childArgs], {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+    env: process.env,
+  });
+  child.unref();
+
+  initRunStatus(outDir, { runId, pid: child.pid, budget: maxCostUsd ?? harness.maxCostUsd });
+
+  if (jsonMode) {
+    writeJson({ command: "detach", runId, pid: child.pid, out: outDir });
+  } else {
+    console.log(`Detached ${mode} run ${runId}`);
+    console.log(`PID: ${child.pid}`);
+    console.log(`Output: ${outDir}`);
+  }
 }
 
 function loadHarness(inputDir: string): HarnessConfig {
@@ -423,14 +491,14 @@ async function runHarness() {
     );
   }
 
-  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed, maxCostUsd } = loadInputs();
+  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, runId, creativeSeed, maxCostUsd } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
   const generateOnly = args.includes("--generate-only");
   const useTui = !jsonMode && !args.includes("--no-tui") && process.stdout.isTTY;
 
-  const input = { prompt, creativeSeed, maxCostUsd, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
+  const input = { runId, prompt, creativeSeed, maxCostUsd, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
 
   const { StrandsOrchestrator } = await import("./executors/strands.js");
   const { selectActivePhases } = await import("./pipeline-engine.js");
@@ -467,8 +535,14 @@ async function runHarness() {
     else if (failed) process.exitCode = EXIT.runFailure;
   } else if (jsonMode) {
     const harness = new StrandsOrchestrator(input, {
-      onPhaseStart: (phase) => writeEvent("phase_start", { phase }),
-      onPhaseEnd: (phase, result, cost) => writeEvent("phase_complete", { phase, result, cost }),
+      onPhaseStart: (phase) => {
+        if (runId) updateRunStatus(outDirForRun(workdir, runId), { state: "running", currentPhase: phase });
+        writeEvent("phase_start", { phase });
+      },
+      onPhaseEnd: (phase, result, cost) => {
+        if (runId) updateRunStatus(outDirForRun(workdir, runId), { currentPhase: phase });
+        writeEvent("phase_complete", { phase, result, cost });
+      },
       onTokens: (tokens) => writeEvent("tokens", { tokens }),
       onIteration: (phase, current, max) => writeEvent("iteration", { phase, current, max }),
       onLog: (msg) => console.error(msg),
@@ -482,6 +556,13 @@ async function runHarness() {
     });
     const { state, outDir } = await harness.run({ generateOnly });
     const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
+    updateRunStatus(outDir, {
+      state: state.abortReason ? "aborted" : failed ? "failed" : "complete",
+      exitCode: state.abortReason ? EXIT.aborted : failed ? EXIT.runFailure : EXIT.success,
+      reason: state.abortReason,
+      costSoFar: state.costSoFar,
+      budget: state.maxCostUsd,
+    });
     writeEvent("run_complete", {
       runId: state.runId,
       outDir,
@@ -527,7 +608,7 @@ async function runWithClaude() {
     );
   }
 
-  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed, maxCostUsd } = loadInputs();
+  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, runId, creativeSeed, maxCostUsd } = loadInputs();
 
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
@@ -553,7 +634,7 @@ async function runWithClaude() {
     }
   }
 
-  const input = { prompt, creativeSeed, maxCostUsd, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
+  const input = { runId, prompt, creativeSeed, maxCostUsd, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
   const useTui = !jsonMode && !args.includes("--no-tui");
 
   const makeOrchestrator = (events: ConstructorParameters<typeof ClaudeOrchestrator>[1]) =>
@@ -602,8 +683,14 @@ async function runWithClaude() {
     else if (failed) process.exitCode = EXIT.runFailure;
   } else if (jsonMode) {
     const harness = makeOrchestrator({
-      onPhaseStart: (phase) => writeEvent("phase_start", { phase }),
-      onPhaseEnd: (phase, result, cost) => writeEvent("phase_complete", { phase, result, cost }),
+      onPhaseStart: (phase) => {
+        if (runId) updateRunStatus(outDirForRun(workdir, runId), { state: "running", currentPhase: phase });
+        writeEvent("phase_start", { phase });
+      },
+      onPhaseEnd: (phase, result, cost) => {
+        if (runId) updateRunStatus(outDirForRun(workdir, runId), { currentPhase: phase });
+        writeEvent("phase_complete", { phase, result, cost });
+      },
       onTokens: (tokens) => writeEvent("tokens", { tokens }),
       onIteration: (phase, current, max) => writeEvent("iteration", { phase, current, max }),
       onLog: (msg) => console.error(msg),
@@ -620,6 +707,13 @@ async function runWithClaude() {
     if (resumeDir) console.error(resumeBanner(harness));
     const { state, outDir } = await harness.run({ generateOnly, fromPhase });
     const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
+    updateRunStatus(outDir, {
+      state: state.abortReason ? "aborted" : failed ? "failed" : "complete",
+      exitCode: state.abortReason ? EXIT.aborted : failed ? EXIT.runFailure : EXIT.success,
+      reason: state.abortReason,
+      costSoFar: state.costSoFar,
+      budget: state.maxCostUsd,
+    });
     writeEvent("run_complete", {
       runId: state.runId,
       outDir,
@@ -921,6 +1015,84 @@ function resolveReplayRecording(arg?: string): string {
     resolve("..", "..", "docs", "course", "fixtures", arg, "recording.json"),
   ];
   return fixtureCandidates.find((candidate) => existsSync(candidate)) ?? fixtureCandidates[0];
+}
+
+function printRunStatus(): void {
+  const runId = positionalArgs()[0];
+  if (!runId) {
+    fail("missing_run_id", "Missing run id for status.", "Run tv-build status <runId>.", EXIT.input);
+  }
+  const summary = summarizeRun(resolve("."), runId);
+  if (!summary) {
+    fail("run_not_found", `Run "${runId}" not found.`, "Check the run id under ./out/.", EXIT.input);
+  }
+  if (jsonMode) {
+    writeJson({ command: "status", ...summary });
+    if (summary.state === "failed") process.exitCode = EXIT.runFailure;
+    if (summary.state === "aborted") process.exitCode = EXIT.aborted;
+    return;
+  }
+  console.log(`Run: ${summary.runId}`);
+  console.log(`State: ${summary.state}${summary.stalePid ? " (stale pid)" : ""}`);
+  if (summary.pid) console.log(`PID: ${summary.pid}`);
+  if (summary.currentPhase) console.log(`Current phase: ${summary.currentPhase}`);
+  console.log(`Completed phases: ${summary.phasesComplete.join(", ") || "none"}`);
+  if (summary.costSoFar !== undefined) console.log(`Cost: $${summary.costSoFar.toFixed(4)}${summary.budget ? ` / $${summary.budget.toFixed(2)}` : ""}`);
+  console.log(`Output: ${summary.outDir}`);
+  if (summary.lastLogLines.length) {
+    console.log("\nLast log lines:");
+    for (const line of summary.lastLogLines) console.log(line);
+  }
+  if (summary.state === "failed") process.exitCode = EXIT.runFailure;
+  if (summary.state === "aborted") process.exitCode = EXIT.aborted;
+}
+
+async function printRunLogs(): Promise<void> {
+  const runId = positionalArgs()[0];
+  if (!runId) {
+    fail("missing_run_id", "Missing run id for logs.", "Run tv-build logs <runId>.", EXIT.input);
+  }
+  const outDir = outDirForRun(resolve("."), runId);
+  const logPath = join(outDir, "run.log");
+  if (!existsSync(logPath)) {
+    fail("log_not_found", `No run.log found for run "${runId}".`, "Check the run id under ./out/.", EXIT.input);
+  }
+
+  const printNew = (() => {
+    let offset = 0;
+    return () => {
+      const content = readFileSync(logPath, "utf-8");
+      const next = content.slice(offset);
+      offset = content.length;
+      if (next) process.stdout.write(next);
+    };
+  })();
+
+  printNew();
+  if (!args.includes("--follow")) return;
+  await new Promise<void>((resolvePromise) => {
+    const timer = setInterval(printNew, 1000);
+    process.on("SIGINT", () => {
+      clearInterval(timer);
+      resolvePromise();
+    });
+  });
+}
+
+function abortDetachedRun(): void {
+  const runId = positionalArgs()[0];
+  if (!runId) {
+    fail("missing_run_id", "Missing run id for abort.", "Run tv-build abort <runId>.", EXIT.input);
+  }
+  const summary = abortRun(resolve("."), runId);
+  if (!summary) {
+    fail("run_not_found", `Run "${runId}" not found.`, "Check the run id under ./out/.", EXIT.input);
+  }
+  if (jsonMode) {
+    writeJson({ command: "abort", ...summary });
+    return;
+  }
+  console.log(`Aborted run ${runId}`);
 }
 
 function replaySpeed(): number {
@@ -1236,6 +1408,9 @@ function printUsage() {
     doctor                 Check prerequisites
     vega-doctor            Check Vega SDK, VDA, manifest, and Amazon Devices Builder Tools
     replay <file|fixture>  Replay a recorded run
+    status <runId>         Read detached run state
+    logs <runId>           Print detached run logs (--follow to tail)
+    abort <runId>          Stop a detached run
     schema [name]          List input schemas or print one schema
 
   Options:
@@ -1245,6 +1420,8 @@ function printUsage() {
     --from-phase <name>    Skip phases before <name> (use with --resume to rerun a phase)
     --config <path>        Use a harness.config.json (custom template/phases/skills/models)
     --plan                 Print the resolved active PhaseSpec[] and exit
+    --detach               Start run/claude-run in the background
+    --yes                  Required with --detach --json after showing the plan to a human
     --json                 Emit machine-readable JSON/NDJSON with schemaVersion=1
     --no-tui               Plain console output instead of the TUI
     --no-record            Disable recording.json creation in claude-run mode
@@ -1277,6 +1454,8 @@ function printUsage() {
   Examples:
     npx tv-build claude-run --example cooking-shows
     npx tv-build claude-run --resume
+    npx tv-build claude-run --example cooking-shows --detach --yes --json
+    npx tv-build status d811afcb --json
     npx tv-build claude-run --resume d811afcb --from-phase navigation
     npx tv-build test-ui
     npx tv-build test-ui --app=./my-app --close

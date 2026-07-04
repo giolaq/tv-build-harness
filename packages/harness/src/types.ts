@@ -347,6 +347,7 @@ export interface SkillMeta {
 // ─── Harness Input (shared by both orchestrators) ────────────────────────────
 
 export interface HarnessInput {
+  runId?: string;
   prompt: string;
   creativeSeed?: string;
   maxCostUsd?: number;

@@ -19,7 +19,7 @@ export interface CreatedRunContext {
 
 export function createRunContext(input: HarnessInput, options: { tokenBudget?: number } = {}): CreatedRunContext {
   const harness = input.harness ?? DEFAULT_HARNESS_CONFIG;
-  const runId = randomUUID().slice(0, 8);
+  const runId = input.runId ?? randomUUID().slice(0, 8);
   const creativeSeed = normalizeCreativeSeed(input.creativeSeed);
   input.creativeSeed = creativeSeed;
   const outDir = join(input.workdir, "out", runId);
