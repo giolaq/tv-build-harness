@@ -52,3 +52,7 @@ jobs:
       - name: Check generated input docs
         if: ${{ matrix.package == 'packages/harness' }}
         run: packages/harness/node_modules/.bin/tsx scripts/gen-input-docs.ts --check
+
+      - name: Check course doc paths
+        if: ${{ matrix.package == 'packages/harness' }}
+        run: packages/harness/node_modules/.bin/tsx scripts/check-course-paths.ts

@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2026-07-03T12:00:00.000Z",
+    "phase": "scaffold",
+    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: scaffold" }] },
+    "response": [
+      {
+        "type": "result",
+        "result": "{\"summary\":\"Created the base three-page Tiny TV site.\",\"files\":{\"out/index.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Tiny TV</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Tiny TV</h1><p>A compact streaming guide.</p></main></body></html>\",\"out/shows.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Shows</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Shows</h1><p>Coming soon.</p></main></body></html>\",\"out/about.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>About</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>About Tiny TV</h1><p>Built by a mini harness.</p></main></body></html>\",\"out/styles.css\":\"body{font-family:system-ui;margin:2rem;background:#101820;color:#f7f7f2}a{color:#7bdff2;margin-right:1rem}main{max-width:720px}\"}}"
+      }
+    ],
+    "usage": { "input_tokens": 100, "output_tokens": 200 }
+  },
+  {
+    "timestamp": "2026-07-03T12:00:01.000Z",
+    "phase": "content",
+    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: content" }] },
+    "response": [
+      {
+        "type": "result",
+        "result": "{\"summary\":\"Added a shows page but missed the required show title.\",\"files\":{\"out/shows.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Shows</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Shows</h1><ul><li>Late Night Rails</li><li>Focus Mode</li></ul></main></body></html>\"}}"
+      }
+    ],
+    "usage": { "input_tokens": 80, "output_tokens": 120 }
+  },
+  {
+    "timestamp": "2026-07-03T12:00:02.000Z",
+    "phase": "content",
+    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: content\n\nPrevious verification failed: Pattern \"Kitchen Stories\" not found in out/shows.html" }] },
+    "response": [
+      {
+        "type": "result",
+        "result": "{\"summary\":\"Fixed the missing required show title after verification feedback.\",\"files\":{\"out/shows.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Shows</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Shows</h1><ul><li>Kitchen Stories</li><li>Late Night Rails</li><li>Focus Mode</li></ul></main></body></html>\",\"out/index.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Tiny TV</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Tiny TV</h1><p>Version 1.0 brings three curated channels to the sofa.</p></main></body></html>\"}}"
+      }
+    ],
+    "usage": { "input_tokens": 95, "output_tokens": 160 }
+  },
+  {
+    "timestamp": "2026-07-03T12:00:03.000Z",
+    "phase": "polish",
+    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: polish" }] },
+    "response": [
+      {
+        "type": "result",
+        "result": "{\"summary\":\"Added keyboard-visible focus styling.\",\"files\":{\"out/styles.css\":\"body{font-family:system-ui;margin:2rem;background:#101820;color:#f7f7f2}a{color:#7bdff2;margin-right:1rem}main{max-width:720px}.focus-ring,a:focus-visible{outline:3px solid #f2c14e;outline-offset:4px}\"}}"
+      }
+    ],
+    "usage": { "input_tokens": 60, "output_tokens": 120 }
+  }
+]
