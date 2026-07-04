@@ -1,7 +1,8 @@
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { HarnessInput, Phase, PhaseResult, SessionState } from "./types.js";
 import { RunLog } from "./run-log.js";
 import { PromptLoader } from "./prompt-loader.js";
@@ -43,7 +44,10 @@ export function createRunContext(input: HarnessInput, options: { tokenBudget?: n
 }
 
 export function createPromptLoader(input: HarnessInput): PromptLoader {
-  const builtinPrompts = join(import.meta.dirname ?? __dirname, "..", "prompts");
+  const moduleDir = typeof import.meta.dirname === "string"
+    ? import.meta.dirname
+    : dirname(fileURLToPath(import.meta.url));
+  const builtinPrompts = join(moduleDir, "..", "prompts");
   return new PromptLoader([join(input.workdir, "prompts"), builtinPrompts]);
 }
 
