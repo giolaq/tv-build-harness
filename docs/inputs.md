@@ -148,3 +148,15 @@ Optional example helper script. It is not parsed by the harness; examples may us
 | --- | --- | --- | --- | --- |
 | `script` | JavaScript | no |  | Project-local content preparation helper. |
 
+## Semantic Validation Warnings
+
+These warnings come from `tv-build validate` and do not change the exit code.
+
+| Code | Description | Hint |
+| --- | --- | --- |
+| `sparse_rail` | A content rail has fewer than 3 items and will look sparse on TV. | Add at least 3 items to each category rail. |
+| `too_many_rails` | More than 10 rails can create excessive navigation depth. | Group or remove rails until the home screen is easier to scan. |
+| `brand_contrast` | Brand foreground/background contrast is below 4.5:1. | Choose a primary or accent color with stronger contrast against the background. |
+| `missing_prompt` | prompt.txt is missing, so the run will use the default generated brief. | Add prompt.txt for project-specific goals and constraints. |
+| `non_https_url` | A committed image or stream URL does not use HTTPS. | Use HTTPS URLs or local checked-in placeholder assets. |
+

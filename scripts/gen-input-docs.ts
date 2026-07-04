@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { INPUT_SCHEMAS } from "../packages/harness/src/input-schemas.js";
+import { LINT_RULES } from "../packages/harness/src/validate.js";
 
 type AnySchema = {
   def?: Record<string, unknown>;
@@ -67,6 +68,15 @@ function render(): string {
     }
     lines.push("");
   }
+
+  lines.push("## Semantic Validation Warnings", "");
+  lines.push("These warnings come from `tv-build validate` and do not change the exit code.", "");
+  lines.push("| Code | Description | Hint |");
+  lines.push("| --- | --- | --- |");
+  for (const rule of LINT_RULES) {
+    lines.push(`| \`${rule.code}\` | ${escapeCell(rule.description)} | ${escapeCell(rule.hint)} |`);
+  }
+  lines.push("");
 
   return `${lines.join("\n")}\n`;
 }

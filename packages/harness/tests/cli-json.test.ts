@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve("../..");
@@ -114,6 +116,36 @@ describe("CLI JSON contract", () => {
       },
       required: expect.arrayContaining(["title", "description", "categories", "videos", "featured"]),
     });
+  });
+
+  it("prints validate output as JSON with warnings and zero exit", () => {
+    const result = runCli(["src/index.ts", "validate", "../../examples/changelog-site", "--json"]);
+
+    expect(result.status).toBe(0);
+    const payload = parseJson(result.stdout);
+    expect(payload).toMatchObject({
+      schemaVersion: 1,
+      command: "validate",
+      errors: [],
+      warnings: expect.any(Array),
+    });
+  });
+
+  it("prints validate errors as JSON and exits 1", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tv-build-cli-validate-"));
+    try {
+      const result = runCli(["src/index.ts", "validate", dir, "--json"]);
+
+      expect(result.status).toBe(1);
+      const payload = parseJson(result.stdout);
+      expect(payload).toMatchObject({
+        schemaVersion: 1,
+        command: "validate",
+        errors: [expect.objectContaining({ code: "missing_content" })],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("detaches a run and reports failed status when the child exits early", async () => {

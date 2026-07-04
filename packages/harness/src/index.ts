@@ -36,6 +36,7 @@ import { toJSONSchema } from "zod";
 import type { TypeOf, ZodError, ZodTypeAny } from "zod";
 import { findInputSchema, INPUT_SCHEMAS } from "./input-schemas.js";
 import { abortRun, initRunStatus, outDirForRun, summarizeRun, updateRunStatus } from "./status.js";
+import { validateInputDir } from "./validate.js";
 
 loadEnvFile();
 
@@ -122,6 +123,9 @@ async function main() {
       break;
     case "schema":
       printSchema();
+      break;
+    case "validate":
+      validateInputsCommand();
       break;
     case "add-screen":
       await addScreen();
@@ -473,6 +477,32 @@ function jsonSchemaType(schema: JsonSchemaObject): string {
   if (schema.anyOf) return schema.anyOf.map(jsonSchemaType).join(" | ");
   if (schema.oneOf) return schema.oneOf.map(jsonSchemaType).join(" | ");
   return schema.type ?? "unknown";
+}
+
+function validateInputsCommand(): void {
+  const inputDir = resolve(positionalArgs()[0] ?? ".");
+  const configFlag = args.indexOf("--config");
+  const explicitConfigPath = configFlag >= 0 && args[configFlag + 1] ? resolve(args[configFlag + 1]) : undefined;
+  const result = validateInputDir(inputDir, explicitConfigPath);
+
+  if (jsonMode) {
+    writeJson({ command: "validate", inputDir, ...result });
+  } else {
+    console.log(`\n  Validation: ${inputDir}\n`);
+    if (result.errors.length === 0) console.log("  Errors: none");
+    else {
+      console.log("  Errors:");
+      for (const error of result.errors) console.log(`  - ${error.code}: ${error.message} (${error.hint})`);
+    }
+    if (result.warnings.length === 0) console.log("  Warnings: none");
+    else {
+      console.log("  Warnings:");
+      for (const warning of result.warnings) console.log(`  - ${warning.code}: ${warning.message} (${warning.hint})`);
+    }
+    console.log();
+  }
+
+  if (result.errors.length > 0) process.exitCode = EXIT.input;
 }
 
 async function runHarness() {
@@ -1412,6 +1442,7 @@ function printUsage() {
     logs <runId>           Print detached run logs (--follow to tail)
     abort <runId>          Stop a detached run
     schema [name]          List input schemas or print one schema
+    validate [dir]         Validate inputs and semantic warnings
 
   Options:
     --example <name>       Use a bundled example (e.g. cooking-shows)
@@ -1463,6 +1494,7 @@ function printUsage() {
     npx tv-build vega-doctor --fix
     npx tv-build visual-qa --app=out/d811afcb
     npx tv-build schema content --json
+    npx tv-build validate ./my-app-inputs --json
     npx tv-build add-screen Watchlist --type=grid
     npx tv-build add-screen Home --type=hero+rails
     npx tv-build review
