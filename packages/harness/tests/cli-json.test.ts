@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -145,6 +145,73 @@ describe("CLI JSON contract", () => {
       });
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("initializes a starter input directory that validates with warnings only", () => {
+    const parent = mkdtempSync(join(tmpdir(), "tv-build-cli-init-"));
+    const dir = join(parent, "inputs");
+    try {
+      const result = runCli(["src/index.ts", "init", dir, "--json"]);
+
+      expect(result.status).toBe(0);
+      const payload = parseJson(result.stdout);
+      expect(payload).toMatchObject({
+        schemaVersion: 1,
+        command: "init",
+        dir,
+        errors: [],
+      });
+      expect(payload.warnings).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "sparse_rail" }),
+      ]));
+      expect(existsSync(join(dir, "content.json"))).toBe(true);
+      expect(existsSync(join(dir, "brand.json"))).toBe(true);
+      expect(existsSync(join(dir, "prompt.txt"))).toBe(true);
+
+      const validate = runCli(["src/index.ts", "validate", dir, "--json"]);
+      expect(validate.status).toBe(0);
+      expect(parseJson(validate.stdout)).toMatchObject({ errors: [] });
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to initialize into a non-empty directory without force", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tv-build-cli-init-non-empty-"));
+    try {
+      writeFileSync(join(dir, "existing.txt"), "keep");
+      const result = runCli(["src/index.ts", "init", dir, "--json"]);
+
+      expect(result.status).toBe(1);
+      const payload = parseJson(result.stdout);
+      expect(payload.error).toMatchObject({
+        code: "init_dir_not_empty",
+        hint: expect.stringContaining("--force"),
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("can initialize from a bundled example", () => {
+    const parent = mkdtempSync(join(tmpdir(), "tv-build-cli-init-example-"));
+    const dir = join(parent, "copied");
+    try {
+      const result = runCli(["src/index.ts", "init", dir, "--from-example", "changelog-site", "--json"]);
+
+      expect(result.status).toBe(0);
+      const payload = parseJson(result.stdout);
+      expect(payload).toMatchObject({
+        schemaVersion: 1,
+        command: "init",
+        dir,
+        errors: [],
+      });
+      const content = JSON.parse(readFileSync(join(dir, "content.json"), "utf-8"));
+      expect(content.title).toBe("Atlas Release Notes");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
     }
   });
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, existsSync, readdirSync, statSync, mkdirSync, openSync } from "node:fs";
+import { cpSync, readFileSync, existsSync, readdirSync, statSync, mkdirSync, openSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { execSync, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -127,6 +127,9 @@ async function main() {
     case "validate":
       validateInputsCommand();
       break;
+    case "init":
+      initInputsCommand();
+      break;
     case "add-screen":
       await addScreen();
       break;
@@ -203,7 +206,7 @@ function humanLog(message = ""): void {
 }
 
 // Flags that consume the next argument as their value.
-const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed", "--max-cost", "--run-id"]);
+const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed", "--max-cost", "--run-id", "--from-example"]);
 // --resume takes an optional value (a runId, never starting with --).
 const OPTIONAL_VALUE_FLAGS = new Set(["--resume"]);
 
@@ -503,6 +506,107 @@ function validateInputsCommand(): void {
   }
 
   if (result.errors.length > 0) process.exitCode = EXIT.input;
+}
+
+function initInputsCommand(): void {
+  const target = positionalArgs()[0];
+  if (!target) {
+    fail("missing_init_dir", "Missing directory for init.", "Run tv-build init <dir>.", EXIT.input);
+  }
+  const dir = resolve(target);
+  const force = args.includes("--force");
+  if (existsSync(dir) && readdirSync(dir).length > 0 && !force) {
+    fail("init_dir_not_empty", `Directory is not empty: ${dir}`, "Pass --force or choose an empty directory.", EXIT.input);
+  }
+
+  const fromExample = valueFlag("--from-example");
+  if (fromExample) {
+    const exampleDir = resolveExampleDir(fromExample);
+    if (!exampleDir) {
+      fail("example_not_found", `Example "${fromExample}" not found.`, "Run tv-build --help to inspect examples.", EXIT.input);
+    }
+    mkdirSync(dir, { recursive: true });
+    cpSync(exampleDir, dir, { recursive: true, force });
+  } else {
+    writeStarterInputs(dir, args.includes("--custom-pipeline"));
+  }
+
+  const result = validateInputDir(dir);
+  if (jsonMode) {
+    writeJson({ command: "init", dir, ...result });
+  } else {
+    console.log(`Initialized ${dir}`);
+    if (result.warnings.length > 0) {
+      console.log("Warnings:");
+      for (const warning of result.warnings) console.log(`- ${warning.code}: ${warning.message}`);
+    }
+  }
+}
+
+function valueFlag(flag: string): string | undefined {
+  const equals = args.find((arg) => arg.startsWith(`${flag}=`));
+  return equals?.slice(flag.length + 1) ?? (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined);
+}
+
+function resolveExampleDir(name: string): string | null {
+  for (const root of [resolve("examples"), resolve("..", "..", "examples")]) {
+    const candidate = join(root, name);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function writeStarterInputs(dir: string, customPipeline: boolean): void {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "content.json"), JSON.stringify({
+    title: "TODO TV",
+    description: "TODO: Describe the audience and catalog in one sentence.",
+    categories: [
+      { id: "featured", name: "Featured", items: ["video-1", "video-2"] },
+      { id: "latest", name: "Latest", items: ["video-2", "video-3"] },
+    ],
+    videos: [
+      starterVideo("video-1", "TODO Pilot"),
+      starterVideo("video-2", "TODO Deep Dive"),
+      starterVideo("video-3", "TODO Highlights"),
+    ],
+    featured: ["video-1"],
+  }, null, 2));
+  writeFileSync(join(dir, "brand.json"), JSON.stringify({
+    name: "TODO TV",
+    primary_color: "#f7f7f2",
+    accent_color: "#f2c14e",
+    background_color: "#101820",
+    font_family: "Inter",
+    logo_path: "",
+    splash_path: "",
+  }, null, 2));
+  writeFileSync(join(dir, "prompt.txt"), [
+    "TODO: State what the app should feel like, who it is for, and what makes it distinct.",
+    "Keep the first run web-focused unless the human asks for platform builds.",
+  ].join("\n"));
+  if (customPipeline) {
+    writeFileSync(join(dir, "harness.config.json"), JSON.stringify({
+      tokenBudget: 500000,
+      maxCostUsd: 10,
+      phases: [
+        { name: "verify", verify: [{ type: "tsc" }] },
+      ],
+    }, null, 2));
+  }
+}
+
+function starterVideo(id: string, title: string): Record<string, unknown> {
+  return {
+    id,
+    title,
+    description: "TODO: Replace this placeholder description.",
+    duration_sec: 600,
+    thumbnail_url: `https://placehold.co/640x360/png?text=${encodeURIComponent(title)}`,
+    stream_url: "https://example.com/placeholder.m3u8",
+    stream_type: "hls",
+    tags: ["todo"],
+  };
 }
 
 async function runHarness() {
@@ -1443,6 +1547,7 @@ function printUsage() {
     abort <runId>          Stop a detached run
     schema [name]          List input schemas or print one schema
     validate [dir]         Validate inputs and semantic warnings
+    init <dir>             Scaffold an input directory
 
   Options:
     --example <name>       Use a bundled example (e.g. cooking-shows)
@@ -1459,6 +1564,9 @@ function printUsage() {
     --speed <x>            With replay: divide stored turn delays by this multiplier
     --seed <value>         Fix the creative seed for repeatable creative constraints
     --max-cost <usd>       Abort if model cost exceeds this amount; non-examples default to 10
+    --from-example <name>  With init: copy a bundled example as the starting point
+    --force                With init: allow overwriting files in a non-empty directory
+    --custom-pipeline      With init: include a starter harness.config.json
     --app=<path>           Specify app directory for add-screen/review/test-ui
     --close                Close browser after test-ui completes (default: stay open)
     --fix                  With doctor: print exact fix commands for failing checks
@@ -1494,6 +1602,7 @@ function printUsage() {
     npx tv-build vega-doctor --fix
     npx tv-build visual-qa --app=out/d811afcb
     npx tv-build schema content --json
+    npx tv-build init ./my-app-inputs
     npx tv-build validate ./my-app-inputs --json
     npx tv-build add-screen Watchlist --type=grid
     npx tv-build add-screen Home --type=hero+rails

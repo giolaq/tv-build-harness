@@ -20,8 +20,6 @@ npx tsx src/index.ts status <runId> --json
 npx tsx src/index.ts logs <runId>
 ```
 
-If `init` is not available in this checkout, create the input directory manually from `examples/changelog-site` or another example, then continue at `validate`.
-
 ## Required Files
 
 - `content.json`: catalog title, description, categories, videos, and featured ids.
@@ -128,7 +126,7 @@ Events:
 - `phase_complete`
 - `run_complete`
 
-Short commands emit one JSON object: `schema`, `validate`, `doctor`, `status`, and `abort`.
+Short commands emit one JSON object: `schema`, `init`, `validate`, `doctor`, `status`, and `abort`.
 
 Errors use:
 
@@ -143,4 +141,3 @@ Schemas cannot tell whether the content density feels good on a TV. Use validati
 Schemas cannot guarantee brand colors are legible in every generated layout. Treat contrast warnings as real.
 
 Put structured catalog facts in `content.json`. Put taste, audience, product goals, and constraints in `prompt.txt`.
-
