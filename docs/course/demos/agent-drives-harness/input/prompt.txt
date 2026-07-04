@@ -1,0 +1,1 @@
+Create a concise web-first TV app for a developer workshop audience. Keep navigation shallow, make release titles easy to scan from a couch, and avoid platform-specific build requirements for the first run.

@@ -1,0 +1,49 @@
+{
+  "title": "Workshop Releases",
+  "description": "A web-first TV channel for release notes, migration clips, and product update briefings.",
+  "categories": [
+    {
+      "id": "featured",
+      "name": "Featured",
+      "items": ["release-001", "release-002"]
+    },
+    {
+      "id": "migration",
+      "name": "Migration",
+      "items": ["release-002", "release-003"]
+    }
+  ],
+  "videos": [
+    {
+      "id": "release-001",
+      "title": "July Platform Update",
+      "description": "A concise walkthrough of the newest platform capabilities.",
+      "duration_sec": 480,
+      "thumbnail_url": "https://placehold.co/640x360/png?text=July+Update",
+      "stream_url": "https://example.com/workshop-release-001.m3u8",
+      "stream_type": "hls",
+      "tags": ["release", "platform"]
+    },
+    {
+      "id": "release-002",
+      "title": "Migration Checklist",
+      "description": "A practical checklist for teams moving to the new workflow.",
+      "duration_sec": 540,
+      "thumbnail_url": "https://placehold.co/640x360/png?text=Migration",
+      "stream_url": "https://example.com/workshop-release-002.m3u8",
+      "stream_type": "hls",
+      "tags": ["migration", "checklist"]
+    },
+    {
+      "id": "release-003",
+      "title": "Developer Office Hours",
+      "description": "A replay of common questions from the developer workshop.",
+      "duration_sec": 720,
+      "thumbnail_url": "https://placehold.co/640x360/png?text=Office+Hours",
+      "stream_url": "https://example.com/workshop-release-003.m3u8",
+      "stream_type": "hls",
+      "tags": ["support", "workshop"]
+    }
+  ],
+  "featured": ["release-001"]
+}

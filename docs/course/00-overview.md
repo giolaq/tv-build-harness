@@ -22,6 +22,16 @@ The important mental model:
 4. Verification turns model output into pass/fail feedback.
 5. Observability makes the run teachable and debuggable.
 
+Lessons:
+
+1. `docs/course/01-why-a-harness.md`
+2. `docs/course/02-strong-priors.md`
+3. `docs/course/03-decomposition.md`
+4. `docs/course/04-knowledge-injection.md`
+5. `docs/course/05-verification.md`
+6. `docs/course/06-observability.md`
+7. `docs/course/07-your-harness-as-a-tool.md`
+
 ## Exercise
 
 Open these three files:
