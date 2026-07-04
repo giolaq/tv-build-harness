@@ -22,6 +22,7 @@ import { selectActivePhases } from "./pipeline-engine.js";
 import { findResumableRun } from "./checkpoint.js";
 import { resolveClaude, invokeClaude } from "./claude-cli.js";
 import type { PhaseMessage } from "./executors/claude-cli.js";
+import { EXIT, isJsonMode, writeError, writeEvent, writeJson } from "./output.js";
 import {
   ContentManifestSchema,
   BrandKitSchema,
@@ -36,6 +37,7 @@ loadEnvFile();
 
 const args = process.argv.slice(2);
 const command = args[0];
+const jsonMode = isJsonMode(args);
 
 function loadEnvFile(): void {
   const candidates = [
@@ -144,16 +146,32 @@ function parseInputFile<S extends ZodTypeAny>(path: string, schema: S, label: st
   try {
     raw = JSON.parse(readFileSync(path, "utf-8"));
   } catch (err) {
-    console.error(`  ${label} is not valid JSON: ${err instanceof Error ? err.message : err}\n  File: ${path}`);
-    process.exit(1);
+    fail("invalid_json", `${label} is not valid JSON: ${err instanceof Error ? err.message : err}`, `Fix ${path} and rerun tv-build ${command ?? "--help"}`, EXIT.input);
   }
   const result = schema.safeParse(raw);
   if (!result.success) {
-    console.error(formatZodError(result.error, label));
-    console.error(`  File: ${path}`);
-    process.exit(1);
+    fail("schema_validation_failed", `${formatZodError(result.error, label)}\nFile: ${path}`, `Run tv-build schema ${schemaNameForLabel(label)} --json to inspect the contract.`, EXIT.input);
   }
   return result.data;
+}
+
+function fail(code: string, message: string, hint: string, exitCode: number = EXIT.input): never {
+  if (jsonMode) {
+    writeError(code, message, hint);
+  } else {
+    console.error(`  ${message}`);
+    console.error(`  Hint: ${hint}`);
+  }
+  process.exit(exitCode);
+}
+
+function schemaNameForLabel(label: string): string {
+  return label.replace(".json", "").replace("harness.config", "config");
+}
+
+function humanLog(message = ""): void {
+  if (jsonMode) console.error(message);
+  else console.log(message);
 }
 
 // Flags that consume the next argument as their value.
@@ -186,8 +204,12 @@ function loadInputs() {
       inputDir = resolve("..", "..", "examples", exampleName);
     }
     if (!existsSync(inputDir)) {
-      console.error(`  Example "${exampleName}" not found. Bundled examples: ${listExamples().join(", ")}`);
-      process.exit(1);
+      fail(
+        "example_not_found",
+        `Example "${exampleName}" not found. Bundled examples: ${listExamples().join(", ")}`,
+        "Run tv-build --help or pass an input directory path.",
+        EXIT.input
+      );
     }
   } else {
     inputDir = resolve(positionalArgs()[0] ?? ".");
@@ -200,9 +222,12 @@ function loadInputs() {
   const designPath = join(inputDir, "design.json");
 
   if (!existsSync(contentPath)) {
-    console.error(`  Missing content.json at ${contentPath}`);
-    console.error(`  The harness needs a content manifest. Start from an example: --example cooking-shows`);
-    process.exit(1);
+    fail(
+      "missing_content",
+      `Missing content.json at ${contentPath}`,
+      "Start from an example: tv-build init my-inputs --from-example cooking-shows",
+      EXIT.input
+    );
   }
 
   const content = parseInputFile(contentPath, ContentManifestSchema, "content.json");
@@ -247,12 +272,16 @@ function loadHarness(inputDir: string): HarnessConfig {
   try {
     const { config, source } = loadHarnessConfig({ explicitPath, inputDir });
     if (source !== "defaults") {
-      console.log(`  Using harness config: ${source}`);
+      humanLog(`  Using harness config: ${source}`);
     }
     return config;
   } catch (err) {
-    console.error(`  Failed to load harness config: ${err instanceof Error ? err.message : err}`);
-    process.exit(1);
+    fail(
+      "invalid_harness_config",
+      `Failed to load harness config: ${err instanceof Error ? err.message : err}`,
+      "Fix harness.config.json or rerun without --config.",
+      EXIT.input
+    );
   }
 }
 
@@ -264,7 +293,16 @@ function printResolvedPlan(): void {
     generateOnly,
   });
 
-  console.log(JSON.stringify(active, null, 2));
+  if (jsonMode) {
+    writeJson({
+      command: "plan",
+      phases: active,
+      count: active.length,
+      generateOnly,
+    });
+  } else {
+    console.log(JSON.stringify(active, null, 2));
+  }
 }
 
 function listExamples(): string[] {
@@ -284,10 +322,12 @@ async function runHarness() {
   const hasAWSAuth = !!process.env.AWS_PROFILE || !!process.env.AWS_ACCESS_KEY_ID;
 
   if (!hasAnthropicKey && !hasOpenRouterKey && !hasOpenAIKey && !hasAWSAuth) {
-    console.error(`  No API credentials found for API mode.`);
-    console.error(`  Set one of: ANTHROPIC_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, or AWS_PROFILE`);
-    console.error(`  Or use claude-run mode, which uses your local Claude CLI session instead.`);
-    process.exit(1);
+    fail(
+      "missing_api_credentials",
+      "No API credentials found for API mode.",
+      "Set one of ANTHROPIC_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, or AWS_PROFILE; or use tv-build claude-run.",
+      EXIT.environment
+    );
   }
 
   const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed } = loadInputs();
@@ -295,7 +335,7 @@ async function runHarness() {
   const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
   const workdir = resolve(".");
   const generateOnly = args.includes("--generate-only");
-  const useTui = !args.includes("--no-tui") && process.stdout.isTTY;
+  const useTui = !jsonMode && !args.includes("--no-tui") && process.stdout.isTTY;
 
   const input = { prompt, creativeSeed, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
 
@@ -330,6 +370,32 @@ async function runHarness() {
     const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
     tui.finish(failed ? "failed" : "done");
     tui.log(`Output: ${outDir}`);
+  } else if (jsonMode) {
+    const harness = new StrandsOrchestrator(input, {
+      onPhaseStart: (phase) => writeEvent("phase_start", { phase }),
+      onPhaseEnd: (phase, result, cost) => writeEvent("phase_complete", { phase, result, cost }),
+      onTokens: (tokens) => writeEvent("tokens", { tokens }),
+      onIteration: (phase, current, max) => writeEvent("iteration", { phase, current, max }),
+      onLog: (msg) => console.error(msg),
+      onPhaseMessage: (phase, msg) => writeEvent("phase_message", { phase, message: msg }),
+    });
+
+    writeEvent("run_start", {
+      mode: "run",
+      platforms: config.platforms,
+      seed: input.creativeSeed,
+    });
+    const { state, outDir } = await harness.run({ generateOnly });
+    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
+    writeEvent("run_complete", {
+      runId: state.runId,
+      outDir,
+      seed: state.creativeSeed,
+      status: failed ? "failed" : "success",
+      tokensUsed: state.tokensUsed,
+      phases: [...state.phaseResults.values()],
+    });
+    if (failed) process.exitCode = EXIT.runFailure;
   } else {
     const harness = new StrandsOrchestrator(input, {
       onPhaseStart: (phase) => console.log(`\n  Phase: ${phase}`),
@@ -351,10 +417,12 @@ async function runHarness() {
 
 async function runWithClaude() {
   if (!resolveClaude()) {
-    console.error(`  The "claude" CLI was not found on this machine — claude-run mode needs it.`);
-    console.error(`  Fix: npm install -g @anthropic-ai/claude-code   (or set CLAUDE_PATH=/path/to/claude)`);
-    console.error(`  Or use API mode instead: tv-build run (requires ANTHROPIC_API_KEY).`);
-    process.exit(1);
+    fail(
+      "missing_claude_cli",
+      `The "claude" CLI was not found on this machine; claude-run mode needs it.`,
+      "Install Claude Code or set CLAUDE_PATH=/path/to/claude. You can also use tv-build run with ANTHROPIC_API_KEY.",
+      EXIT.environment
+    );
   }
 
   const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, creativeSeed } = loadInputs();
@@ -374,14 +442,17 @@ async function runWithClaude() {
     const runId = args[resumeFlag + 1]?.startsWith("--") ? undefined : args[resumeFlag + 1];
     resumeDir = findResumableRun(workdir, runId);
     if (!resumeDir) {
-      console.error(`  No resumable run found${runId ? ` for runId "${runId}"` : ""} under ${join(workdir, "out")}.`);
-      console.error(`  A run is resumable once at least one phase has completed (checkpoint.json exists).`);
-      process.exit(1);
+      fail(
+        "resume_not_found",
+        `No resumable run found${runId ? ` for runId "${runId}"` : ""} under ${join(workdir, "out")}.`,
+        "Run a generation until at least one phase completes, then retry --resume.",
+        EXIT.input
+      );
     }
   }
 
   const input = { prompt, creativeSeed, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
-  const useTui = !args.includes("--no-tui");
+  const useTui = !jsonMode && !args.includes("--no-tui");
 
   const makeOrchestrator = (events: ConstructorParameters<typeof ClaudeOrchestrator>[1]) =>
     resumeDir
@@ -425,6 +496,35 @@ async function runWithClaude() {
     const failed = [...state.phaseResults.values()].some(r => r.status === "failed" && state.phaseResults.keys().next().value === "plan");
     tui.finish(failed ? "failed" : "done");
     tui.log(`Output: ${outDir}`);
+  } else if (jsonMode) {
+    const harness = makeOrchestrator({
+      onPhaseStart: (phase) => writeEvent("phase_start", { phase }),
+      onPhaseEnd: (phase, result, cost) => writeEvent("phase_complete", { phase, result, cost }),
+      onTokens: (tokens) => writeEvent("tokens", { tokens }),
+      onIteration: (phase, current, max) => writeEvent("iteration", { phase, current, max }),
+      onLog: (msg) => console.error(msg),
+      onPhaseMessage: (phase, msg) => writeEvent("phase_message", { phase, message: msg }),
+    });
+
+    writeEvent("run_start", {
+      mode: "claude-run",
+      platforms: config.platforms,
+      seed: input.creativeSeed,
+      resume: resumeDir ?? undefined,
+      fromPhase,
+    });
+    if (resumeDir) console.error(resumeBanner(harness));
+    const { state, outDir } = await harness.run({ generateOnly, fromPhase });
+    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
+    writeEvent("run_complete", {
+      runId: state.runId,
+      outDir,
+      seed: state.creativeSeed,
+      status: failed ? "failed" : "success",
+      tokensUsed: state.tokensUsed,
+      phases: [...state.phaseResults.values()],
+    });
+    if (failed) process.exitCode = EXIT.runFailure;
   } else {
     const harness = makeOrchestrator({});
 
@@ -586,28 +686,83 @@ function loadSkillsForCommand(skillsDir: string, skillNames: string[]): string {
 
 async function runDoctorCommand() {
   const results = await runDoctor({ vega: args.includes("--vega") });
+  if (jsonMode) {
+    const required = results.filter((r) => !r.optional);
+    const failures = required.filter((r) => !r.ok);
+    writeJson({
+      command: "doctor",
+      ok: failures.length === 0,
+      results,
+      error: failures.length > 0
+        ? { code: "doctor_failed", message: `${failures.length} required check(s) failed.`, hint: "Run tv-build doctor --fix." }
+        : undefined,
+    });
+    if (failures.length > 0) process.exitCode = EXIT.environment;
+    return;
+  }
   printDoctorReport(results, args.includes("--fix"));
 }
 
 async function runVegaDoctorCommand() {
   const appDir = args.some((arg) => arg.startsWith("--app=")) ? findAppDir() : undefined;
   const results = await runDoctor({ vega: true, appDir });
+  if (jsonMode) {
+    const required = results.filter((r) => !r.optional);
+    const failures = required.filter((r) => !r.ok);
+    writeJson({
+      command: "vega-doctor",
+      ok: failures.length === 0,
+      results,
+      error: failures.length > 0
+        ? { code: "doctor_failed", message: `${failures.length} required check(s) failed.`, hint: "Run tv-build vega-doctor --fix." }
+        : undefined,
+    });
+    if (failures.length > 0) process.exitCode = EXIT.environment;
+    return;
+  }
   printDoctorReport(results, args.includes("--fix"));
 }
 
 async function runReplay() {
   const recordingPath = resolveReplayRecording(positionalArgs()[0]);
   if (!existsSync(recordingPath)) {
-    console.error(`Recording not found: ${recordingPath}`);
-    process.exit(1);
+    fail(
+      "recording_not_found",
+      `Recording not found: ${recordingPath}`,
+      "Pass a recording path or a fixture name under docs/course/fixtures.",
+      EXIT.input
+    );
   }
 
   const speed = replaySpeed();
   const client = new ReplayClient(recordingPath, { speed });
   const summary = client.totals;
-  const useTui = !args.includes("--no-tui") && process.stdout.isTTY;
+  const useTui = !jsonMode && !args.includes("--no-tui") && process.stdout.isTTY;
 
-  if (useTui) {
+  if (jsonMode) {
+    writeEvent("run_start", {
+      mode: "replay",
+      recording: recordingPath,
+      turns: client.total,
+      seed: client.seed,
+    });
+    await replayTurns(client, {
+      onPhaseStart: (phase) => writeEvent("phase_start", { phase }),
+      onPhaseMessage: (phase, message) => writeEvent("phase_message", { phase, message }),
+      onUsage: (phase, tokens, cost, phaseCost) => writeEvent("tokens", { phase, tokens, cost, phaseCost }),
+      onPhaseEnd: (phase, result) => writeEvent("phase_complete", { phase, result }),
+    });
+    writeEvent("run_complete", {
+      mode: "replay",
+      recording: recordingPath,
+      seed: client.seed,
+      status: "success",
+      turns: client.total,
+      tokens: summary.tokens,
+      cost: summary.costUsd,
+    });
+    return;
+  } else if (useTui) {
     const { TUI } = await import("./tui.js");
     const tui = new TUI(
       "Recorded run",
@@ -978,6 +1133,7 @@ function printUsage() {
     --from-phase <name>    Skip phases before <name> (use with --resume to rerun a phase)
     --config <path>        Use a harness.config.json (custom template/phases/skills/models)
     --plan                 Print the resolved active PhaseSpec[] and exit
+    --json                 Emit machine-readable JSON/NDJSON with schemaVersion=1
     --no-tui               Plain console output instead of the TUI
     --no-record            Disable recording.json creation in claude-run mode
     --speed <x>            With replay: divide stored turn delays by this multiplier
@@ -985,6 +1141,13 @@ function printUsage() {
     --app=<path>           Specify app directory for add-screen/review/test-ui
     --close                Close browser after test-ui completes (default: stay open)
     --fix                  With doctor: print exact fix commands for failing checks
+
+  Exit codes:
+    0 success
+    1 input or validation error
+    2 run failure after retries
+    3 environment or doctor error
+    4 aborted
 
   Customizing (harness.config.json — in your input dir or passed via --config):
     {
@@ -1016,6 +1179,11 @@ function printUsage() {
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err.message ?? err);
-  process.exit(1);
+  const message = err instanceof Error ? err.message : String(err);
+  if (jsonMode) {
+    writeError("fatal_error", message, "Rerun with --help or check out/<runId>/run.log if a run directory was created.");
+  } else {
+    console.error("Fatal error:", message);
+  }
+  process.exit(EXIT.runFailure);
 });

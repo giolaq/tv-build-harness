@@ -64,7 +64,7 @@ export function printDoctorReport(results: CheckResult[], showFixes = false): vo
 
   if (passed < required.length) {
     console.log("  Fix the required issues above before running the harness.\n");
-    process.exitCode = 1;
+    process.exitCode = 3;
   }
 }
 
