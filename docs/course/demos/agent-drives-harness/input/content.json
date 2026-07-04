@@ -20,7 +20,7 @@
       "description": "A concise walkthrough of the newest platform capabilities.",
       "duration_sec": 480,
       "thumbnail_url": "https://placehold.co/640x360/png?text=July+Update",
-      "stream_url": "https://example.com/workshop-release-001.m3u8",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
       "stream_type": "hls",
       "tags": ["release", "platform"]
     },
@@ -30,7 +30,7 @@
       "description": "A practical checklist for teams moving to the new workflow.",
       "duration_sec": 540,
       "thumbnail_url": "https://placehold.co/640x360/png?text=Migration",
-      "stream_url": "https://example.com/workshop-release-002.m3u8",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
       "stream_type": "hls",
       "tags": ["migration", "checklist"]
     },
@@ -40,7 +40,7 @@
       "description": "A replay of common questions from the developer workshop.",
       "duration_sec": 720,
       "thumbnail_url": "https://placehold.co/640x360/png?text=Office+Hours",
-      "stream_url": "https://example.com/workshop-release-003.m3u8",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
       "stream_type": "hls",
       "tags": ["support", "workshop"]
     }

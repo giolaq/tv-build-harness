@@ -56,3 +56,7 @@ jobs:
       - name: Check course doc paths
         if: ${{ matrix.package == 'packages/harness' }}
         run: packages/harness/node_modules/.bin/tsx scripts/check-course-paths.ts
+
+      - name: Check example owner domains
+        if: ${{ matrix.package == 'packages/harness' }}
+        run: packages/harness/node_modules/.bin/tsx scripts/check-example-links.ts --domains-only

@@ -11,3 +11,4 @@ packages/harness/app/
 *.pkg
 .thumbnails/
 video/
+examples/nintendo-games/content.fetched.json

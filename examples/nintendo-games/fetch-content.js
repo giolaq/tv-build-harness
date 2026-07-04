@@ -2,7 +2,7 @@
 
 /**
  * Fetches Nintendo game data from the public Nintendo Europe search API
- * and generates content.json for the TV app harness.
+ * for local experimentation only. Do not commit the fetched output.
  *
  * Usage: node fetch-content.js
  *
@@ -63,7 +63,7 @@ function buildContent(games) {
   const videos = games.map((game, i) => ({
     id: `g${i + 1}`,
     title: game.title.trim(),
-    description: game.excerpt || `A ${(game.pretty_game_categories_txt || ["game"])[0].toLowerCase()} game by ${game.publisher || "Nintendo"}`,
+    description: game.excerpt || `A ${(game.pretty_game_categories_txt || ["game"])[0].toLowerCase()} game by ${game.publisher || "the publisher"}`,
     duration_sec: 0,
     thumbnail_url: game.image_url_h16x9_s || game.image_url_sq_s || "",
     stream_url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
@@ -94,8 +94,8 @@ function buildContent(games) {
   const featured = videos.slice(0, 5).map((v) => v.id);
 
   return {
-    title: "Nintendo Games",
-    description: "Browse and discover Nintendo Switch games",
+    title: "Local Game Catalog",
+    description: "Browse locally fetched game metadata",
     categories,
     videos,
     featured,
@@ -114,7 +114,7 @@ async function main() {
 
   const fs = await import("node:fs");
   const path = await import("node:path");
-  const outPath = path.join(import.meta.dirname || ".", "content.json");
+  const outPath = path.join(import.meta.dirname || ".", "content.fetched.json");
   fs.writeFileSync(outPath, JSON.stringify(content, null, 2) + "\n");
   console.log(`Written to ${outPath}`);
 }

@@ -14,9 +14,9 @@
       "title": "2.3.0 - Search and Saved Views",
       "description": "Added global search, saved filters, keyboard navigation fixes, and faster startup.",
       "duration_sec": 0,
-      "thumbnail_url": "https://example.com/releases/2-3-0.png",
-      "stream_url": "https://example.com/releases/2-3-0",
-      "stream_type": "mp4",
+      "thumbnail_url": "https://placehold.co/800x450/png?text=Release+2.3.0",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": ["release", "search", "navigation", "performance"]
     },
     {
@@ -24,9 +24,9 @@
       "title": "2.2.0 - Team Activity",
       "description": "Added team activity feeds, audit exports, and improved admin permissions.",
       "duration_sec": 0,
-      "thumbnail_url": "https://example.com/releases/2-2-0.png",
-      "stream_url": "https://example.com/releases/2-2-0",
-      "stream_type": "mp4",
+      "thumbnail_url": "https://placehold.co/800x450/png?text=Release+2.2.0",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": ["release", "activity", "admin"]
     },
     {
@@ -34,9 +34,9 @@
       "title": "2.1.0 - Billing Controls",
       "description": "Added usage alerts, invoice previews, and plan-change safeguards.",
       "duration_sec": 0,
-      "thumbnail_url": "https://example.com/releases/2-1-0.png",
-      "stream_url": "https://example.com/releases/2-1-0",
-      "stream_type": "mp4",
+      "thumbnail_url": "https://placehold.co/800x450/png?text=Release+2.1.0",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
       "tags": ["release", "billing", "usage"]
     }
   ],

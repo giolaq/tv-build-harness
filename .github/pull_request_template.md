@@ -26,6 +26,7 @@ Task ID:
 
 - [ ] No new runtime dependencies
 - [ ] New runtime dependencies justified below
+- [ ] Example and fixture changes use synthetic or repo-owned content, not real-IP metadata or owner-hosted media.
 
 Justification:
 

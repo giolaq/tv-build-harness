@@ -1,0 +1,25 @@
+name: Example Hygiene
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install harness dependencies
+        working-directory: packages/harness
+        run: yarn install --frozen-lockfile
+
+      - name: Check committed example links and blocked domains
+        run: packages/harness/node_modules/.bin/tsx scripts/check-example-links.ts
