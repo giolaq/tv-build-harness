@@ -230,7 +230,10 @@ function phaseContext(prompts: PromptLoader, creativeSeed = "test-seed"): {
     input: input(),
     spec: appSpec(),
     harness: mergeHarnessConfig({
-      template: { repo: "https://example.com/template.git" },
+      template: {
+        repo: "https://example.com/template.git",
+        commit: "0123456789abcdef0123456789abcdef01234567",
+      },
       models: { plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" },
       tokenBudget: 500_000,
       vega: {

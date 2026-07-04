@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { ToolDefinition, ToolHandler, ToolResult } from "../types.js";
 
 const DEFAULT_TEMPLATE_REPO = "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git";
+const DEFAULT_TEMPLATE_COMMIT = "5c9dc393fdbc736dc10aa4285b90cf348ff3f846";
 
 export const cloneTemplateDefinition: ToolDefinition = {
   name: "scaffold",
@@ -14,6 +15,7 @@ export const cloneTemplateDefinition: ToolDefinition = {
       target_dir: { type: "string", description: "Directory to clone into" },
       app_name: { type: "string", description: "Name for the new app" },
       repo: { type: "string", description: "Template git repo URL (defaults to the configured template)" },
+      commit: { type: "string", description: "Pinned template commit SHA" },
     },
     required: ["target_dir", "app_name"],
   },
@@ -23,13 +25,19 @@ export const cloneTemplateHandler: ToolHandler = async (input): Promise<ToolResu
   const targetDir = input.target_dir as string;
   const appName = input.app_name as string;
   const TEMPLATE_REPO = (input.repo as string) || process.env.TV_HARNESS_TEMPLATE_REPO || DEFAULT_TEMPLATE_REPO;
+  const TEMPLATE_COMMIT = (input.commit as string) || process.env.TV_HARNESS_TEMPLATE_COMMIT || DEFAULT_TEMPLATE_COMMIT;
 
   if (existsSync(join(targetDir, "package.json"))) {
     return { ok: true, output: `Template already exists at ${targetDir}` };
   }
 
   try {
-    execSync(`git clone --depth 1 ${TEMPLATE_REPO} "${targetDir}"`, {
+    execSync(`git clone ${TEMPLATE_REPO} "${targetDir}"`, {
+      stdio: "pipe",
+      timeout: 60_000,
+    });
+    execSync(`git checkout --detach ${TEMPLATE_COMMIT}`, {
+      cwd: targetDir,
       stdio: "pipe",
       timeout: 60_000,
     });

@@ -63,5 +63,30 @@ describe("input validation warnings", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-});
 
+  it("hints to pin template commits when a config uses a branch", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tv-build-validate-template-"));
+    try {
+      writeFileSync(join(dir, "content.json"), JSON.stringify({
+        title: "Demo",
+        description: "Demo catalog",
+        categories: [],
+        videos: [],
+        featured: [],
+      }));
+      writeFileSync(join(dir, "harness.config.json"), JSON.stringify({
+        template: { repo: "https://github.com/example/template.git", branch: "main" },
+      }));
+
+      const result = validateInputDir(dir);
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          code: "invalid_harness_config",
+          hint: expect.stringContaining("templates check"),
+        }),
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

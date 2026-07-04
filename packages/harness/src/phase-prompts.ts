@@ -105,7 +105,7 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
         appDir,
         appName: spec?.app_name ?? input.content.title,
         templateRepo: harness.template.repo,
-        templateBranch: harness.template.branch ? ` --branch ${harness.template.branch}` : "",
+        templateCommit: harness.template.commit,
       });
 
     case "branding": {
@@ -300,6 +300,7 @@ export function buildPhaseInstructions(phaseSpec: PhaseSpec, ctx: PhasePromptCon
           contentTitle: input.content.title,
           platforms: input.config.platforms.join(", "),
           templateRepo: harness.template.repo,
+          templateCommit: harness.template.commit,
         });
       } catch {
         return null;

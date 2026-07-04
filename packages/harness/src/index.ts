@@ -37,6 +37,7 @@ import type { TypeOf, ZodError, ZodTypeAny } from "zod";
 import { findInputSchema, INPUT_SCHEMAS } from "./input-schemas.js";
 import { abortRun, initRunStatus, outDirForRun, summarizeRun, updateRunStatus } from "./status.js";
 import { validateInputDir } from "./validate.js";
+import { checkTemplates } from "./template-check.js";
 
 loadEnvFile();
 
@@ -130,6 +131,9 @@ async function main() {
     case "init":
       initInputsCommand();
       break;
+    case "templates":
+      templatesCommand();
+      break;
     case "add-screen":
       await addScreen();
       break;
@@ -161,6 +165,26 @@ async function main() {
       printUsage();
       break;
   }
+}
+
+function templatesCommand(): void {
+  if (args[1] !== "check") {
+    fail("unknown_templates_command", "Unknown templates command.", "Run tv-build templates check.", EXIT.input);
+  }
+  const checks = checkTemplates();
+  if (jsonMode) {
+    writeJson({ command: "templates_check", templates: checks });
+  } else {
+    console.log("\n  Template Pins\n");
+    console.log("  Status   Commit                                    Upstream HEAD                              Source");
+    console.log("  -------  ----------------------------------------  ----------------------------------------  ------");
+    for (const item of checks) {
+      console.log(`  ${item.status.padEnd(7)}  ${item.commit.padEnd(40)}  ${(item.upstreamHead ?? "unknown").padEnd(40)}  ${item.source}`);
+      console.log(`           ${item.repo}`);
+    }
+    console.log();
+  }
+  if (checks.some((item) => item.status === "unknown")) process.exitCode = EXIT.environment;
 }
 
 function formatZodError(err: ZodError, file: string): string {
@@ -1548,6 +1572,7 @@ function printUsage() {
     schema [name]          List input schemas or print one schema
     validate [dir]         Validate inputs and semantic warnings
     init <dir>             Scaffold an input directory
+    templates check        Compare pinned template SHAs with upstream HEAD
 
   Options:
     --example <name>       Use a bundled example (e.g. cooking-shows)
@@ -1580,7 +1605,10 @@ function printUsage() {
 
   Customizing (harness.config.json — in your input dir or passed via --config):
     {
-      "template": { "repo": "https://github.com/you/your-tv-template.git" },
+      "template": {
+        "repo": "https://github.com/you/your-tv-template.git",
+        "commit": "0123456789abcdef0123456789abcdef01234567"
+      },
       "models": { "plan": "claude-opus-4-6", "execution": "claude-sonnet-4-6" },
       "tokenBudget": 500000,
       "phases": [
@@ -1604,6 +1632,7 @@ function printUsage() {
     npx tv-build schema content --json
     npx tv-build init ./my-app-inputs
     npx tv-build validate ./my-app-inputs --json
+    npx tv-build templates check --json
     npx tv-build add-screen Watchlist --type=grid
     npx tv-build add-screen Home --type=hero+rails
     npx tv-build review

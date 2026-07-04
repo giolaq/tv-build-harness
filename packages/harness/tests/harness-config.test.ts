@@ -30,6 +30,7 @@ describe("harness config defaults", () => {
     const { config, source } = loadHarnessConfig({ inputDir: TEST_DIR, cwd: TEST_DIR });
     expect(source).toBe("defaults");
     expect(config.template.repo).toContain("AmazonAppDev");
+    expect(config.template.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(config.tokenBudget).toBe(500_000);
     expect(config.maxCostUsd).toBeUndefined();
     expect(config.vega.ttff_ms_max).toBe(1500);
@@ -90,7 +91,10 @@ describe("loadHarnessConfig", () => {
     writeFileSync(
       join(TEST_DIR, "harness.config.json"),
       JSON.stringify({
-        template: { repo: "https://github.com/me/my-template.git", branch: "tv" },
+        template: {
+          repo: "https://github.com/me/my-template.git",
+          commit: "0123456789abcdef0123456789abcdef01234567",
+        },
         models: { plan: "claude-opus-4-6", execution: "claude-haiku-4-5-20251001" },
         vega: { ttff_ms_max: 1200, max_hot_function_percent: 15 },
         tokenBudget: 100_000,
@@ -102,7 +106,7 @@ describe("loadHarnessConfig", () => {
     const { config, source } = loadHarnessConfig({ inputDir: TEST_DIR, cwd: "/tmp" });
     expect(source).toContain("harness.config.json");
     expect(config.template.repo).toBe("https://github.com/me/my-template.git");
-    expect(config.template.branch).toBe("tv");
+    expect(config.template.commit).toBe("0123456789abcdef0123456789abcdef01234567");
     expect(config.models.execution).toBe("claude-haiku-4-5-20251001");
     expect(config.vega.ttff_ms_max).toBe(1200);
     expect(config.vega.max_hot_function_percent).toBe(15);
@@ -123,5 +127,13 @@ describe("loadHarnessConfig", () => {
       JSON.stringify({ phases: [{ name: "x", verify: [{ type: "bogus" }] }] })
     );
     expect(() => loadHarnessConfig({ inputDir: TEST_DIR, cwd: "/tmp" })).toThrow();
+  });
+
+  it("rejects branch refs because templates must be pinned to commits", () => {
+    writeFileSync(
+      join(TEST_DIR, "harness.config.json"),
+      JSON.stringify({ template: { repo: "https://github.com/me/my-template.git", branch: "main" } })
+    );
+    expect(() => loadHarnessConfig({ inputDir: TEST_DIR, cwd: "/tmp" })).toThrow(/commit|branch/);
   });
 });

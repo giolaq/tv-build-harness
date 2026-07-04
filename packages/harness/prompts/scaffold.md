@@ -1,7 +1,8 @@
 Clone the app template and set it up for development.
 
 STEP 1: Clone the template.
-Run: git clone --depth 1{{templateBranch}} {{templateRepo}} "{{appDir}}"
+Run: git clone {{templateRepo}} "{{appDir}}"
+Run: cd "{{appDir}}" && git checkout --detach {{templateCommit}}
 Run: rm -rf "{{appDir}}/.git"
 
 STEP 2: Use the loaded skill to apply any template-specific setup steps.

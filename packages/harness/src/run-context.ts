@@ -87,11 +87,13 @@ export function executeClonePhase(
 
   try {
     onLog?.("Cloning template...");
-    const branchFlag = harness.template.branch ? ` --branch ${harness.template.branch}` : "";
     execSync(
-      `git clone --depth 1${branchFlag} ${harness.template.repo} "${appDir}"`,
+      `git clone ${harness.template.repo} "${appDir}"`,
       { stdio: "pipe", timeout: 60_000 }
     );
+    execSync(`git checkout --detach ${harness.template.commit}`, {
+      cwd: appDir, stdio: "pipe", timeout: 60_000,
+    });
     execSync(`rm -rf "${join(appDir, ".git")}"`, { stdio: "pipe" });
     execSync("git init && git add -A && git commit -m \"initial template\"", {
       cwd: appDir, stdio: "pipe",

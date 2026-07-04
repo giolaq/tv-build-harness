@@ -48,6 +48,7 @@ export class AgentSdkPhaseExecutor {
       appDir,
       workdir: this.ctx.state.workdir,
       templateRepo: this.ctx.harness.template.repo,
+      templateCommit: this.ctx.harness.template.commit,
       skills: this.ctx.skills,
     });
 

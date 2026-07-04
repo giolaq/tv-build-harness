@@ -305,7 +305,10 @@ function harnessInput(workdir: string, skillsDir: string): HarnessInput {
     workdir,
     skillsDir,
     harness: mergeHarnessConfig({
-      template: { repo: "https://example.com/template.git" },
+      template: {
+        repo: "https://example.com/template.git",
+        commit: "0123456789abcdef0123456789abcdef01234567",
+      },
       models: { plan: "claude-plan-test", execution: "claude-exec-test" },
       tokenBudget: 1000,
     }),

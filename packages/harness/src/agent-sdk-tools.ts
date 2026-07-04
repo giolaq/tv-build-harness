@@ -9,9 +9,10 @@ export function createAgentSdkToolServer(input: {
   appDir: string;
   workdir: string;
   templateRepo: string;
+  templateCommit: string;
   skills: SkillLibrary;
 }) {
-  const { appDir, workdir, templateRepo, skills } = input;
+  const { appDir, workdir, templateRepo, templateCommit, skills } = input;
 
   const cloneTemplateTool = tool(
     "scaffold",
@@ -21,7 +22,8 @@ export function createAgentSdkToolServer(input: {
       if (existsSync(join(target_dir, "package.json"))) {
         return { content: [{ type: "text" as const, text: `Template already exists at ${target_dir}` }] };
       }
-      execSync(`git clone --depth 1 ${templateRepo} "${target_dir}"`, { stdio: "pipe", timeout: 60_000 });
+      execSync(`git clone ${templateRepo} "${target_dir}"`, { stdio: "pipe", timeout: 60_000 });
+      execSync(`git checkout --detach ${templateCommit}`, { cwd: target_dir, stdio: "pipe", timeout: 60_000 });
       execSync(`rm -rf "${join(target_dir, ".git")}"`, { stdio: "pipe" });
       execSync(`git init && git add -A && git commit -m "initial template"`, { cwd: target_dir, stdio: "pipe" });
       execSync("yarn install", { cwd: target_dir, stdio: "pipe", timeout: 120_000 });

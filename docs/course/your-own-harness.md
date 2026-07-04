@@ -10,7 +10,7 @@ Edit:
 
 `examples/cooking-shows/harness.config.json`
 
-Use the `template.repo` and optional `template.branch` fields documented in `docs/inputs.md`.
+Use the `template.repo` and required `template.commit` fields documented in `docs/inputs.md`.
 
 If the generated app needs a different template shape, add a skill that explains the template before changing prompts.
 

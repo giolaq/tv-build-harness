@@ -1,6 +1,7 @@
 {
   "template": {
     "repo": "https://github.com/giolaq/kmptv.git",
+    "commit": "db00dd180f13c22e5795d68526d55f5e4b4c5c46",
     "stack": "kmp"
   },
   "phases": [

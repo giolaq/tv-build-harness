@@ -66,7 +66,7 @@ Per-phase commits:
   // Use a proven base instead of asking the model to invent project structure.
   "template": {
     "repo": "https://github.com/your-org/your-template.git",
-    "branch": "main"
+    "commit": "0123456789abcdef0123456789abcdef01234567"
   },
   "models": {
     "plan": "claude-opus-4-6",

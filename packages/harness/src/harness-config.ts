@@ -94,7 +94,15 @@ export const PhaseOverrideSchema = z.object({
 
 export const TemplateConfigSchema = z.object({
   repo: z.string().describe("Git repository for the app template."),
-  branch: z.string().optional().describe("Optional template branch."),
+  commit: z.string().regex(/^[0-9a-f]{40}$/i, "Template commit must be a 40-character git SHA.").describe("Pinned template commit SHA."),
+}).catchall(z.unknown()).superRefine((value, ctx) => {
+  if ("branch" in value) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["branch"],
+      message: "Template branch refs are not allowed. Pin template.commit to a 40-character SHA.",
+    });
+  }
 });
 
 export const ModelProviderConfigSchema = z.object({
@@ -133,6 +141,7 @@ export const DEFAULT_VEGA_CONFIG = {
 export const HarnessConfigSchema = z.object({
   template: TemplateConfigSchema.default({
     repo: "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git",
+    commit: "5c9dc393fdbc736dc10aa4285b90cf348ff3f846",
   }).describe("Template repository configuration."),
   models: ModelsConfigSchema.default({ plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" }).describe("Model selection."),
   vega: VegaConfigSchema.default(DEFAULT_VEGA_CONFIG).describe("Vega build and performance thresholds."),
@@ -278,7 +287,10 @@ Object.assign(DEFAULT_PHASE_SKILLS, {
 });
 
 export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
-  template: { repo: "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git" },
+  template: {
+    repo: "https://github.com/AmazonAppDev/react-native-multi-tv-app-sample.git",
+    commit: "5c9dc393fdbc736dc10aa4285b90cf348ff3f846",
+  },
   models: { plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" },
   vega: DEFAULT_VEGA_CONFIG,
   tokenBudget: 500_000,

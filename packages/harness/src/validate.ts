@@ -54,10 +54,13 @@ export function validateInputDir(inputDir: string, explicitConfigPath?: string):
   try {
     loadHarnessConfig({ explicitPath: explicitConfigPath, inputDir });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     errors.push({
       code: "invalid_harness_config",
-      message: err instanceof Error ? err.message : String(err),
-      hint: "Fix harness.config.json or remove the explicit --config path.",
+      message,
+      hint: message.includes("branch") || message.includes("commit")
+        ? "Pin template.commit to a 40-character SHA, then run tv-build templates check."
+        : "Fix harness.config.json or remove the explicit --config path.",
       file: explicitConfigPath ?? "harness.config.json",
     });
   }
@@ -181,4 +184,3 @@ function relativeLuminance(hex: string): number | null {
   const linear = channels.map((value) => value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
   return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
 }
-

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -212,6 +212,46 @@ describe("CLI JSON contract", () => {
       expect(content.title).toBe("Atlas Release Notes");
     } finally {
       rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("prints template check output as one schema-versioned JSON object", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tv-build-cli-template-check-"));
+    const bin = join(dir, "bin");
+    try {
+      writeFileSync(join(dir, "placeholder"), "");
+      const mkdir = spawnSync("mkdir", ["-p", bin]);
+      expect(mkdir.status).toBe(0);
+      const git = join(bin, "git");
+      writeFileSync(git, [
+        "#!/bin/sh",
+        "if [ \"$1\" = \"ls-remote\" ]; then",
+        "  echo \"5c9dc393fdbc736dc10aa4285b90cf348ff3f846\\tHEAD\"",
+        "  exit 0",
+        "fi",
+        "exit 1",
+        "",
+      ].join("\n"));
+      chmodSync(git, 0o755);
+
+      const result = runCli(["src/index.ts", "templates", "check", "--json"], {
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+      });
+
+      expect(result.status).toBe(0);
+      const payload = parseJson(result.stdout);
+      expect(payload).toMatchObject({
+        schemaVersion: 1,
+        command: "templates_check",
+        templates: expect.arrayContaining([
+          expect.objectContaining({
+            repo: expect.stringContaining("react-native-multi-tv-app-sample"),
+            commit: "5c9dc393fdbc736dc10aa4285b90cf348ff3f846",
+          }),
+        ]),
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 
