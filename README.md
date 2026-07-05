@@ -94,6 +94,17 @@ npx tsx src/index.ts status <runId> --json
 
 See `AGENTS.md` for the full contract and `docs/course/07-your-harness-as-a-tool.md` for the lesson.
 
+Agent-facing features added in v0.3:
+
+- `schema` prints the input contract on demand, including JSON Schema with `--json`.
+- `init` scaffolds a valid input directory or copies an existing example.
+- `validate --json` returns schema errors plus semantic warnings such as sparse rails, weak contrast, insecure image URLs, and instruction-like content.
+- `--plan --json` lets an agent show the resolved phases and cost estimate before it starts work.
+- `--detach --yes --json` starts long runs in the background, while `status`, `logs`, and `abort` let an agent supervise the run without holding a terminal open.
+- Every machine-readable payload includes `schemaVersion: 1`; errors include `code`, `message`, and `hint`.
+- `--max-cost` enforces a hard spend cap, and non-example runs default to a `$10` cap.
+- `--seed` records creative randomness so fixtures, golden runs, and demos are repeatable.
+
 ## What it does, step by step
 
 ```
@@ -200,10 +211,15 @@ out/<runId>/
 ├── app/                   # The app. One git commit per phase.
 ├── spec.json              # What the planner decided
 ├── checkpoint.json        # For --resume
+├── run.log                # Detached run logs
+├── pid                    # Detached process id while running
 ├── report.md              # What passed, what failed, cost
+├── recording.json         # Replayable model transcript when recording is enabled
 ├── screenshots/           # Visual QA captures
 └── prompt-<phase>.md      # What the LLM actually saw (debugging)
 ```
+
+Reports and recordings include the creative seed used for the run. `replay <file|fixture-name>` uses stored turns and does not require `ANTHROPIC_API_KEY` or the Claude CLI.
 
 ## Pipeline customization
 
@@ -234,6 +250,14 @@ You can swap the template, add custom phases, change retry counts:
 |---|---|
 | `run [dir]` | Full pipeline (Strands SDK) |
 | `claude-run [dir]` | Full pipeline (Claude CLI) |
+| `replay <file\|fixture>` | Replay a recorded run without a model key |
+| `schema [name]` | List schemas or print one input schema |
+| `init <dir>` | Scaffold an input directory |
+| `validate <dir>` | Validate inputs and print semantic warnings |
+| `status <runId>` | Read detached run state |
+| `logs <runId> [--follow]` | Print or follow detached run logs |
+| `abort <runId>` | Stop a detached run |
+| `templates check` | Compare pinned template commits with upstream HEAD |
 | `doctor [--fix]` | Check prerequisites |
 | `vega-doctor [--fix]` | Check Kepler, VDA, Vega manifest, and Amazon Devices Builder Tools |
 | `visual-qa` | Re-run visual QA on existing app |
@@ -242,6 +266,13 @@ You can swap the template, add custom phases, change retry counts:
 | `--from-phase <name>` | Jump to a phase |
 | `--generate-only` | No build, no QA |
 | `--no-tui` | Plain output |
+| `--json` | Emit versioned JSON or NDJSON with human logs on stderr |
+| `--plan` | Print resolved phases and estimate without running them |
+| `--detach` | Start a run in the background |
+| `--yes` | Confirm a detached JSON run after the human has seen the plan |
+| `--max-cost <usd>` | Abort cleanly when model cost exceeds the cap |
+| `--seed <value>` | Fix creative constraints for repeatable output |
+| `--from-example <name>` | Use an example as the `init` starting point |
 
 ## Vega optimization
 
