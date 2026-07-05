@@ -1,0 +1,100 @@
+name: Nightly Golden Run
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GOLDEN_SEED: golden-v0.3.0
+    steps:
+      - name: Skip without Anthropic key
+        if: ${{ env.ANTHROPIC_API_KEY == '' }}
+        run: echo "ANTHROPIC_API_KEY is not configured; golden run deferred."
+
+      - name: Checkout
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache Yarn
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-node22-yarn-harness-${{ hashFiles('packages/harness/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node22-yarn-harness-
+
+      - name: Install harness dependencies
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: packages/harness
+        run: yarn install --frozen-lockfile
+
+      - name: Run cooking-shows golden
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: packages/harness
+        run: |
+          npx tsx src/index.ts claude-run --example cooking-shows --generate-only --no-tui --json --seed "$GOLDEN_SEED" | tee golden.ndjson
+
+      - name: Assert report and capture run id
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: packages/harness
+        run: |
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const events = fs.readFileSync("golden.ndjson", "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+          const done = [...events].reverse().find((event) => event.event === "run_complete");
+          if (!done) throw new Error("Missing run_complete event");
+          if (done.status !== "success") throw new Error(`Golden run failed: ${done.status}`);
+          if (!done.runId || !done.outDir) throw new Error("run_complete did not include runId/outDir");
+          if (!fs.existsSync(`${done.outDir}/report.md`)) throw new Error(`Missing report.md in ${done.outDir}`);
+          fs.writeFileSync("golden-run-id.txt", done.runId);
+          fs.writeFileSync("golden-out-dir.txt", done.outDir);
+          NODE
+
+      - name: Typecheck generated app
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        working-directory: packages/harness
+        run: |
+          OUT_DIR="$(cat golden-out-dir.txt)"
+          cd "$OUT_DIR/app"
+          npx tsc --noEmit
+
+      - name: Upload golden artifact
+        if: ${{ env.ANTHROPIC_API_KEY != '' && always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-run-${{ github.run_id }}
+          path: |
+            packages/harness/out/**
+            !packages/harness/out/**/node_modules/**
+          retention-days: 14
+
+      - name: Open or refresh failure issue
+        if: ${{ env.ANTHROPIC_API_KEY != '' && failure() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "Nightly golden run failing";
+            const body = `Nightly golden run failed on ${context.sha}.\n\nWorkflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+            });
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body });
+            }
