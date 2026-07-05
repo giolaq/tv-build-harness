@@ -4,6 +4,8 @@ import { release } from "node:os";
 import { resolveClaude } from "./claude-cli.js";
 import { checkVegaTooling } from "./vega-tools.js";
 
+const DOCTOR_PROBE_TIMEOUT_MS = 2_000;
+
 export interface CheckResult {
   name: string;
   ok: boolean;
@@ -26,7 +28,7 @@ export async function runDoctor(options: { vega?: boolean; appDir?: string } = {
   results.push(claude);
   results.push(checkApiKey(claude.ok));
 
-  results.push(checkCommand("expo", "npx expo --version", "Expo CLI", "npx handles this automatically; ensure network access for first run"));
+  results.push(checkCommand("expo", "npx --yes --no-install expo --version", "Expo CLI", "npx handles this automatically; ensure network access for first run"));
   results.push(checkPuppeteer());
   results.push(checkXcode());
   results.push(checkAndroidSDK());
@@ -97,10 +99,10 @@ export function printDoctorReport(results: CheckResult[], showFixes = false): vo
 
 function checkCommand(name: string, command: string, label: string, fix?: string): CheckResult {
   try {
-    const version = execSync(command, { stdio: "pipe", timeout: 10_000 }).toString().trim();
+    const version = execSync(command, { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString().trim();
     return { name: label, ok: true, detail: version };
-  } catch {
-    return { name: label, ok: false, detail: "Not found.", fix };
+  } catch (err) {
+    return { name: label, ok: false, detail: probeFailureDetail(err), fix };
   }
 }
 
@@ -136,7 +138,7 @@ function checkApiKey(claudeCliAvailable: boolean): CheckResult {
 
 function checkXcode(): CheckResult {
   try {
-    const version = execSync("xcodebuild -version", { stdio: "pipe", timeout: 10_000 }).toString().trim().split("\n")[0];
+    const version = execSync("xcodebuild -version", { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString().trim().split("\n")[0];
     return { name: "Xcode", ok: true, detail: version };
   } catch {
     return {
@@ -161,7 +163,7 @@ function checkAndroidSDK(): CheckResult {
 
 function checkEmulators(): CheckResult {
   try {
-    const avds = execSync("emulator -list-avds", { stdio: "pipe", timeout: 10_000 }).toString().trim();
+    const avds = execSync("emulator -list-avds", { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString().trim();
     // emulator prints INFO/WARNING noise on stdout — AVD names never contain spaces
     const list = avds.split("\n").filter((line) => line.trim() && !line.includes(" "));
     const tvAvd = list.find((a) => /(^|[^a-z])tv|television/i.test(a));
@@ -191,7 +193,7 @@ function checkEmulators(): CheckResult {
 
 function checkTvOSSimulator(): CheckResult {
   try {
-    const output = execSync("xcrun simctl list runtimes -j", { stdio: "pipe", timeout: 10_000 }).toString();
+    const output = execSync("xcrun simctl list runtimes -j", { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString();
     const runtimes = JSON.parse(output);
     const tvos = runtimes.runtimes?.find((r: { name: string }) => r.name.includes("tvOS"));
     if (tvos) {
@@ -213,7 +215,7 @@ function checkTvOSSimulator(): CheckResult {
 
 function checkPuppeteer(): CheckResult {
   try {
-    execSync('node -e "require(\'puppeteer\')"', { stdio: "pipe", timeout: 10_000 });
+    execSync('node -e "require(\'puppeteer\')"', { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS });
     return { name: "Puppeteer", ok: true, detail: "Installed (web screenshots enabled)" };
   } catch {
     return {
@@ -226,7 +228,11 @@ function checkPuppeteer(): CheckResult {
 
 function checkAgentDevice(): CheckResult {
   try {
-    const version = execSync("npx agent-device --version", { stdio: "pipe", timeout: 15_000 }).toString().trim();
+    const version = execSync("npx --yes --no-install agent-device --version", {
+      stdio: "pipe",
+      timeout: DOCTOR_PROBE_TIMEOUT_MS,
+      env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
+    }).toString().trim();
     return { name: "agent-device", ok: true, detail: `v${version} (Android TV emulator testing enabled)` };
   } catch {
     return {
@@ -239,7 +245,7 @@ function checkAgentDevice(): CheckResult {
 
 function checkDiskSpace(): CheckResult {
   try {
-    const output = execSync("df -g / | tail -1", { stdio: "pipe" }).toString();
+    const output = execSync("df -g / | tail -1", { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString();
     const parts = output.trim().split(/\s+/);
     const availGB = parseInt(parts[3], 10);
     if (availGB >= 10) {
@@ -253,4 +259,10 @@ function checkDiskSpace(): CheckResult {
   } catch {
     return { name: "Disk Space", ok: true, detail: "Could not check (non-critical)." };
   }
+}
+
+function probeFailureDetail(err: unknown): string {
+  const signal = (err as { signal?: string }).signal;
+  if (signal === "SIGTERM") return "Timed out.";
+  return "Not found.";
 }

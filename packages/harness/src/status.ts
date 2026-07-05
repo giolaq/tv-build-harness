@@ -80,14 +80,17 @@ export function summarizeRun(baseDir: string, runId: string): RunStatusSummary |
   const checkpoint = loadCheckpoint(outDir);
   const pid = status.pid ?? readPid(outDir);
   const pidAlive = pid ? isPidAlive(pid) : false;
+  const inferredFailure = inferFailureFromLog(outDir);
   const stalePid = (status.state === "running" || status.state === "starting") && Boolean(pid) && !pidAlive;
-  const state: RunLifecycleState = stalePid ? "failed" : status.state;
+  const state: RunLifecycleState = stalePid || inferredFailure ? "failed" : status.state;
 
   return {
     ...status,
     pid,
     state,
     stalePid,
+    exitCode: state === "failed" && status.exitCode === undefined ? 2 : status.exitCode,
+    reason: inferredFailure && !status.reason ? "child_exit" : status.reason,
     phasesComplete: checkpoint?.completedPhases ?? [],
     currentPhase: status.currentPhase ?? currentPhaseFromLog(outDir),
     lastLogLines: tailLog(outDir, 20),
@@ -163,4 +166,26 @@ function readLogLines(outDir: string): string[] {
   const path = join(outDir, "run.log");
   if (!existsSync(path)) return [];
   return readFileSync(path, "utf-8").split("\n").filter(Boolean);
+}
+
+function inferFailureFromLog(outDir: string): boolean {
+  const lines = readLogLines(outDir).slice(-20);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    try {
+      const entry = JSON.parse(line) as {
+        event?: string;
+        status?: string;
+        error?: unknown;
+        state?: string;
+      };
+      if (entry.event === "run_complete" && entry.status === "success") return false;
+      if (entry.event === "run_complete" && entry.status === "failed") return true;
+      if (entry.error) return true;
+      if (entry.state === "failed") return true;
+    } catch {
+      if (/fatal error|missing_api_credentials|doctor_failed|run failed|error:/i.test(line)) return true;
+    }
+  }
+  return false;
 }

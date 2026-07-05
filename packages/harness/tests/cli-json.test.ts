@@ -79,7 +79,7 @@ describe("CLI JSON contract", () => {
     expect(payload.command).toBe("doctor");
     expect(payload.results).toEqual(expect.any(Array));
     expect(result.stdout).not.toContain("Pre-flight Check");
-  });
+  }, 15_000);
 
   it("lists available schemas as one schema-versioned JSON object", () => {
     const result = runCli(["src/index.ts", "schema", "--json"]);

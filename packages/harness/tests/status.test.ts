@@ -49,6 +49,30 @@ describe("detached run status", () => {
     }
   });
 
+  it("marks an early child error log as failed even when the pid still appears alive", () => {
+    const root = mkdtempSync(join(tmpdir(), "tv-build-status-log-failed-"));
+    try {
+      const outDir = join(root, "out", "run-log-failed");
+      initRunStatus(outDir, { runId: "run-log-failed", pid: process.pid });
+      writeFileSync(join(outDir, "run.log"), JSON.stringify({
+        schemaVersion: 1,
+        error: {
+          code: "missing_api_credentials",
+          message: "No API credentials found for API mode.",
+          hint: "Set credentials.",
+        },
+      }) + "\n");
+
+      const summary = summarizeRun(root, "run-log-failed");
+
+      expect(summary?.state).toBe("failed");
+      expect(summary?.exitCode).toBe(2);
+      expect(summary?.reason).toBe("child_exit");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("records abort requests even when the pid is already stale", () => {
     const root = mkdtempSync(join(tmpdir(), "tv-build-status-abort-"));
     try {
@@ -65,4 +89,3 @@ describe("detached run status", () => {
     }
   });
 });
-
