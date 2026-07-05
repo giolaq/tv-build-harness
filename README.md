@@ -1,6 +1,6 @@
 # TV Build
 
-[![CI](https://github.com/giolaq/your-harness-repo/actions/workflows/ci.yml/badge.svg)](https://github.com/giolaq/your-harness-repo/actions/workflows/ci.yml)
+[![CI](https://github.com/giolaq/tv-build-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/giolaq/tv-build-harness/actions/workflows/ci.yml)
 
 You feed it a JSON with your content and some brand colors. It spits out a multi-platform TV app that actually works. D-pad navigation, proper focus states, the whole thing.
 
@@ -71,6 +71,23 @@ Then run:
 npx tsx src/index.ts claude-run /path/to/your-folder
 ```
 
+## Driving tv-build from an AI agent
+
+Give the agent `AGENTS.md` and have it use the CLI contract instead of guessing file shapes:
+
+```bash
+cd packages/harness
+npx tsx src/index.ts schema --json
+npx tsx src/index.ts init my-inputs
+npx tsx src/index.ts validate my-inputs --json
+npx tsx src/index.ts claude-run my-inputs --plan --json
+# Show the human the plan and cost cap.
+npx tsx src/index.ts claude-run my-inputs --detach --yes --json --max-cost 10
+npx tsx src/index.ts status <runId> --json
+```
+
+See `AGENTS.md` for the full contract and `docs/course/07-your-harness-as-a-tool.md` for the lesson.
+
 ## What it does, step by step
 
 ```
@@ -115,11 +132,11 @@ npx tsx src/index.ts claude-run --example cooking-shows --generate-only
 | `cooking-shows` | Indie cooking videos | Warm, editorial, Playfair Display |
 | `music-videos` | Music streaming | Neon glow, glass cards |
 | `fitness-tv` | Workouts | Sharp, athletic, geometric |
-| `sports-live` | Live sports | High-energy, diagonal cuts |
-| `nintendo-games` | Real Nintendo games (from their API) | Playful, red accent, game-box feel |
+| `sports-live` | Synthetic live sports | High-energy, diagonal cuts |
+| `nintendo-games` | Synthetic game catalog; optional local fetch script | Playful, storefront feel |
 | `kmp-cooking-shows` | Same content, Kotlin Multiplatform | Compose TV output |
 
-The `nintendo-games` example pulls real data:
+The committed `nintendo-games` content is synthetic. Its optional fetch script writes ignored local output:
 ```bash
 cd examples/nintendo-games && node fetch-content.js
 ```
@@ -188,7 +205,10 @@ You can swap the template, add custom phases, change retry counts:
 
 ```json
 {
-  "template": { "repo": "https://github.com/you/your-template.git" },
+  "template": {
+    "repo": "https://github.com/you/your-template.git",
+    "commit": "0123456789abcdef0123456789abcdef01234567"
+  },
   "tokenBudget": 500000,
   "phases": [
     { "name": "branding", "retries": 3 },
