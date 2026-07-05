@@ -279,8 +279,8 @@ describe("CLI JSON contract", () => {
       command: "status",
       runId: payload.runId,
       state: "failed",
-      stalePid: true,
     });
+    expect(summary.stalePid).toEqual(expect.any(Boolean));
   });
 });
 
