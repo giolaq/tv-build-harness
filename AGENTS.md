@@ -56,6 +56,7 @@ Warnings do not block a run, but you should address them before asking for confi
 - `brand_contrast`: improve foreground/background contrast.
 - `missing_prompt`: add `prompt.txt`.
 - `non_https_url`: use HTTPS or local placeholder assets.
+- `instruction_like_content`: move app-building instructions out of `content.json` and into `prompt.txt`.
 
 ## Plan Gate
 

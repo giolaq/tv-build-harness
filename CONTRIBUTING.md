@@ -13,8 +13,9 @@ Use small PRs. Run the commands that match the files you changed, and paste the 
    ---
    ```
 3. Write concrete guidance: decisions, commands, file paths, anti-patterns, and failure handling.
-4. Reference the skill from a phase in `packages/harness/src/harness-config.ts` or from an example `harness.config.json`.
-5. How to test it: run `cd packages/harness && yarn test`.
+4. Review it with the skills-as-code checklist in `docs/security.md`.
+5. Reference the skill from a phase in `packages/harness/src/harness-config.ts` or from an example `harness.config.json`.
+6. How to test it: run `cd packages/harness && yarn test`.
 
 ## Add An Example
 

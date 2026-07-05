@@ -159,4 +159,5 @@ These warnings come from `tv-build validate` and do not change the exit code.
 | `brand_contrast` | Brand foreground/background contrast is below 4.5:1. | Choose a primary or accent color with stronger contrast against the background. |
 | `missing_prompt` | prompt.txt is missing, so the run will use the default generated brief. | Add prompt.txt for project-specific goals and constraints. |
 | `non_https_url` | A committed image or stream URL does not use HTTPS. | Use HTTPS URLs or local checked-in placeholder assets. |
+| `instruction_like_content` | A content field looks like an instruction to the model rather than catalog data. | Move app-building instructions to prompt.txt and keep content.json as neutral catalog data. |
 

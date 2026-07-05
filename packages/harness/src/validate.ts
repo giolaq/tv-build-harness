@@ -36,6 +36,7 @@ export const LINT_RULES: LintRule[] = [
   { code: "brand_contrast", description: "Brand foreground/background contrast is below 4.5:1.", hint: "Choose a primary or accent color with stronger contrast against the background." },
   { code: "missing_prompt", description: "prompt.txt is missing, so the run will use the default generated brief.", hint: "Add prompt.txt for project-specific goals and constraints." },
   { code: "non_https_url", description: "A committed image or stream URL does not use HTTPS.", hint: "Use HTTPS URLs or local checked-in placeholder assets." },
+  { code: "instruction_like_content", description: "A content field looks like an instruction to the model rather than catalog data.", hint: "Move app-building instructions to prompt.txt and keep content.json as neutral catalog data." },
 ];
 
 export function validateInputDir(inputDir: string, explicitConfigPath?: string): ValidationResult {
@@ -124,7 +125,10 @@ function readJsonFile<T extends ZodTypeAny>(
 }
 
 function lintContent(content: ContentManifest, warnings: ValidationIssue[]): void {
+  warnIfInstructionLike(content.title, "content.json:title", warnings);
+  warnIfInstructionLike(content.description, "content.json:description", warnings);
   for (const category of content.categories) {
+    warnIfInstructionLike(category.name, `content.json:categories.${category.id}.name`, warnings);
     if (category.items.length < 3) {
       warnings.push(ruleWarning("sparse_rail", `Rail "${category.name}" has ${category.items.length} item(s).`, `content.json:categories.${category.id}.items`));
     }
@@ -134,12 +138,21 @@ function lintContent(content: ContentManifest, warnings: ValidationIssue[]): voi
   }
 
   for (const video of content.videos) {
+    warnIfInstructionLike(video.title, `content.json:videos.${video.id}.title`, warnings);
+    warnIfInstructionLike(video.description, `content.json:videos.${video.id}.description`, warnings);
     for (const field of ["thumbnail_url", "stream_url"] as const) {
       const value = video[field];
       if (isUrl(value) && !value.startsWith("https://")) {
         warnings.push(ruleWarning("non_https_url", `${field} for "${video.id}" is not HTTPS.`, `content.json:videos.${video.id}.${field}`));
       }
     }
+  }
+}
+
+function warnIfInstructionLike(value: string, path: string, warnings: ValidationIssue[]): void {
+  const pattern = /\b(ignore|disregard|override)\b.{0,40}\b(instructions?|system|developer|previous|above)\b|\byou are now\b|\bsystem prompt\b|\bdeveloper message\b|\bexfiltrate\b|\brun\s+(shell|curl|wget|bash)\b/i;
+  if (pattern.test(value)) {
+    warnings.push(ruleWarning("instruction_like_content", `Field looks instruction-like: ${path}.`, path));
   }
 }
 
