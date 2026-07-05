@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { release } from "node:os";
 import { resolveClaude } from "./claude-cli.js";
 import { checkVegaTooling } from "./vega-tools.js";
 
@@ -16,6 +17,7 @@ export interface CheckResult {
 export async function runDoctor(options: { vega?: boolean; appDir?: string } = {}): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
+  results.push(checkHostPlatform());
   results.push(checkCommand("node", "node --version", "Node.js", "Install Node 20+: https://nodejs.org or `brew install node`"));
   results.push(checkCommand("yarn", "yarn --version", "Yarn", "corepack enable && corepack prepare yarn@1.22.21 --activate"));
   results.push(checkCommand("git", "git --version", "Git", "xcode-select --install (macOS) or `brew install git`"));
@@ -38,6 +40,31 @@ export async function runDoctor(options: { vega?: boolean; appDir?: string } = {
   }
 
   return results;
+}
+
+export function checkHostPlatform(platform = process.platform, osRelease = release()): CheckResult {
+  if (platform === "darwin") {
+    return { name: "Host platform", ok: true, detail: "macOS supported" };
+  }
+  if (platform === "linux") {
+    const wsl = /microsoft|wsl/i.test(osRelease);
+    return { name: "Host platform", ok: true, detail: wsl ? "Linux via WSL2 supported" : "Linux supported" };
+  }
+  if (platform === "win32") {
+    return {
+      name: "Host platform",
+      ok: false,
+      detail: "Native Windows is not supported.",
+      fix: "Use WSL2 with Node 22, Yarn, Git, and the repo checked out inside the Linux filesystem.",
+    };
+  }
+  return {
+    name: "Host platform",
+    ok: false,
+    optional: true,
+    detail: `${platform} is unverified.`,
+    fix: "Use macOS or Linux for supported workshop runs.",
+  };
 }
 
 export function printDoctorReport(results: CheckResult[], showFixes = false): void {

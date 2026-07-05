@@ -6,6 +6,8 @@ Teams want AI agents to build software, but a raw prompt is not a development sy
 
 Cost: free (reading).
 
+Supported workshop hosts: macOS and Linux. On Windows, use WSL2. Native Windows is not supported.
+
 ## How this repo solves it
 
 Start with the smallest loop in `packages/mini-harness/src/index.ts:34`. It loads phases, runs each phase, verifies output, retries once, commits progress, and writes a report.
@@ -13,6 +15,8 @@ Start with the smallest loop in `packages/mini-harness/src/index.ts:34`. It load
 Then compare the production engine in `packages/harness/src/pipeline-engine.ts:33`. It keeps phase ordering, dependencies, retries, aborts, filtering, and resume deterministic.
 
 The full CLI enters through `packages/harness/src/index.ts:72`, loads inputs in `packages/harness/src/index.ts:169`, and dispatches to executors under `packages/harness/src/executors/`.
+
+The teaching default is the web target. Native Android TV, Apple TV, Fire TV, and Vega OS paths are optional victory laps after the web exercise works; budget 45-90 minutes for emulator, simulator, SDK, or device setup.
 
 The important mental model:
 

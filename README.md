@@ -14,6 +14,12 @@ TV apps need spatial navigation, 10-foot UI design, focus management, platform-s
 
 TV Build handles all of that. It uses an LLM to plan and build the app phase by phase, but the pipeline itself is deterministic: proven template, mechanical checks, git commits between phases, automated visual QA at the end.
 
+## Supported platforms
+
+Use macOS or Linux for supported local development and workshop runs. Native Windows is not supported; use WSL2 with the repo checked out inside the Linux filesystem.
+
+Course exercises use the web target by default. Android TV, Apple TV, Fire TV, and Vega OS builds are optional platform passes after the web run works. Budget 45-90 minutes for native emulator, simulator, SDK, or device setup.
+
 ## Quick start
 
 ```bash
