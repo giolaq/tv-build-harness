@@ -18,6 +18,8 @@ Creative UI runs include controlled randomness through a creative seed. The seed
 
 The mini harness adds the simplest observable Git trail: each successful phase commits in `packages/mini-harness/src/index.ts:136`.
 
+The full harness uses the same per-phase commit idea to make targeted `refine` safe: a successful refine becomes a new app commit, while a failed refine restores a clean tree. See `docs/course/07-your-harness-as-a-tool.md`.
+
 ## Exercise
 
 Run the retry fixture:

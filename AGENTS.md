@@ -103,6 +103,18 @@ npx tsx src/index.ts abort abcd1234 --json
 
 Never edit files under `out/`. They are generated artifacts, logs, reports, and checkpoints.
 
+## After The Run
+
+When the human asks for a change scoped to one concern, prefer `refine` over a full rerun.
+
+```sh
+npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --plan --json
+# Show the human the phase, instruction, verify checks, seed, and $3 default cap.
+npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes --json --max-cost 3
+```
+
+Use `refine` for phase concerns such as branding, content, screens, creative UI, and navigation. It amends the current app state; it does not rewind to the old phase commit. Never refine without showing the plan. On exit `2`, report the failed checks and stop.
+
 ## Exit Codes
 
 | Code | Meaning | What you do |
@@ -121,6 +133,7 @@ Events:
 
 - `run_start`
 - `phase_start`
+- `verify_failed`
 - `phase_message`
 - `tokens`
 - `iteration`

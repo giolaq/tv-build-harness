@@ -38,6 +38,7 @@ import { findInputSchema, INPUT_SCHEMAS } from "./input-schemas.js";
 import { abortRun, initRunStatus, outDirForRun, summarizeRun, updateRunStatus } from "./status.js";
 import { validateInputDir } from "./validate.js";
 import { checkTemplates } from "./template-check.js";
+import { buildRefinePlan, executeRefine, RefineInputError } from "./refine.js";
 
 loadEnvFile();
 
@@ -121,6 +122,13 @@ async function main() {
       break;
     case "abort":
       abortDetachedRun();
+      break;
+    case "refine":
+      if (args.includes("--detach")) {
+        startDetachedRefine();
+        break;
+      }
+      await runRefineCommand();
       break;
     case "schema":
       printSchema();
@@ -230,7 +238,7 @@ function humanLog(message = ""): void {
 }
 
 // Flags that consume the next argument as their value.
-const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed", "--max-cost", "--run-id", "--from-example"]);
+const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed", "--max-cost", "--run-id", "--from-example", "--phase"]);
 // --resume takes an optional value (a runId, never starting with --).
 const OPTIONAL_VALUE_FLAGS = new Set(["--resume"]);
 
@@ -342,6 +350,25 @@ function maxCostFlag(configValue: number | undefined, isExample: boolean): numbe
   return configValue ?? (isExample ? undefined : 10);
 }
 
+function refineMaxCostFlag(): number {
+  const equals = args.find((arg) => arg.startsWith("--max-cost="));
+  const value = equals?.slice("--max-cost=".length) ?? (args.includes("--max-cost") ? args[args.indexOf("--max-cost") + 1] : undefined);
+  if (value !== undefined) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      fail("invalid_max_cost", `Invalid --max-cost value "${value}".`, "Pass a positive dollar amount, for example --max-cost 3.", EXIT.input);
+    }
+    return parsed;
+  }
+  return 3;
+}
+
+function phaseFlag(): string | undefined {
+  const equals = args.find((arg) => arg.startsWith("--phase="));
+  const value = equals?.slice("--phase=".length) ?? (args.includes("--phase") ? args[args.indexOf("--phase") + 1] : undefined);
+  return value?.trim() || undefined;
+}
+
 function startDetachedRun(mode: "run" | "claude-run"): void {
   if (jsonMode && !args.includes("--yes")) {
     fail(
@@ -381,6 +408,59 @@ function startDetachedRun(mode: "run" | "claude-run"): void {
     console.log(`Detached ${mode} run ${runId}`);
     console.log(`PID: ${child.pid}`);
     console.log(`Output: ${outDir}`);
+  }
+}
+
+function startDetachedRefine(): void {
+  if (jsonMode && !args.includes("--yes")) {
+    fail(
+      "confirmation_required",
+      "Detached JSON refines require --yes.",
+      "Show the human `tv-build refine <target> --phase <phase> \"instruction\" --plan --json`, then rerun with --detach --yes.",
+      EXIT.input
+    );
+  }
+
+  const target = positionalArgs()[0];
+  const instruction = positionalArgs().slice(1).join(" ").trim();
+  if (!target || !instruction) {
+    fail("missing_refine_args", "Missing refine target or instruction.", "Run tv-build refine <runId|appDir> --phase branding \"warmer hero\" --plan.", EXIT.input);
+  }
+
+  let plan;
+  try {
+    plan = buildRefinePlan({
+      target,
+      instruction,
+      phase: phaseFlag(),
+      rootDir: resolve("."),
+      skillsDir: resolveSkillsDir(),
+      maxCostUsd: refineMaxCostFlag(),
+    });
+  } catch (err) {
+    if (err instanceof RefineInputError) fail(err.code, err.message, err.hint, EXIT.input);
+    throw err;
+  }
+
+  const logFd = openSync(join(plan.outDir, "run.log"), "a");
+  const childArgs = process.argv.slice(2).filter((arg) => arg !== "--detach");
+  if (!childArgs.includes("--json")) childArgs.push("--json");
+  const script = process.argv[1];
+  const child = spawn(process.execPath, [...process.execArgv, script, ...childArgs], {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+    env: process.env,
+  });
+  child.unref();
+
+  initRunStatus(plan.outDir, { runId: plan.runId, pid: child.pid, budget: plan.maxCostUsd });
+  if (jsonMode) {
+    writeJson({ command: "detach", runId: plan.runId, pid: child.pid, out: plan.outDir });
+  } else {
+    console.log(`Detached refine for run ${plan.runId}`);
+    console.log(`PID: ${child.pid}`);
+    console.log(`Output: ${plan.outDir}`);
   }
 }
 
@@ -910,6 +990,88 @@ async function runWithClaude() {
     if (state.abortReason) process.exitCode = EXIT.aborted;
     else if (failed) process.exitCode = EXIT.runFailure;
   }
+}
+
+async function runRefineCommand() {
+  const target = positionalArgs()[0];
+  const instruction = positionalArgs().slice(1).join(" ").trim();
+  if (!target || !instruction) {
+    fail("missing_refine_args", "Missing refine target or instruction.", "Run tv-build refine <runId|appDir> --phase branding \"warmer hero\" --plan.", EXIT.input);
+  }
+
+  const phase = phaseFlag();
+  const maxCostUsd = refineMaxCostFlag();
+  const skillsDir = resolveSkillsDir();
+  let plan;
+  try {
+    plan = buildRefinePlan({
+      target,
+      instruction,
+      phase,
+      rootDir: resolve("."),
+      skillsDir,
+      maxCostUsd,
+      json: jsonMode,
+      yes: args.includes("--yes"),
+    });
+  } catch (err) {
+    if (err instanceof RefineInputError) fail(err.code, err.message, err.hint, EXIT.input);
+    throw err;
+  }
+
+  if (args.includes("--plan")) {
+    if (jsonMode) {
+      writeJson({ ...plan });
+    } else {
+      console.log("\n  Refine plan\n");
+      console.log(`  Run: ${plan.runId}`);
+      console.log(`  App: ${plan.appDir}`);
+      console.log(`  Phase: ${plan.phase}${plan.inferredPhase ? " (inferred)" : ""}`);
+      console.log(`  Seed: ${plan.seed}`);
+      console.log(`  Cost cap: $${plan.maxCostUsd.toFixed(2)}`);
+      console.log(`  Verify checks: ${plan.verify.length || "none"}`);
+      console.log(`  Instruction: ${plan.instruction}`);
+      console.log(`  Non-goal: ${plan.nonGoal}`);
+      console.log();
+    }
+    return;
+  }
+
+  if (plan.inferredPhase && !args.includes("--yes")) {
+    fail(
+      "phase_confirmation_required",
+      `Refine inferred phase "${plan.phase}".`,
+      `Rerun with --phase ${plan.phase}, or show the plan and pass --yes to confirm the inferred phase.`,
+      EXIT.input
+    );
+  }
+
+  let result;
+  try {
+    result = await executeRefine({
+      target,
+      instruction,
+      phase,
+      rootDir: resolve("."),
+      skillsDir,
+      maxCostUsd,
+      json: jsonMode,
+      yes: args.includes("--yes"),
+    });
+  } catch (err) {
+    if (err instanceof RefineInputError) fail(err.code, err.message, err.hint, EXIT.input);
+    throw err;
+  }
+
+  if (!jsonMode) {
+    console.log(`\n  Refine ${result.status}: ${result.phase}`);
+    console.log(`  Output: ${result.outDir}`);
+    console.log(`  Cost: $${result.costUsd.toFixed(4)}`);
+    if (result.error) console.log(`  Error: ${result.error}`);
+  }
+
+  if (result.status === "aborted") process.exitCode = EXIT.aborted;
+  else if (result.status === "failed") process.exitCode = EXIT.runFailure;
 }
 
 
@@ -1562,6 +1724,7 @@ function printUsage() {
     install-skills         Fetch configured remote skills into the local cache
     update-skills          Refresh configured remote skills
     add-screen <Name>      Add a screen to the generated app (--type=grid|hero+rails|detail|...)
+    refine <target> "..."  Amend one phase concern on the current app state
     review [scope]         Review the generated app code for TV-specific issues
     doctor                 Check prerequisites
     vega-doctor            Check Vega SDK, VDA, manifest, and Amazon Devices Builder Tools
@@ -1579,16 +1742,17 @@ function printUsage() {
     --generate-only        Skip simulator build phases
     --resume [runId]       Resume a previous run from its checkpoint (latest if no runId)
     --from-phase <name>    Skip phases before <name> (use with --resume to rerun a phase)
+    --phase <name>         With refine: target a phase concern such as branding or creative_ui
     --config <path>        Use a harness.config.json (custom template/phases/skills/models)
     --plan                 Print the resolved active PhaseSpec[] and exit
-    --detach               Start run/claude-run in the background
-    --yes                  Required with --detach --json after showing the plan to a human
+    --detach               Start run/claude-run/refine in the background
+    --yes                  Required with --detach --json/refine --json after showing the plan to a human
     --json                 Emit machine-readable JSON/NDJSON with schemaVersion=1
     --no-tui               Plain console output instead of the TUI
     --no-record            Disable recording.json creation in claude-run mode
     --speed <x>            With replay: divide stored turn delays by this multiplier
     --seed <value>         Fix the creative seed for repeatable creative constraints
-    --max-cost <usd>       Abort if model cost exceeds this amount; non-examples default to 10
+    --max-cost <usd>       Abort if model cost exceeds this amount; non-examples default to 10, refine defaults to 3
     --from-example <name>  With init: copy a bundled example as the starting point
     --force                With init: allow overwriting files in a non-empty directory
     --custom-pipeline      With init: include a starter harness.config.json
@@ -1602,6 +1766,11 @@ function printUsage() {
     2 run failure after retries
     3 environment or doctor error
     4 aborted
+
+  Refine semantics:
+    refine amends the current generated app state. It does not rewind to the
+    original phase commit or replay downstream phases. For rewind behavior,
+    edit versioned inputs and run the pipeline again with a pinned --seed.
 
   Customizing (harness.config.json — in your input dir or passed via --config):
     {
@@ -1633,6 +1802,8 @@ function printUsage() {
     npx tv-build init ./my-app-inputs
     npx tv-build validate ./my-app-inputs --json
     npx tv-build templates check --json
+    npx tv-build refine d811afcb --phase branding "warmer palette, larger hero cards" --plan
+    npx tv-build refine d811afcb --phase branding "warmer palette, larger hero cards" --yes
     npx tv-build add-screen Watchlist --type=grid
     npx tv-build add-screen Home --type=hero+rails
     npx tv-build review

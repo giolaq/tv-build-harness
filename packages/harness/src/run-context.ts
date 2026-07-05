@@ -25,6 +25,7 @@ export function createRunContext(input: HarnessInput, options: { tokenBudget?: n
   const outDir = join(input.workdir, "out", runId);
   mkdirSync(outDir, { recursive: true });
   mkdirSync(join(outDir, "screenshots"), { recursive: true });
+  writeRunInput(outDir, input, harness);
 
   return {
     harness,
@@ -113,6 +114,7 @@ export function commitAfterPhase(outDir: string, phase: Phase): void {
   if (!existsSync(join(appDir, ".git"))) return;
 
   try {
+    writeAppOriginMarker(outDir);
     const status = execSync("git status --porcelain", {
       cwd: appDir,
       encoding: "utf-8",
@@ -128,6 +130,56 @@ export function commitAfterPhase(outDir: string, phase: Phase): void {
   } catch {
     // non-fatal: commits are diagnostic snapshots only.
   }
+}
+
+export function writeAppOriginMarker(outDir: string): void {
+  const appDir = join(outDir, "app");
+  mkdirSync(join(appDir, ".tv-build"), { recursive: true });
+  const runId = outDir.split("/").pop() ?? "unknown";
+  const specPath = join(outDir, "spec.json");
+  let creativeSeed: string | undefined;
+  if (existsSync(specPath)) {
+    try {
+      const spec = JSON.parse(readFileSync(specPath, "utf-8")) as { creative_seed?: string };
+      creativeSeed = spec.creative_seed;
+    } catch {
+      creativeSeed = undefined;
+    }
+  }
+  const markerPath = join(appDir, ".tv-build", "run.json");
+  let createdAt = new Date().toISOString();
+  if (existsSync(markerPath)) {
+    try {
+      const existing = JSON.parse(readFileSync(markerPath, "utf-8")) as { createdAt?: string };
+      createdAt = existing.createdAt ?? createdAt;
+    } catch {
+      // Keep the fresh timestamp when the marker is corrupt.
+    }
+  }
+  const next = JSON.stringify({
+    runId,
+    outDir,
+    specPath,
+    creativeSeed,
+    createdAt,
+  }, null, 2);
+  if (!existsSync(markerPath) || readFileSync(markerPath, "utf-8") !== next) {
+    writeFileSync(markerPath, next);
+  }
+}
+
+function writeRunInput(outDir: string, input: HarnessInput, harness: HarnessConfig): void {
+  writeFileSync(join(outDir, "input.json"), JSON.stringify({
+    prompt: input.prompt,
+    creativeSeed: input.creativeSeed,
+    maxCostUsd: input.maxCostUsd,
+    content: input.content,
+    brand: input.brand,
+    config: input.config,
+    design: input.design,
+    screenTree: input.screenTree,
+    harness,
+  }, null, 2));
 }
 
 export function writeHarnessReports(input: {

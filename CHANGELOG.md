@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Refine Loop
+
+- Added `tv-build refine <runId|appDir> --phase <name> "instruction"` for targeted single-phase amendments against the current app state.
+- Added refine planning, JSON confirmation, default `$3` cost cap, guard-branch cleanup, report append, and course/agent guidance for the three-tempo loop model.
+
 ## v0.3.0 - 2026-07-05
 
 This will be the first tagged release.

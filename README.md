@@ -142,6 +142,17 @@ npx tsx src/index.ts claude-run --resume abc123 --from-phase verify
 npx tsx src/index.ts claude-run --example cooking-shows --generate-only
 ```
 
+## Refine one concern
+
+Use `refine` when the current app is mostly right and the feedback is scoped to one phase concern:
+
+```bash
+npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --plan --json
+npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes --max-cost 3
+```
+
+`refine` amends the current app state. It does not rewind to the old phase commit or replay downstream phases. It inherits the original creative seed, reuses the phase's prompt context, reruns that phase's verify checks, and commits as `refine(<phase>): ...` only when the app tree is clean and the checks pass.
+
 ## Examples
 
 | Name | What's in it | Vibe |
@@ -250,6 +261,7 @@ You can swap the template, add custom phases, change retry counts:
 |---|---|
 | `run [dir]` | Full pipeline (Strands SDK) |
 | `claude-run [dir]` | Full pipeline (Claude CLI) |
+| `refine <runId\|appDir> "..."` | Amend one phase concern on the current app state |
 | `replay <file\|fixture>` | Replay a recorded run without a model key |
 | `schema [name]` | List schemas or print one input schema |
 | `init <dir>` | Scaffold an input directory |
