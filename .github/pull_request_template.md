@@ -29,6 +29,7 @@ Task ID:
 - [ ] Example and fixture changes use synthetic or repo-owned content, not real-IP metadata or owner-hosted media.
 - [ ] Docs, fixtures, recordings, and transcripts were scrubbed or pass `scripts/scrub.ts --check`.
 - [ ] Skill changes were reviewed with the skills-as-code checklist in `docs/security.md`.
+- [ ] Prompt, phase, replay, or config changes regenerated affected fixtures, or are marked `[deferred: needs key]`.
 
 Justification:
 

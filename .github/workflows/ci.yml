@@ -64,3 +64,35 @@ jobs:
       - name: Check docs and examples for secrets
         if: ${{ matrix.package == 'packages/harness' }}
         run: packages/harness/node_modules/.bin/tsx scripts/scrub.ts --check docs examples
+
+  fixture-replay:
+    name: fixture replay
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache Yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/yarn
+          key: ${{ runner.os }}-node22-yarn-mini-${{ hashFiles('packages/mini-harness/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node22-yarn-mini-
+
+      - name: Install mini-harness dependencies
+        working-directory: packages/mini-harness
+        run: yarn install --frozen-lockfile
+
+      - name: Replay mini demo fixture
+        working-directory: packages/mini-harness
+        run: yarn dev --phases fixtures/phases.json --replay fixtures/demo-recording.json
+
+      - name: Replay mini retry fixture
+        working-directory: packages/mini-harness
+        run: yarn dev --phases fixtures/phases.json --replay fixtures/retry-recording.json
