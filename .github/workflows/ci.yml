@@ -60,3 +60,7 @@ jobs:
       - name: Check example owner domains
         if: ${{ matrix.package == 'packages/harness' }}
         run: packages/harness/node_modules/.bin/tsx scripts/check-example-links.ts --domains-only
+
+      - name: Check docs and examples for secrets
+        if: ${{ matrix.package == 'packages/harness' }}
+        run: packages/harness/node_modules/.bin/tsx scripts/scrub.ts --check docs examples

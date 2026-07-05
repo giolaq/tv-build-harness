@@ -27,6 +27,7 @@ Task ID:
 - [ ] No new runtime dependencies
 - [ ] New runtime dependencies justified below
 - [ ] Example and fixture changes use synthetic or repo-owned content, not real-IP metadata or owner-hosted media.
+- [ ] Docs, fixtures, recordings, and transcripts were scrubbed or pass `scripts/scrub.ts --check`.
 
 Justification:
 
