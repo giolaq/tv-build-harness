@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3.0 - Unreleased
+## v0.3.0 - 2026-07-05
 
 This will be the first tagged release.
 
