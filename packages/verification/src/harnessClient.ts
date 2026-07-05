@@ -1,13 +1,17 @@
 import { execSync, spawn } from "node:child_process";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PinnedEnv } from "@tv-build/shared-types";
+import type { PinnedEnv, RunOutcome } from "@tv-build/shared-types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../../..");
 const HARNESS_DIR = join(REPO_ROOT, "packages/harness");
-const HARNESS_OUT = join(HARNESS_DIR, "out");
+const HARNESS_TIMEOUT_MS = 1_800_000;
+
+export interface HarnessPhaseTiming {
+  phase: string;
+  durationS: number;
+}
 
 export interface HarnessResult {
   runId: string;
@@ -17,78 +21,128 @@ export interface HarnessResult {
   specPath: string;
   reportPath: string;
   logPath: string;
+  seed?: string;
+  phaseTimings: HarnessPhaseTiming[];
   env: PinnedEnv;
+}
+
+interface HarnessRunOptions {
+  command?: string;
+  extraArgs?: string[];
+  seed?: string;
+  maxCostUsd?: number;
+}
+
+interface HarnessEvent {
+  schemaVersion: number;
+  event?: string;
+  phase?: string;
+  runId?: string;
+  outDir?: string;
+  seed?: string;
+  status?: string;
+  costSoFar?: number;
+  cost?: number;
+  result?: { phase?: string; status?: string };
+}
+
+export class HarnessRunError extends Error {
+  constructor(
+    message: string,
+    public outcome: RunOutcome,
+    public details: {
+      exitCode?: number | null;
+      signal?: NodeJS.Signals | null;
+      stdout?: string;
+      stderr?: string;
+      runId?: string;
+      costUsd?: number;
+      seed?: string;
+    } = {},
+  ) {
+    super(message);
+    this.name = "HarnessRunError";
+  }
 }
 
 export async function runHarness(
   inputDir: string,
-  options?: { command?: string; extraArgs?: string[] },
+  options: HarnessRunOptions = {},
 ): Promise<HarnessResult> {
-  const command = options?.command ?? `npx tsx ${join(HARNESS_DIR, "src/index.ts")} claude-run`;
-  const extraArgs = options?.extraArgs ?? [];
+  const command = options.command ?? `npx tsx ${join(HARNESS_DIR, "src/index.ts")} claude-run`;
+  const { cmd, args: baseArgs } = splitCommand(command);
   const resolvedInput = resolve(inputDir);
-  const args = ["--generate-only", "--no-tui", ...extraArgs, resolvedInput];
-  const fullCommand = `${command} ${args.join(" ")}`;
+  const args = [
+    ...baseArgs,
+    "--json",
+    "--no-tui",
+    "--generate-only",
+    ...(options.seed ? ["--seed", options.seed] : []),
+    ...(options.maxCostUsd !== undefined ? ["--max-cost", String(options.maxCostUsd)] : []),
+    ...(options.extraArgs ?? []),
+    resolvedInput,
+  ];
 
   const startTime = Date.now();
-
-  const stdout = await new Promise<string>((res, rej) => {
-    const child = spawn("sh", ["-c", fullCommand], {
-      cwd: HARNESS_DIR,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: process.env,
-    });
-
-    let out = "";
-    let err = "";
-    child.stdout.on("data", (d: Buffer) => { out += d.toString(); });
-    child.stderr.on("data", (d: Buffer) => { err += d.toString(); });
-
-    const timeout = setTimeout(() => {
-      child.kill("SIGTERM");
-      rej(new Error(`Harness timed out after 30 minutes`));
-    }, 1_800_000);
-
-    child.on("close", (code) => {
-      clearTimeout(timeout);
-      if (code === 0) res(out);
-      else rej(new Error(err || out || `Harness exited with code ${code}`));
-    });
-    child.on("error", (e) => {
-      clearTimeout(timeout);
-      rej(e);
-    });
-  });
-
+  const parsed = createHarnessEventParser();
+  const { stdout, stderr, code, signal } = await runProcess(cmd, args, HARNESS_DIR, parsed.onStdoutLine);
   const endTime = Date.now();
 
-  // Parse the runId from output — look for "out/<runId>/" pattern
-  const runIdMatch = stdout.match(/out\/([a-zA-Z0-9_-]+)\//);
-  const runId = runIdMatch?.[1] ?? findLatestRunId();
+  if (code !== 0) {
+    const outcome = classifyHarnessExit(code, signal, stderr || stdout);
+    throw new HarnessRunError(
+      stderr || stdout || `Harness exited with code ${code ?? "null"}${signal ? ` signal ${signal}` : ""}`,
+      outcome,
+      {
+        exitCode: code,
+        signal,
+        stdout,
+        stderr,
+        runId: parsed.runId,
+        costUsd: parsed.costUsd,
+        seed: parsed.seed,
+      },
+    );
+  }
 
-  const harnessOutDir = join(HARNESS_OUT, runId);
-  const reportPath = join(harnessOutDir, "report.md");
-  const logPath = join(harnessOutDir, "run.log");
-  const appPath = join(harnessOutDir, "app");
+  if (!parsed.runId) {
+    throw new HarnessRunError(
+      "Harness JSON stream did not include a run_complete runId.",
+      "infra_error",
+      { stdout, stderr, costUsd: parsed.costUsd, seed: parsed.seed },
+    );
+  }
 
-  // Extract cost from report.md
-  const costUsd = extractCost(reportPath);
-
-  // Compute latency from run.log NDJSON (first to last timestamp)
-  const latencyS = extractLatency(logPath, startTime, endTime);
-
-  const env = captureEnv();
+  const outDir = parsed.outDir ?? join(HARNESS_DIR, "out", parsed.runId);
 
   return {
-    runId,
-    appPath,
-    costUsd,
-    latencyS,
+    runId: parsed.runId,
+    appPath: join(outDir, "app"),
+    costUsd: parsed.costUsd,
+    latencyS: parsed.latencyS ?? ((endTime - startTime) / 1000),
     specPath: resolvedInput,
-    reportPath,
-    logPath,
-    env,
+    reportPath: join(outDir, "report.md"),
+    logPath: join(outDir, "run.log"),
+    seed: parsed.seed,
+    phaseTimings: parsed.phaseTimings,
+    env: captureEnv(),
   };
+}
+
+export function classifyHarnessExit(
+  code: number | null,
+  signal: NodeJS.Signals | null,
+  output: string,
+): RunOutcome {
+  if (code === 2) return "harness_failure";
+  if (code === 3) return "infra_error";
+  if (code === 4) return "budget_abort";
+  if (code === null) {
+    const fallback = classifyExitlessFailure(output);
+    console.warn(`Harness exited without code${signal ? ` (${signal})` : ""}; using text fallback: ${fallback}`);
+    return fallback;
+  }
+  return "infra_error";
 }
 
 export function captureEnv(): PinnedEnv {
@@ -104,6 +158,7 @@ export function captureEnv(): PinnedEnv {
   let harnessCommit = "unknown";
   try {
     harnessCommit = execSync("git rev-parse --short HEAD", {
+      cwd: REPO_ROOT,
       encoding: "utf-8",
     }).trim();
   } catch {
@@ -122,97 +177,174 @@ export function captureEnv(): PinnedEnv {
   };
 }
 
-/**
- * Find the most recently created run directory in packages/harness/out/.
- */
-function findLatestRunId(): string {
-  const outDir = HARNESS_OUT;
-  if (!existsSync(outDir)) {
-    throw new Error(`Harness output directory not found: ${outDir}`);
-  }
+function runProcess(
+  cmd: string,
+  args: string[],
+  cwd: string,
+  onStdoutLine: (line: string) => void,
+): Promise<{ stdout: string; stderr: string; code: number | null; signal: NodeJS.Signals | null }> {
+  return new Promise((resolveProcess, reject) => {
+    const child = spawn(cmd, args, {
+      cwd,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+    });
 
-  const entries = readdirSync(outDir, { withFileTypes: true })
-    .filter((e: { isDirectory(): boolean }) => e.isDirectory())
-    .map((e: { name: string }) => e.name);
+    let stdout = "";
+    let stderr = "";
+    let stdoutBuffer = "";
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
 
-  if (entries.length === 0) {
-    throw new Error(`No run directories found in ${outDir}`);
-  }
-
-  // Return the last entry alphabetically (UUIDs/timestamps sort chronologically)
-  entries.sort();
-  return entries[entries.length - 1];
-}
-
-/**
- * Extract total cost from report.md.
- * Looks for a line like "Total cost: $0.1234" or "**Total cost:** $0.1234".
- */
-function extractCost(reportPath: string): number {
-  if (!existsSync(reportPath)) {
-    return 0;
-  }
-
-  const content = readFileSync(reportPath, "utf-8");
-  const costMatch = content.match(/Total cost[:\s]*\$?([\d.]+)/i);
-  if (costMatch) {
-    return parseFloat(costMatch[1]);
-  }
-  return 0;
-}
-
-/**
- * Extract latency from run.log NDJSON.
- * Each line is a JSON object with a "timestamp" field (ISO string or epoch ms).
- * Returns the difference between first and last timestamp in seconds.
- * Falls back to wall-clock timing if parsing fails.
- */
-function extractLatency(
-  logPath: string,
-  wallStartMs: number,
-  wallEndMs: number,
-): number {
-  if (!existsSync(logPath)) {
-    return (wallEndMs - wallStartMs) / 1000;
-  }
-
-  const content = readFileSync(logPath, "utf-8");
-  const lines = content.trim().split("\n").filter(Boolean);
-
-  if (lines.length < 2) {
-    return (wallEndMs - wallStartMs) / 1000;
-  }
-
-  try {
-    const firstLine = JSON.parse(lines[0]) as { timestamp?: string | number };
-    const lastLine = JSON.parse(lines[lines.length - 1]) as {
-      timestamp?: string | number;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      killProcessGroup(child.pid);
+      reject(error);
     };
 
-    const firstTs = parseTimestamp(firstLine.timestamp);
-    const lastTs = parseTimestamp(lastLine.timestamp);
+    child.stdout.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      stdout += text;
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split("\n");
+      stdoutBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            onStdoutLine(line);
+          } catch (error) {
+            fail(error);
+            return;
+          }
+        }
+      }
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
 
-    if (firstTs !== null && lastTs !== null) {
-      return (lastTs - firstTs) / 1000;
-    }
-  } catch {
-    // Fall through to wall-clock timing
-  }
+    timeout = setTimeout(() => {
+      fail(new HarnessRunError("Harness timed out after 30 minutes", "infra_error", { stdout, stderr }));
+    }, HARNESS_TIMEOUT_MS);
 
-  return (wallEndMs - wallStartMs) / 1000;
+    child.on("close", (code, signal) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      if (stdoutBuffer.trim()) {
+        try {
+          onStdoutLine(stdoutBuffer);
+        } catch (error) {
+          reject(error);
+          return;
+        }
+      }
+      resolveProcess({ stdout, stderr, code, signal });
+    });
+    child.on("error", (error) => {
+      fail(error);
+    });
+  });
 }
 
-/**
- * Parse a timestamp value (ISO string or epoch ms) into epoch ms.
- */
-function parseTimestamp(value: string | number | undefined): number | null {
-  if (value === undefined) return null;
+function createHarnessEventParser(): {
+  onStdoutLine: (line: string) => void;
+  runId?: string;
+  outDir?: string;
+  seed?: string;
+  costUsd: number;
+  latencyS?: number;
+  phaseTimings: HarnessPhaseTiming[];
+} {
+  const phaseStarts = new Map<string, number>();
+  const phaseTimings: HarnessPhaseTiming[] = [];
+  let firstEventAt: number | undefined;
+  let lastEventAt: number | undefined;
+  const state = {
+    costUsd: 0,
+    phaseTimings,
+  } as {
+    runId?: string;
+    outDir?: string;
+    seed?: string;
+    costUsd: number;
+    latencyS?: number;
+    phaseTimings: HarnessPhaseTiming[];
+    onStdoutLine: (line: string) => void;
+  };
 
-  if (typeof value === "number") {
-    return value;
+  state.onStdoutLine = (line: string) => {
+    const event = parseHarnessEvent(line);
+    const now = Date.now();
+    firstEventAt ??= now;
+    lastEventAt = now;
+
+    if (event.event === "run_start" && event.seed) state.seed = event.seed;
+    if (event.event === "phase_start" && event.phase) phaseStarts.set(event.phase, now);
+    if (event.event === "phase_complete" && event.phase) {
+      const start = phaseStarts.get(event.phase);
+      if (start) phaseTimings.push({ phase: event.phase, durationS: (now - start) / 1000 });
+      if (typeof event.cost === "number") state.costUsd += event.cost;
+    }
+    if (event.event === "run_complete") {
+      if (event.runId) state.runId = event.runId;
+      if (event.outDir) state.outDir = event.outDir;
+      if (event.seed) state.seed = event.seed;
+      if (typeof event.costSoFar === "number") state.costUsd = event.costSoFar;
+      if (firstEventAt && lastEventAt) state.latencyS = (lastEventAt - firstEventAt) / 1000;
+    }
+  };
+
+  return state;
+}
+
+function parseHarnessEvent(line: string): HarnessEvent {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    throw new HarnessRunError(`Harness stdout was not valid NDJSON: ${line.slice(0, 120)}`, "infra_error");
   }
+  const event = parsed as { schemaVersion?: unknown };
+  if (event.schemaVersion !== 1) {
+    throw new HarnessRunError(
+      `Unsupported harness JSON schemaVersion: ${String(event.schemaVersion)}`,
+      "infra_error",
+    );
+  }
+  return parsed as HarnessEvent;
+}
 
-  const parsed = Date.parse(value);
-  if (Number.isNaN(parsed)) return null;
-  return parsed;
+function splitCommand(command: string): { cmd: string; args: string[] } {
+  const tokens = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g)?.map((token) =>
+    token.replace(/^["']|["']$/g, "")
+  ) ?? [];
+  if (tokens.length === 0) {
+    throw new Error("harnessCommand is empty");
+  }
+  return { cmd: tokens[0], args: tokens.slice(1) };
+}
+
+function killProcessGroup(pid: number | undefined): void {
+  if (!pid) return;
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // Process already gone.
+    }
+  }
+}
+
+function classifyExitlessFailure(output: string): RunOutcome {
+  if (/budget|cost budget/i.test(output)) return "budget_abort";
+  if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|rate_limit|overloaded|529|503|emulator.*crash|simulator.*timeout/i.test(output)) {
+    return "infra_error";
+  }
+  return "infra_error";
 }

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { RunRecord, GoldenSpec, VerifyConfig, CheckResult, RunOutcome, Platform, BuildErrorClass, RubricScore } from "@tv-build/shared-types";
-import { runHarness, captureEnv } from "./harnessClient.js";
+import { HarnessRunError, runHarness, captureEnv } from "./harnessClient.js";
 import { runStructuralChecks } from "./levels/structural.js";
 import { runBuildChecks } from "./levels/build.js";
 import { runSmokeChecks } from "./levels/smoke.js";
@@ -22,6 +22,14 @@ function isInfraError(error: string): boolean {
     "emulator.*crash", "simulator.*timeout",
   ];
   return infraPatterns.some(p => new RegExp(p, "i").test(error));
+}
+
+function classifyRunError(err: unknown): RunOutcome {
+  if (err instanceof HarnessRunError) return err.outcome;
+  const msg = err instanceof Error ? err.message : String(err);
+  const outcome = isInfraError(msg) ? "infra_error" : "harness_failure";
+  console.warn(`Harness failure had no exit-code contract; using text fallback: ${outcome}`);
+  return outcome;
 }
 
 export async function runSuite(options: RunnerOptions): Promise<RunRecord[]> {
@@ -132,7 +140,10 @@ async function runSingleSpec(
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     error = msg;
-    outcome = isInfraError(msg) ? "infra_error" : "harness_failure";
+    outcome = classifyRunError(err);
+    if (err instanceof HarnessRunError) {
+      costUsd = err.details.costUsd ?? costUsd;
+    }
   }
 
   const buildResults: RunRecord["buildResults"] = {} as RunRecord["buildResults"];

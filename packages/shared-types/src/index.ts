@@ -2,7 +2,7 @@ export type Platform = "androidtv" | "appletv" | "firetv-fos" | "firetv-vega" | 
 
 export type SpecTier = "easy" | "medium" | "hard";
 
-export type RunOutcome = "pass" | "harness_failure" | "infra_error";
+export type RunOutcome = "pass" | "harness_failure" | "infra_error" | "budget_abort";
 
 export type Phase =
   | "plan"
