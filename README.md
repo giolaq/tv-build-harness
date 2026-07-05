@@ -6,7 +6,7 @@ You feed it a JSON with your content and some brand colors. It spits out a multi
 
 Supports **React Native** (Android TV, Apple TV, Fire TV, web) and **Kotlin Multiplatform** (Compose TV). No templates that look like every other app. Each run produces something visually distinct.
 
-<!-- TODO: hero screenshot/gif here -->
+![TV Build terminal UI](docs/tui-screenshot.png)
 
 ## Why
 
@@ -28,8 +28,6 @@ yarn install
 npx tsx src/index.ts doctor                             # check you have what you need
 npx tsx src/index.ts claude-run --example cooking-shows # go
 ```
-
-![TUI](docs/tui-screenshot.png)
 
 ## Make your own
 
@@ -93,6 +91,8 @@ npx tsx src/index.ts status <runId> --json
 ```
 
 See `AGENTS.md` for the full contract and `docs/course/07-your-harness-as-a-tool.md` for the lesson.
+
+For local validation, release smoke, and workshop checks, use `docs/run-and-test.md`.
 
 Agent-facing features added in v0.3:
 
@@ -318,7 +318,7 @@ cd packages/verification
 npx tsx src/cli.ts run --spec=GS-01-simple
 ```
 
-It is the instrument for N-run pass-rate measurement, Wilson confidence intervals, and regression detection. This repo does not publish pass-rate claims until a real batch has been run.
+It is the instrument for N-run pass-rate measurement, Wilson confidence intervals, and regression detection. This repo does not publish pass-rate claims until a real batch has been run; see `docs/pass-rates.md` for the publication rules.
 
 ## Repo layout
 

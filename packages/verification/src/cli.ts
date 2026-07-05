@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { VerifyConfig, GoldenSpec, RunRecord } from "@tv-build/shared-types";
 import { runSuite } from "./runner.js";
 import { aggregate } from "./report/aggregate.js";
-import { compare } from "./report/compare.js";
+import { compareRunBundles } from "./report/compare.js";
 import {
   renderHeader,
   renderRunResult,
@@ -117,6 +117,7 @@ async function main() {
     case "compare": {
       const basePath = args.find(a => a.startsWith("--base="))?.split("=")[1];
       const headPath = args.find(a => a.startsWith("--head="))?.split("=")[1];
+      const allowEnvDrift = args.includes("--allow-env-drift");
 
       if (!basePath || !headPath) {
         console.error("Usage: verify compare --base=<path> --head=<path>");
@@ -126,11 +127,18 @@ async function main() {
       const baseRecords = JSON.parse(readFileSync(resolve(basePath), "utf-8")) as RunRecord[];
       const headRecords = JSON.parse(readFileSync(resolve(headPath), "utf-8")) as RunRecord[];
 
-      const baseMetrics = aggregate(baseRecords);
-      const headMetrics = aggregate(headRecords);
-      const verdicts = compare(baseMetrics, headMetrics);
+      const comparison = compareRunBundles(baseRecords, headRecords, { allowEnvDrift });
+      const verdicts = comparison.verdicts;
 
       console.log("");
+      if (comparison.banner) {
+        console.log(comparison.banner);
+        console.log("");
+      }
+      const warnings = comparison.envDiffs.filter((diff) => diff.severity === "warn");
+      for (const warning of warnings) {
+        console.warn(`Warning: environment drift in ${warning.field}: ${String(warning.base)} -> ${String(warning.head)}`);
+      }
       console.log(renderComparisonTable(verdicts));
 
       const hasRegression = verdicts.some(v => v.regression);

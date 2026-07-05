@@ -1,7 +1,7 @@
-import { execSync, spawn } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PinnedEnv, RunOutcome } from "@tv-build/shared-types";
+import type { PinnedEnv, RunOutcome, SeedPolicy } from "@tv-build/shared-types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../../..");
@@ -31,6 +31,9 @@ interface HarnessRunOptions {
   extraArgs?: string[];
   seed?: string;
   maxCostUsd?: number;
+  seedPolicy?: SeedPolicy;
+  fixedSeed?: string;
+  judge?: { model: string; promptHash: string };
 }
 
 interface HarnessEvent {
@@ -125,7 +128,11 @@ export async function runHarness(
     logPath: join(outDir, "run.log"),
     seed: parsed.seed,
     phaseTimings: parsed.phaseTimings,
-    env: captureEnv(),
+    env: captureEnv({
+      seedPolicy: options.seedPolicy,
+      fixedSeed: options.fixedSeed,
+      judge: options.judge,
+    }),
   };
 }
 
@@ -145,7 +152,13 @@ export function classifyHarnessExit(
   return "infra_error";
 }
 
-export function captureEnv(): PinnedEnv {
+export interface CaptureEnvOptions {
+  seedPolicy?: SeedPolicy;
+  fixedSeed?: string;
+  judge?: { model: string; promptHash: string };
+}
+
+export function captureEnv(options: CaptureEnvOptions = {}): PinnedEnv {
   const nodeVersion = process.version;
 
   let claudeCliVersion = "unknown";
@@ -169,12 +182,35 @@ export function captureEnv(): PinnedEnv {
     modelPlan: "unknown",
     modelExecution: "unknown",
     templateRepo: "unknown",
-    templateBranch: "unknown",
+    templateCommits: captureTemplateCommits(),
+    seedPolicy: options.seedPolicy,
+    fixedSeed: options.fixedSeed,
+    judge: options.judge,
     nodeVersion,
     claudeCliVersion,
     harnessCommit,
     timestamp: new Date().toISOString(),
   };
+}
+
+function captureTemplateCommits(): Record<string, string> {
+  try {
+    const output = execFileSync(
+      "npx",
+      ["tsx", "src/index.ts", "templates", "check", "--json"],
+      { cwd: HARNESS_DIR, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"], timeout: 2_000 },
+    );
+    const parsed = JSON.parse(output) as { templates?: Array<{ repo?: string; commit?: string }> };
+    const commits: Record<string, string> = {};
+    for (const template of parsed.templates ?? []) {
+      if (template.repo && template.commit) {
+        commits[template.repo] = template.commit;
+      }
+    }
+    return commits;
+  } catch {
+    return {};
+  }
 }
 
 function runProcess(

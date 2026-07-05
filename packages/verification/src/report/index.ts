@@ -1,2 +1,2 @@
 export { aggregate } from "./aggregate.js";
-export { compare, formatVerdictTable } from "./compare.js";
+export { compare, compareRunBundles, diffPinnedEnv, formatVerdictTable } from "./compare.js";

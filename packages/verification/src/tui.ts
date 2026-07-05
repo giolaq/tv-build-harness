@@ -68,12 +68,16 @@ export function renderHeader(spec: GoldenSpec, config: VerifyConfig): string {
   const version = "v0.1.0";
   const n = config.perSpecN?.[spec.id] ?? config.n;
   const levels = config.tierLevelMap[spec.tier].join(",");
+  const seedPolicy = config.seedPolicy ?? "fixed";
   const lines: string[] = [];
 
   lines.push(boxTop());
   lines.push(boxLine(chalk.bold(`TV Build Verification ${chalk.dim(version)}`) ));
   lines.push(boxLine(
     `Spec: ${chalk.cyan(spec.id)} (${spec.tier}) ${chalk.dim("•")} N=${n} ${chalk.dim("•")} Levels: ${levels}`
+  ));
+  lines.push(boxLine(
+    `Seed: ${seedPolicy}${seedPolicy === "fixed" ? ` (${config.fixedSeed ?? "verification-fixed-seed"})` : ""} ${chalk.dim("•")} Budget: ${formatCost(config.maxBatchCostUsd)}`
   ));
   lines.push(boxBottom());
 
@@ -107,6 +111,10 @@ export function renderRunResult(record: RunRecord, runIndex: number): string[] {
   } else if (record.outcome === "infra_error") {
     lines.push(
       `  ${chalk.yellow("!")} Run ${runIndex}: ${chalk.yellow("infra error")} ${chalk.dim(`— ${record.error ?? "unknown"}`)}`
+    );
+  } else if (record.outcome === "budget_abort") {
+    lines.push(
+      `  ${chalk.yellow("!")} Run ${runIndex}: ${chalk.yellow(record.skipped ? "skipped by budget" : "budget abort")} ${chalk.dim(`— ${record.error ?? "budget limit"}`)}`
     );
   } else {
     // harness_failure

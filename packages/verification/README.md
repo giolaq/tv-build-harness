@@ -2,7 +2,7 @@
 
 A statistically rigorous verification suite for TV Build. It is the instrument for measuring harness quality as **rates over N repeated runs with 95% Wilson confidence intervals**, not a published claim that those measurements have already been run.
 
-No pass-rate table is committed yet. Publish one only after a real batch run produces artifact bundles.
+No pass-rate table is committed yet. Publish one only after a real batch run produces artifact bundles. See `../../docs/pass-rates.md` for the publication rules.
 
 ## Quick start
 
@@ -53,6 +53,10 @@ packages/
 3. **infra_error ≠ harness_failure.** Emulator crashes and API timeouts are infra errors — retried up to `infraRetryMax` and excluded from rate denominators. Genuine harness failures are never retried.
 
 4. **Verification depth is tiered.** Easy specs get Levels 1-2 only. Medium gets 1-4. Hard gets 1-5 (including LLM judge). Don't burn emulator/judge cost uniformly.
+
+5. **Seed regime is part of the result.** `seedPolicy: "fixed"` measures the pipeline at one design point. `seedPolicy: "random"` estimates the deployment distribution. Do not compare across regimes.
+
+6. **Batch cost is capped.** `maxBatchCostUsd` is required. The runner stops before launching a run that could exceed the batch budget and records skipped runs as budget skips.
 
 ## Verification levels
 
@@ -126,7 +130,11 @@ Set in `verify.config.json`:
 
 ```json
 {
-  "n": 3,           // PR: fast, low N
+  "n": 3,
+  "seedPolicy": "fixed",
+  "fixedSeed": "verification-fixed-seed",
+  "maxBatchCostUsd": 30,
+  "perRunMaxCostUsd": 10,
   "perSpecN": {
     "GS-08-full-parity": 5  // Override for specific specs
   }
@@ -142,6 +150,8 @@ A regression is flagged when **head's lower 95% CI bound falls below base's poin
 
 Implemented in `src/report/compare.ts`. Multiple comparisons corrected via Holm-Bonferroni.
 
+Before computing statistics, compare checks `PinnedEnv`. Drift in model identity, template commits, seed regime, fixed seed, or judge identity refuses the comparison. Use `--allow-env-drift` only when you want an explicit `CONFOUNDED COMPARISON` banner.
+
 ## infra_error vs harness_failure policy
 
 | Outcome | Retry? | Counted in rate? | Examples |
@@ -149,8 +159,15 @@ Implemented in `src/report/compare.ts`. Multiple comparisons corrected via Holm-
 | `pass` | — | Yes (numerator) | All checks pass |
 | `harness_failure` | **Never** | Yes (denominator only) | TSC fails, missing files, build error |
 | `infra_error` | Up to `infraRetryMax` | **No** (excluded from denominator) | API timeout, emulator crash, rate limit |
+| `budget_abort` | No | **No** (reported separately) | Per-run or batch budget cap hit |
 
 Retrying a genuine failure is p-hacking. Counting infra noise as failure pollutes CIs.
+
+Retries never inflate `N`: any record superseded by a retry is excluded from pass/fail denominators, and only the terminal non-infra record counts.
+
+## Stopping-rule policy
+
+Batch size is fixed before launch. Running additional batches "until significant" invalidates the family-wise error-rate guarantees. Comparisons are between two pre-registered batches with compatible pinned environments.
 
 ## Tiering policy
 
@@ -173,6 +190,7 @@ Deep levels give little signal on easy specs and most signal on hard ones.
 The Level 5 judge is **gated behind validation**. Until validated:
 - Scores are marked `[UNVALIDATED]`
 - Dimensions fall back to human evaluation
+- Reports carry a caveat that unvalidated judge scores are directional only
 
 Validation requires:
 1. ≥20 human-rated runs stored in artifact bundles
@@ -180,6 +198,8 @@ Validation requires:
 3. Run `calibrate()` from `src/levels/rubric.ts` to compute agreement
 
 The judge prompt is tuned to be **skeptical** — it explicitly counters the tendency of LLMs to over-praise LLM output.
+
+Each rubric record carries judge model, prompt hash, and judge cost. Comparisons refuse judge model or prompt-hash drift unless `--allow-env-drift` is explicit.
 
 ## Model-release re-examination workflow
 

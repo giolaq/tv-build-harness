@@ -1,7 +1,56 @@
-import type { MetricWithCI, ComparisonVerdict } from "@tv-build/shared-types";
+import type { EnvDiff, MetricWithCI, ComparisonVerdict, PinnedEnv, RunRecord } from "@tv-build/shared-types";
 import { twoPropZTest } from "../stats/proportion.js";
 import { fisherExact } from "../stats/fisher.js";
 import { holmCorrection } from "../stats/correction.js";
+import { aggregate } from "./aggregate.js";
+
+export interface BundleComparison {
+  verdicts: ComparisonVerdict[];
+  envDiffs: EnvDiff[];
+  banner?: string;
+}
+
+export function compareRunBundles(
+  baseRecords: RunRecord[],
+  headRecords: RunRecord[],
+  options: { allowEnvDrift?: boolean } = {},
+): BundleComparison {
+  const envDiffs = diffPinnedEnv(firstEnv(baseRecords), firstEnv(headRecords));
+  const refusing = envDiffs.filter((diff) => diff.severity === "refuse");
+  if (refusing.length > 0 && !options.allowEnvDrift) {
+    const details = refusing.map((diff) => `${diff.field}: ${String(diff.base)} -> ${String(diff.head)}`).join("; ");
+    throw new Error(`Refusing confounded comparison; environment drift detected: ${details}. Rerun with --allow-env-drift to override.`);
+  }
+  return {
+    verdicts: compare(aggregate(baseRecords), aggregate(headRecords)),
+    envDiffs,
+    banner: refusing.length > 0 ? "CONFOUNDED COMPARISON: environment drift was allowed explicitly." : undefined,
+  };
+}
+
+export function diffPinnedEnv(base?: PinnedEnv, head?: PinnedEnv): EnvDiff[] {
+  if (!base || !head) return [];
+  const diffs: EnvDiff[] = [];
+  const refuseFields: Array<keyof PinnedEnv> = ["modelPlan", "modelExecution", "templateCommits", "seedPolicy", "fixedSeed", "judge"];
+  const warnFields: Array<keyof PinnedEnv> = ["nodeVersion", "claudeCliVersion"];
+  for (const field of refuseFields) {
+    pushDiff(diffs, field, base[field], head[field], "refuse");
+  }
+  for (const field of warnFields) {
+    pushDiff(diffs, field, base[field], head[field], "warn");
+  }
+  return diffs;
+}
+
+function firstEnv(records: RunRecord[]): PinnedEnv | undefined {
+  return records.find((record) => record.env)?.env;
+}
+
+function pushDiff(diffs: EnvDiff[], field: keyof PinnedEnv, base: unknown, head: unknown, severity: EnvDiff["severity"]): void {
+  if (JSON.stringify(base ?? null) !== JSON.stringify(head ?? null)) {
+    diffs.push({ field, base, head, severity });
+  }
+}
 
 export function compare(base: MetricWithCI[], head: MetricWithCI[]): ComparisonVerdict[] {
   const verdicts: ComparisonVerdict[] = [];

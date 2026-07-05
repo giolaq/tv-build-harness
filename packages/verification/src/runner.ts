@@ -7,12 +7,18 @@ import { runStructuralChecks } from "./levels/structural.js";
 import { runBuildChecks } from "./levels/build.js";
 import { runSmokeChecks } from "./levels/smoke.js";
 import { runContentChecks } from "./levels/content.js";
-import { runRubricChecks } from "./levels/rubric.js";
+import { JUDGE_PROMPT_HASH, runRubricChecks } from "./levels/rubric.js";
 
 export interface RunnerOptions {
   specs: GoldenSpec[];
   config: VerifyConfig;
   onProgress?: (specId: string, run: number, total: number) => void;
+}
+
+interface NormalizedVerifyConfig extends VerifyConfig {
+  seedPolicy: "fixed" | "random";
+  fixedSeed: string;
+  perRunMaxCostUsd: number;
 }
 
 function isInfraError(error: string): boolean {
@@ -33,28 +39,45 @@ function classifyRunError(err: unknown): RunOutcome {
 }
 
 export async function runSuite(options: RunnerOptions): Promise<RunRecord[]> {
-  const { specs, config, onProgress } = options;
+  const { specs, onProgress } = options;
+  const config = normalizeConfig(options.config);
   const records: RunRecord[] = [];
-  const env = captureEnv();
+  const env = captureEnv({
+    seedPolicy: config.seedPolicy,
+    fixedSeed: config.seedPolicy === "fixed" ? config.fixedSeed : undefined,
+    judge: config.judge ? { model: config.judge.model, promptHash: JUDGE_PROMPT_HASH } : undefined,
+  });
+  let spentUsd = 0;
 
   for (const spec of specs) {
     const n = config.perSpecN?.[spec.id] ?? config.n;
     const levels = config.tierLevelMap[spec.tier];
 
     for (let i = 0; i < n; i++) {
+      if (spentUsd + config.perRunMaxCostUsd > config.maxBatchCostUsd) {
+        records.push(skippedBudgetRecord(spec, config, env, `Batch budget would be exceeded before run ${i + 1}/${n}`));
+        continue;
+      }
+
       onProgress?.(spec.id, i + 1, n);
       const record = await runSingleSpec(spec, levels, config, env);
       records.push(record);
+      spentUsd += record.costUsd + (record.judgeCostUsd ?? 0);
 
       // Retry infra errors up to infraRetryMax
       if (record.outcome === "infra_error") {
         let retries = 0;
         while (retries < config.infraRetryMax && records[records.length - 1].outcome === "infra_error") {
+          if (spentUsd + config.perRunMaxCostUsd > config.maxBatchCostUsd) {
+            records.push(skippedBudgetRecord(spec, config, env, `Batch budget would be exceeded before retry ${retries + 1}`));
+            break;
+          }
           retries++;
           onProgress?.(spec.id, i + 1, n);
           const retry = await runSingleSpec(spec, levels, config, env);
           retry.retryOf = record.id;
           records.push(retry);
+          spentUsd += retry.costUsd + (retry.judgeCostUsd ?? 0);
         }
       }
     }
@@ -71,27 +94,50 @@ export async function runSuite(options: RunnerOptions): Promise<RunRecord[]> {
   return records;
 }
 
+function normalizeConfig(config: VerifyConfig): NormalizedVerifyConfig {
+  if (typeof config.maxBatchCostUsd !== "number" || !Number.isFinite(config.maxBatchCostUsd) || config.maxBatchCostUsd <= 0) {
+    throw new Error("verify.config.json must set maxBatchCostUsd to a positive number.");
+  }
+  return {
+    ...config,
+    seedPolicy: config.seedPolicy ?? "fixed",
+    fixedSeed: config.fixedSeed ?? "verification-fixed-seed",
+    perRunMaxCostUsd: config.perRunMaxCostUsd ?? 10,
+  };
+}
+
 async function runSingleSpec(
   spec: GoldenSpec,
   levels: number[],
   config: VerifyConfig,
   env: ReturnType<typeof captureEnv>,
 ): Promise<RunRecord> {
+  const normalized = normalizeConfig(config);
   const id = randomUUID();
   const checks: CheckResult[] = [];
   let costUsd = 0;
+  let judgeCostUsd = 0;
   let latencyS = 0;
   let outcome: RunOutcome = "pass";
   let appPath = "";
   let error: string | undefined;
   let rubricScore: RubricScore | undefined;
+  let seed: string | undefined = normalized.seedPolicy === "fixed" ? normalized.fixedSeed : undefined;
 
   try {
     const start = Date.now();
-    const result = await runHarness(spec.inputDir, { command: config.harnessCommand });
+    const result = await runHarness(spec.inputDir, {
+      command: normalized.harnessCommand,
+      seed: normalized.seedPolicy === "fixed" ? normalized.fixedSeed : undefined,
+      maxCostUsd: normalized.perRunMaxCostUsd,
+      seedPolicy: normalized.seedPolicy,
+      fixedSeed: normalized.seedPolicy === "fixed" ? normalized.fixedSeed : undefined,
+      judge: normalized.judge ? { model: normalized.judge.model, promptHash: JUDGE_PROMPT_HASH } : undefined,
+    });
     latencyS = (Date.now() - start) / 1000;
     costUsd = result.costUsd;
     appPath = result.appPath;
+    seed = result.seed ?? seed;
 
     // Level 1: Structural
     if (levels.includes(1)) {
@@ -120,7 +166,7 @@ async function runSingleSpec(
     // Level 5: Rubric/Judge
     if (levels.includes(5)) {
       const judgeConfig = config.judge
-        ? { model: config.judge.model, validated: config.judge.validated, apiKey: process.env.ANTHROPIC_API_KEY }
+        ? { model: config.judge.model, validated: config.judge.validated, apiKey: process.env.ANTHROPIC_API_KEY, costUsd: 0 }
         : undefined;
       const { checks: rubricChecks, rubric } = await runRubricChecks(
         appPath,
@@ -131,6 +177,7 @@ async function runSingleSpec(
       checks.push(...rubricChecks);
       if (rubric) {
         rubricScore = rubric;
+        judgeCostUsd = rubric.judgeCostUsd ?? 0;
       }
     }
 
@@ -143,6 +190,7 @@ async function runSingleSpec(
     outcome = classifyRunError(err);
     if (err instanceof HarnessRunError) {
       costUsd = err.details.costUsd ?? costUsd;
+      seed = err.details.seed ?? seed;
     }
   }
 
@@ -164,14 +212,41 @@ async function runSingleSpec(
     specId: spec.id,
     tier: spec.tier,
     outcome,
+    seed,
+    seedPolicy: normalized.seedPolicy,
     env,
     costUsd,
+    judgeCostUsd,
     latencyS,
     checks,
     buildResults,
     rubric: rubricScore,
     artifactPath: appPath || undefined,
     error,
+  };
+}
+
+function skippedBudgetRecord(
+  spec: GoldenSpec,
+  config: NormalizedVerifyConfig,
+  env: ReturnType<typeof captureEnv>,
+  message: string,
+): RunRecord {
+  return {
+    id: randomUUID(),
+    specId: spec.id,
+    tier: spec.tier,
+    outcome: "budget_abort",
+    seed: config.seedPolicy === "fixed" ? config.fixedSeed : undefined,
+    seedPolicy: config.seedPolicy,
+    env,
+    costUsd: 0,
+    judgeCostUsd: 0,
+    latencyS: 0,
+    checks: [],
+    buildResults: {} as RunRecord["buildResults"],
+    skipped: "budget",
+    error: message,
   };
 }
 

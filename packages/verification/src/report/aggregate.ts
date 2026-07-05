@@ -7,16 +7,22 @@ function toMetric(metric: string, n: number, k: number, ci: { rate: number; lowe
 }
 
 export function aggregate(records: RunRecord[]): MetricWithCI[] {
-  // Exclude infra_error runs from denominators (Risk 2)
-  const valid = records.filter(r => r.outcome !== "infra_error");
+  const superseded = new Set(records.map(r => r.retryOf).filter((id): id is string => Boolean(id)));
+  const valid = records.filter(r =>
+    r.outcome !== "infra_error" &&
+    r.outcome !== "budget_abort" &&
+    !r.skipped &&
+    !superseded.has(r.id)
+  );
   const n = valid.length;
-  if (n === 0) return [];
 
   const metrics: MetricWithCI[] = [];
 
   // Overall pass rate
-  const passes = valid.filter(r => r.outcome === "pass").length;
-  metrics.push(toMetric("overall_pass_rate", n, passes, wilsonCI(n, passes)));
+  if (n > 0) {
+    const passes = valid.filter(r => r.outcome === "pass").length;
+    metrics.push(toMetric("overall_pass_rate", n, passes, wilsonCI(n, passes)));
+  }
 
   // Structural pass rate (Level 1)
   const withStructural = valid.filter(r => r.checks.some(c => c.level === 1));
@@ -50,6 +56,11 @@ export function aggregate(records: RunRecord[]): MetricWithCI[] {
   const infraErrors = records.filter(r => r.outcome === "infra_error").length;
   if (infraErrors > 0) {
     metrics.push(toMetric("infra_error_rate", allRuns, infraErrors, wilsonCI(allRuns, infraErrors)));
+  }
+
+  const budgetAborts = records.filter(r => r.outcome === "budget_abort" || r.skipped === "budget").length;
+  if (budgetAborts > 0) {
+    metrics.push(toMetric("budget_abort_rate", allRuns, budgetAborts, wilsonCI(allRuns, budgetAborts)));
   }
 
   // Cost and latency (mean, not rate — report as-is)

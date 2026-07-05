@@ -1,6 +1,7 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import type { CheckResult, Expected, RubricScore } from "@tv-build/shared-types";
 
 const RUBRIC_VERSION = "1.0.0";
@@ -44,10 +45,18 @@ const RUBRIC_DEFINITIONS = {
   },
 };
 
+const JUDGE_PROMPT_TEMPLATE = JSON.stringify({
+  version: RUBRIC_VERSION,
+  instruction: "skeptical TV app quality evaluator",
+  definitions: RUBRIC_DEFINITIONS,
+});
+export const JUDGE_PROMPT_HASH = createHash("sha256").update(JUDGE_PROMPT_TEMPLATE).digest("hex");
+
 interface JudgeConfig {
   model: string;
   validated: boolean;
   apiKey?: string;
+  costUsd?: number;
 }
 
 export function buildJudgePrompt(appPath: string, specDescription: string): string {
@@ -170,6 +179,9 @@ export async function runRubricChecks(
     theme: scores.theme,
     visual: scores.visual,
     judgeValidated: judgeConfig.validated,
+    judgeModel: judgeConfig.model,
+    judgePromptHash: JUDGE_PROMPT_HASH,
+    judgeCostUsd: judgeConfig.costUsd ?? 0,
   };
 
   // Check per-dimension hard thresholds (Risk: sub-threshold fails regardless of average)
@@ -183,7 +195,7 @@ export async function runRubricChecks(
         name: `rubric:${dim}`,
         severity: pass ? "pass" : "fail",
         message: `${dim}: ${score}/2 (threshold: ${threshold})${!judgeConfig.validated ? " [UNVALIDATED]" : ""}`,
-        details: { score, threshold, validated: judgeConfig.validated },
+        details: { score, threshold, validated: judgeConfig.validated, judgeModel: judgeConfig.model, judgePromptHash: JUDGE_PROMPT_HASH },
       });
     }
   } else {
@@ -194,7 +206,7 @@ export async function runRubricChecks(
         name: `rubric:${dim}`,
         severity: score >= 1 ? "pass" : "fail",
         message: `${dim}: ${score}/2${!judgeConfig.validated ? " [UNVALIDATED]" : ""}`,
-        details: { score, validated: judgeConfig.validated },
+        details: { score, validated: judgeConfig.validated, judgeModel: judgeConfig.model, judgePromptHash: JUDGE_PROMPT_HASH },
       });
     }
   }
@@ -213,16 +225,17 @@ export async function runRubricChecks(
 }
 
 function callJudge(prompt: string, config: JudgeConfig): string {
-  // Use Claude CLI to call the judge model
-  const result = execSync(
-    `echo ${JSON.stringify(prompt)} | claude -p --model ${config.model} --output-format text 2>/dev/null`,
-    {
-      encoding: "utf-8",
-      timeout: 120_000,
-      env: { ...process.env, ANTHROPIC_API_KEY: config.apiKey },
-    }
-  );
-  return result;
+  const result = spawnSync("claude", ["-p", "--model", config.model, "--output-format", "text"], {
+    input: prompt,
+    encoding: "utf-8",
+    timeout: 120_000,
+    env: { ...process.env, ANTHROPIC_API_KEY: config.apiKey },
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(result.stderr || `claude exited with code ${result.status}`);
+  }
+  return result.stdout;
 }
 
 // Calibration command: reads artifact bundles and computes agreement stats

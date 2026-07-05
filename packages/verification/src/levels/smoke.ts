@@ -1,6 +1,7 @@
 import { execSync, spawn, ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { createConnection, createServer } from "node:net";
 import type { CheckResult } from "@tv-build/shared-types";
 
 interface SmokeOptions {
@@ -10,7 +11,8 @@ interface SmokeOptions {
 }
 
 export async function runSmokeChecks(options: SmokeOptions): Promise<CheckResult[]> {
-  const { appPath, port = 19006, timeoutMs = 30_000 } = options;
+  const { appPath, timeoutMs = 30_000 } = options;
+  const port = options.port ?? await allocatePort();
   const results: CheckResult[] = [];
   const expoDir = join(appPath, "apps/expo-multi-tv");
 
@@ -19,7 +21,17 @@ export async function runSmokeChecks(options: SmokeOptions): Promise<CheckResult
     return results;
   }
 
-  // Start the web server
+  if (options.port && await isPortListening(options.port)) {
+    results.push({
+      level: 3,
+      name: "smoke:port_available",
+      severity: "fail",
+      message: `Port ${options.port} is already in use before smoke server start`,
+      details: { infra: true },
+    });
+    return results;
+  }
+
   let server: ChildProcess | undefined;
   try {
     server = spawn("npx", ["expo", "start", "--web", "--port", String(port), "--non-interactive"], {
@@ -86,13 +98,78 @@ export async function runSmokeChecks(options: SmokeOptions): Promise<CheckResult
 
   } finally {
     if (server && server.pid) {
-      try {
-        process.kill(-server.pid, "SIGTERM");
-      } catch { /* already dead */ }
+      await terminateProcessGroup(server.pid);
     }
   }
 
   return results;
+}
+
+export function allocatePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : undefined;
+      server.close(() => {
+        if (port) resolve(port);
+        else reject(new Error("Could not allocate an ephemeral port"));
+      });
+    });
+  });
+}
+
+async function isPortListening(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: "127.0.0.1", port });
+    const done = (listening: boolean) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(listening);
+    };
+    socket.setTimeout(500);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
+}
+
+async function terminateProcessGroup(pid: number): Promise<void> {
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      return;
+    }
+  }
+
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    if (!isProcessAlive(pid)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Already gone.
+    }
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function checkFocusInfrastructure(appPath: string): CheckResult[] {

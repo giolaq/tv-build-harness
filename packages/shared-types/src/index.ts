@@ -22,12 +22,21 @@ export interface PinnedEnv {
   modelPlan: string;
   modelExecution: string;
   templateRepo: string;
-  templateBranch: string;
+  templateBranch?: string;
+  templateCommits?: Record<string, string>;
+  seedPolicy?: SeedPolicy;
+  fixedSeed?: string;
+  judge?: {
+    model: string;
+    promptHash: string;
+  };
   nodeVersion: string;
   claudeCliVersion: string;
   harnessCommit: string;
   timestamp: string;
 }
+
+export type SeedPolicy = "fixed" | "random";
 
 export interface Expected {
   files_exist: string[];
@@ -66,6 +75,9 @@ export interface RubricScore {
   theme: number;
   visual: number;
   judgeValidated: boolean;
+  judgeModel?: string;
+  judgePromptHash?: string;
+  judgeCostUsd?: number;
 }
 
 export interface RunRecord {
@@ -73,14 +85,18 @@ export interface RunRecord {
   specId: string;
   tier: SpecTier;
   outcome: RunOutcome;
+  seed?: string;
+  seedPolicy?: SeedPolicy;
   env: PinnedEnv;
   costUsd: number;
+  judgeCostUsd?: number;
   latencyS: number;
   checks: CheckResult[];
   buildResults: Record<Platform, { pass: boolean; errorClass?: BuildErrorClass; timeS: number }>;
   rubric?: RubricScore;
   artifactPath?: string;
   retryOf?: string;
+  skipped?: "budget";
   error?: string;
 }
 
@@ -107,6 +123,13 @@ export interface ComparisonVerdict {
   regression: boolean;
 }
 
+export interface EnvDiff {
+  field: string;
+  base: unknown;
+  head: unknown;
+  severity: "refuse" | "warn";
+}
+
 export interface GoldenSpec {
   id: string;
   name: string;
@@ -120,6 +143,10 @@ export interface VerifyConfig {
   n: number;
   perSpecN?: Record<string, number>;
   infraRetryMax: number;
+  seedPolicy?: SeedPolicy;
+  fixedSeed?: string;
+  maxBatchCostUsd: number;
+  perRunMaxCostUsd?: number;
   tierLevelMap: Record<SpecTier, number[]>;
   regressionRule: "ci_below_point";
   baselinePath?: string;
