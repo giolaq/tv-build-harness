@@ -268,14 +268,14 @@ Configure budgets in `harness.config.json`:
 
 ## Verification suite
 
-There's a separate package for measuring harness quality statistically:
+There's a separate package for measuring harness quality statistically when you fund repeated runs:
 
 ```bash
 cd packages/verification
 npx tsx src/cli.ts run --spec=GS-01-simple
 ```
 
-Runs N times, computes Wilson confidence intervals, detects regressions. See its own README.
+It is the instrument for N-run pass-rate measurement, Wilson confidence intervals, and regression detection. This repo does not publish pass-rate claims until a real batch has been run.
 
 ## Repo layout
 

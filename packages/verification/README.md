@@ -1,6 +1,8 @@
 # TV Build Verification System
 
-A statistically rigorous verification suite for the TV Build. Measures harness quality as **rates over N repeated runs with 95% Wilson confidence intervals**, not single pass/fail results.
+A statistically rigorous verification suite for TV Build. It is the instrument for measuring harness quality as **rates over N repeated runs with 95% Wilson confidence intervals**, not a published claim that those measurements have already been run.
+
+No pass-rate table is committed yet. Publish one only after a real batch run produces artifact bundles.
 
 ## Quick start
 
@@ -102,9 +104,9 @@ packages/
 
 ## Pinning discipline
 
-Every `RunRecord` captures:
+Every `RunRecord` should capture:
 - Model versions (plan + execution)
-- Template repo + branch
+- Template repo + pinned commit
 - Node.js version
 - Claude CLI version
 - Harness git commit
@@ -115,7 +117,7 @@ When rates move with no code change, check: did the model change? (Provider non-
 To pin the template at a specific commit:
 ```json
 // harness.config.json
-{ "template": { "repo": "...", "branch": "v1.0.0" } }
+{ "template": { "repo": "...", "commit": "0123456789abcdef0123456789abcdef01234567" } }
 ```
 
 ## PR vs nightly split

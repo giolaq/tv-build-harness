@@ -14,9 +14,11 @@ The checks execute in `packages/harness/src/verification.ts:17`. Failures return
 
 The default `verify` phase runs TypeScript and focus checks in `packages/harness/src/harness-config.ts:209`.
 
-Harness-level verification is statistical. `packages/verification/src/stats/index.ts:1` exports Wilson intervals, proportion tests, Fisher exact tests, Mann-Whitney U, and Holm correction.
+Harness-level verification can be statistical when you fund repeated runs. `packages/verification/src/stats/index.ts:1` exports Wilson intervals, proportion tests, Fisher exact tests, Mann-Whitney U, and Holm correction.
 
-Use the first kind to ask, “Did this run work?” Use the second kind to ask, “Is this harness version better across many runs?”
+This repository currently teaches the instrument; it does not publish a pass-rate table from a completed N-run batch.
+
+Use the first kind to ask, “Did this run work?” Use the second kind to ask, “Is this harness version better across many runs?” only after you have real run bundles to compare.
 
 ## Exercise
 
