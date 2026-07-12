@@ -6,6 +6,8 @@ You feed it a JSON with your content and some brand colors. It spits out a multi
 
 Supports **React Native** (Android TV, Apple TV, Fire TV, web) and **Kotlin Multiplatform** (Compose TV). No templates that look like every other app. Each run produces something visually distinct.
 
+Read `docs/vision.md` for the product boundary and `docs/capabilities.md` for tested support levels.
+
 ![TV Build terminal UI](docs/tui-screenshot.png)
 
 ## Why
@@ -153,6 +155,17 @@ npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger her
 
 `refine` amends the current app state. It does not rewind to the old phase commit or replay downstream phases. It inherits the original creative seed, reuses the phase's prompt context, reruns that phase's verify checks, and commits as `refine(<phase>): ...` only when the app tree is clean and the checks pass.
 
+## Android TV lifecycle
+
+Use Android Studio to inspect and debug generated source. Use the harness to operate the stable Android interfaces: the Gradle wrapper, emulator, ADB, screenshots, and Logcat.
+
+```sh
+npx tsx src/index.ts android <runId|appDir> --plan --json
+npx tsx src/index.ts android <runId|appDir> --build --install --launch --test --yes --json
+```
+
+The command writes `android-handoff.json` with the project directory, module, variant, Gradle tasks, APK path, device serial, artifacts, and last failure. D-pad flows can assert focused accessibility ids with `--flow <path>`.
+
 ## Examples
 
 | Name | What's in it | Vibe |
@@ -270,6 +283,7 @@ You can swap the template, add custom phases, change retry counts:
 | `logs <runId> [--follow]` | Print or follow detached run logs |
 | `abort <runId>` | Stop a detached run |
 | `templates check` | Compare pinned template commits with upstream HEAD |
+| `android <runId\|appDir>` | Build, install, launch, test, and capture Android TV evidence |
 | `doctor [--fix]` | Check prerequisites |
 | `vega-doctor [--fix]` | Check Kepler, VDA, Vega manifest, and Amazon Devices Builder Tools |
 | `visual-qa` | Re-run visual QA on existing app |

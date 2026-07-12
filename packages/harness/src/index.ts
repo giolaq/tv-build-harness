@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { cpSync, readFileSync, existsSync, readdirSync, statSync, mkdirSync, openSync, writeFileSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { execSync, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
@@ -39,6 +40,7 @@ import { abortRun, initRunStatus, outDirForRun, summarizeRun, updateRunStatus } 
 import { validateInputDir } from "./validate.js";
 import { checkTemplates } from "./template-check.js";
 import { buildRefinePlan, executeRefine, RefineInputError } from "./refine.js";
+import { runAndroidCommand } from "./commands/android.js";
 
 loadEnvFile();
 
@@ -141,6 +143,9 @@ async function main() {
       break;
     case "templates":
       templatesCommand();
+      break;
+    case "android":
+      await runAndroidCommand(args.slice(1), jsonMode);
       break;
     case "add-screen":
       await addScreen();
@@ -653,7 +658,7 @@ function valueFlag(flag: string): string | undefined {
 }
 
 function resolveExampleDir(name: string): string | null {
-  for (const root of [resolve("examples"), resolve("..", "..", "examples")]) {
+  for (const root of [resolve("examples"), resolve("..", "..", "examples"), join(packageRoot(), "resources", "examples")]) {
     const candidate = join(root, name);
     if (existsSync(candidate)) return candidate;
   }
@@ -1192,11 +1197,16 @@ function findAppDir(): string {
 }
 
 function resolveSkillsDir(): string {
-  const candidates = [resolve("../../skills"), resolve("skills"), resolve("../skills")];
+  const candidates = [resolve("../../skills"), resolve("skills"), resolve("../skills"), join(packageRoot(), "resources", "skills")];
   for (const dir of candidates) {
     if (existsSync(dir)) return dir;
   }
   return resolve("../../skills");
+}
+
+function packageRoot(): string {
+  const moduleDir = typeof import.meta.dirname === "string" ? import.meta.dirname : dirname(fileURLToPath(import.meta.url));
+  return resolve(moduleDir, "..");
 }
 
 function loadSkillsForCommand(skillsDir: string, skillNames: string[]): string {
@@ -1333,6 +1343,7 @@ function resolveReplayRecording(arg?: string): string {
   const fixtureCandidates = [
     resolve("docs", "course", "fixtures", arg, "recording.json"),
     resolve("..", "..", "docs", "course", "fixtures", arg, "recording.json"),
+    join(packageRoot(), "resources", "fixtures", arg, "recording.json"),
   ];
   return fixtureCandidates.find((candidate) => existsSync(candidate)) ?? fixtureCandidates[0];
 }
@@ -1736,6 +1747,7 @@ function printUsage() {
     validate [dir]         Validate inputs and semantic warnings
     init <dir>             Scaffold an input directory
     templates check        Compare pinned template SHAs with upstream HEAD
+    android <runId|app>    Build, install, launch, test, and capture an Android TV app
 
   Options:
     --example <name>       Use a bundled example (e.g. cooking-shows)
@@ -1759,6 +1771,8 @@ function printUsage() {
     --app=<path>           Specify app directory for add-screen/review/test-ui
     --close                Close browser after test-ui completes (default: stay open)
     --fix                  With doctor: print exact fix commands for failing checks
+    --device <serial>      Select an Android device for the android command
+    --flow <path>          Run an asserted Android D-pad flow JSON file
 
   Exit codes:
     0 success
@@ -1802,6 +1816,8 @@ function printUsage() {
     npx tv-build init ./my-app-inputs
     npx tv-build validate ./my-app-inputs --json
     npx tv-build templates check --json
+    npx tv-build android d811afcb --plan --json
+    npx tv-build android d811afcb --build --install --launch --test --yes --json
     npx tv-build refine d811afcb --phase branding "warmer palette, larger hero cards" --plan
     npx tv-build refine d811afcb --phase branding "warmer palette, larger hero cards" --yes
     npx tv-build add-screen Watchlist --type=grid

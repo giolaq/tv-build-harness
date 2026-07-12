@@ -1,12 +1,13 @@
 {
   "name": "@tv-build/core",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
     "prompts",
+    "resources",
     "ARCHITECTURE.md",
     "FEATURES.md",
     "PACKAGING.md"
@@ -16,6 +17,7 @@
   },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
+    "prepack": "node ../../scripts/sync-package-resources.mjs && yarn build",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -24,13 +26,13 @@
     "verify:examples": "vitest run tests/types.test.ts -t \"bundled examples\""
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.162",
-    "@anthropic-ai/sdk": "^0.52.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.195",
+    "@anthropic-ai/sdk": "0.104.2",
     "@aws-sdk/client-bedrock-agent-runtime": "^3.1073.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@opentelemetry/api": "^1.9.1",
     "@smithy/types": "^4.15.0",
-    "@strands-agents/sdk": "^1.6.0",
+    "@strands-agents/sdk": "1.7.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "ink": "^7.0.5",

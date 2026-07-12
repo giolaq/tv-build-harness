@@ -6,8 +6,7 @@ import type { GoldenSpec, VerifyConfig } from "@tv-build/shared-types";
 import { runSuite } from "../../src/runner.js";
 
 const ROOT = join(tmpdir(), "tv-build-verification-runner");
-const TSX = resolve("..", "harness", "node_modules", ".bin", "tsx");
-const FAKE = resolve("tests", "fixtures", "fake-harness.ts");
+const FAKE = resolve("tests", "fixtures", "fake-harness.mjs");
 
 beforeEach(() => {
   rmSync(ROOT, { recursive: true, force: true });
@@ -49,7 +48,7 @@ describe("runner governance", () => {
         n: 2,
         maxBatchCostUsd: 11,
         perRunMaxCostUsd: 10,
-        harnessCommand: `${TSX} ${FAKE} claude-run --fake-cost 10.5`,
+        harnessCommand: `${process.execPath} ${FAKE} claude-run --fake-cost 10.5`,
       }),
     });
     expect(records).toHaveLength(2);
@@ -60,7 +59,7 @@ describe("runner governance", () => {
   it("records budget-aborted harness exits as budget_abort", async () => {
     const records = await runSuite({
       specs: [spec()],
-      config: config({ harnessCommand: `${TSX} ${FAKE} claude-run --fake-exit-code 4` }),
+      config: config({ harnessCommand: `${process.execPath} ${FAKE} claude-run --fake-exit-code 4` }),
     });
     expect(records[0]).toMatchObject({ outcome: "budget_abort" });
   });
@@ -94,7 +93,7 @@ function config(patch: Partial<VerifyConfig> = {}): VerifyConfig {
     tierLevelMap: { easy: [], medium: [], hard: [] },
     regressionRule: "ci_below_point",
     artifactsDir: join(ROOT, "artifacts"),
-    harnessCommand: `${TSX} ${FAKE} claude-run`,
+    harnessCommand: `${process.execPath} ${FAKE} claude-run`,
     ...patch,
   };
 }

@@ -1,4 +1,5 @@
-import { execFileSync, execSync, spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PinnedEnv, RunOutcome, SeedPolicy } from "@tv-build/shared-types";
@@ -163,7 +164,7 @@ export function captureEnv(options: CaptureEnvOptions = {}): PinnedEnv {
 
   let claudeCliVersion = "unknown";
   try {
-    claudeCliVersion = execSync("claude --version", { encoding: "utf-8" }).trim();
+    claudeCliVersion = execSync("claude --version", { encoding: "utf-8", timeout: 500 }).trim();
   } catch {
     // Claude CLI may not be available
   }
@@ -195,18 +196,11 @@ export function captureEnv(options: CaptureEnvOptions = {}): PinnedEnv {
 
 function captureTemplateCommits(): Record<string, string> {
   try {
-    const output = execFileSync(
-      "npx",
-      ["tsx", "src/index.ts", "templates", "check", "--json"],
-      { cwd: HARNESS_DIR, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"], timeout: 2_000 },
-    );
-    const parsed = JSON.parse(output) as { templates?: Array<{ repo?: string; commit?: string }> };
+    const source = readFileSync(join(HARNESS_DIR, "src", "harness-config.ts"), "utf-8");
+    const repo = source.match(/repo:\s*"([^"]+)"/)?.[1];
+    const commit = source.match(/commit:\s*"([0-9a-f]{40})"/)?.[1];
     const commits: Record<string, string> = {};
-    for (const template of parsed.templates ?? []) {
-      if (template.repo && template.commit) {
-        commits[template.repo] = template.commit;
-      }
-    }
+    if (repo && commit) commits[repo] = commit;
     return commits;
   } catch {
     return {};

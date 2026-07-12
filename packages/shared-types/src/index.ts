@@ -22,7 +22,6 @@ export interface PinnedEnv {
   modelPlan: string;
   modelExecution: string;
   templateRepo: string;
-  templateBranch?: string;
   templateCommits?: Record<string, string>;
   seedPolicy?: SeedPolicy;
   fixedSeed?: string;

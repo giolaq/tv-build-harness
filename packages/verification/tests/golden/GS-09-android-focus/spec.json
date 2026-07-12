@@ -1,0 +1,13 @@
+{
+  "id": "GS-09-android-focus",
+  "name": "Android TV single-step focus and back navigation",
+  "description": "Build the Android TV target and verify that one D-pad event produces one focus move, selection opens detail, and Back returns to the prior screen.",
+  "tier": "hard",
+  "inputDir": "../../../../../examples/cooking-shows",
+  "expected": {
+    "files_exist": ["package.json", "apps/expo-multi-tv"],
+    "nav_routes": ["Home", "Details"],
+    "focus_nodes_min": 3,
+    "platforms_build": ["androidtv"]
+  }
+}

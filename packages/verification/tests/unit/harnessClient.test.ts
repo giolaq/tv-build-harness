@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HarnessRunError, classifyHarnessExit, runHarness } from "../../src/harnessClient.js";
 
 const ROOT = join(tmpdir(), "tv-build-verification-harness-client");
-const TSX = resolve("..", "harness", "node_modules", ".bin", "tsx");
-const FAKE = resolve("tests", "fixtures", "fake-harness.ts");
+const FAKE = resolve("tests", "fixtures", "fake-harness.mjs");
+const FAKE_COMMAND = `${process.execPath} ${FAKE} claude-run`;
 
 beforeEach(() => {
   rmSync(ROOT, { recursive: true, force: true });
@@ -18,7 +18,7 @@ describe("harness client", () => {
     const input = inputDir("basic");
 
     const result = await runHarness(input, {
-      command: `${TSX} ${FAKE} claude-run`,
+      command: FAKE_COMMAND,
       seed: "fixed-seed",
       maxCostUsd: 2,
       extraArgs: ["--fake-run-id", "run-123", "--fake-cost", "0.42"],
@@ -37,7 +37,7 @@ describe("harness client", () => {
     const input = inputDir("path with spaces");
 
     const result = await runHarness(input, {
-      command: `${TSX} ${FAKE} claude-run`,
+      command: FAKE_COMMAND,
       extraArgs: ["--fake-run-id", "space-run"],
     });
 
@@ -53,7 +53,7 @@ describe("harness client", () => {
     const input = inputDir(`exit-${exitCode}`);
 
     await expect(runHarness(input, {
-      command: `${TSX} ${FAKE} claude-run`,
+      command: FAKE_COMMAND,
       extraArgs: ["--fake-exit-code", String(exitCode), "--fake-run-id", `exit-${exitCode}`],
     })).rejects.toMatchObject({
       outcome,
@@ -65,7 +65,7 @@ describe("harness client", () => {
     const input = inputDir("schema-mismatch");
 
     await expect(runHarness(input, {
-      command: `${TSX} ${FAKE} claude-run`,
+      command: FAKE_COMMAND,
       extraArgs: ["--fake-schema-version", "2", "--fake-schema-only"],
     })).rejects.toThrow(/schemaVersion/);
   });
@@ -74,7 +74,7 @@ describe("harness client", () => {
     const input = inputDir("stderr-noise");
 
     const result = await runHarness(input, {
-      command: `${TSX} ${FAKE} claude-run`,
+      command: FAKE_COMMAND,
       extraArgs: ["--fake-stderr", "--fake-run-id", "stderr-run"],
     });
 

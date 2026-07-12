@@ -1,6 +1,6 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { HarnessInput, Phase, PhaseResult, SessionState } from "./types.js";
@@ -88,19 +88,14 @@ export function executeClonePhase(
 
   try {
     onLog?.("Cloning template...");
-    execSync(
-      `git clone ${harness.template.repo} "${appDir}"`,
-      { stdio: "pipe", timeout: 60_000 }
-    );
-    execSync(`git checkout --detach ${harness.template.commit}`, {
-      cwd: appDir, stdio: "pipe", timeout: 60_000,
-    });
-    execSync(`rm -rf "${join(appDir, ".git")}"`, { stdio: "pipe" });
-    execSync("git init && git add -A && git commit -m \"initial template\"", {
-      cwd: appDir, stdio: "pipe",
-    });
+    execFileSync("git", ["clone", harness.template.repo, appDir], { stdio: "pipe", timeout: 60_000 });
+    execFileSync("git", ["checkout", "--detach", harness.template.commit], { cwd: appDir, stdio: "pipe", timeout: 60_000 });
+    rmSync(join(appDir, ".git"), { recursive: true, force: true });
+    execFileSync("git", ["init"], { cwd: appDir, stdio: "pipe" });
+    execFileSync("git", ["add", "-A"], { cwd: appDir, stdio: "pipe" });
+    execFileSync("git", ["commit", "-m", "initial template"], { cwd: appDir, stdio: "pipe" });
     onLog?.("Installing dependencies...");
-    execSync("yarn install", { cwd: appDir, stdio: "pipe", timeout: 180_000 });
+    execFileSync("yarn", ["install"], { cwd: appDir, stdio: "pipe", timeout: 180_000 });
     onLog?.("Template ready.");
     return { phase: "scaffold", status: "success", iterations: 0 };
   } catch (err) {
@@ -115,15 +110,15 @@ export function commitAfterPhase(outDir: string, phase: Phase): void {
 
   try {
     writeAppOriginMarker(outDir);
-    const status = execSync("git status --porcelain", {
+    const status = execFileSync("git", ["status", "--porcelain"], {
       cwd: appDir,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
     });
     if (!status.trim()) return;
 
-    execSync("git add -A", { cwd: appDir, stdio: ["pipe", "pipe", "pipe"] });
-    execSync(`git commit -m "harness: complete phase ${phase}"`, {
+    execFileSync("git", ["add", "-A"], { cwd: appDir, stdio: ["pipe", "pipe", "pipe"] });
+    execFileSync("git", ["commit", "-m", `harness: complete phase ${phase}`], {
       cwd: appDir,
       stdio: ["pipe", "pipe", "pipe"],
     });

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AndroidBuildProfile } from "./platforms/types.js";
 
 export type TechStack = "react-native" | "kmp" | "flutter" | "native-android" | "unknown";
 
@@ -107,7 +108,7 @@ export const STACK_SKILLS: Record<TechStack, Partial<Record<string, string[]>>> 
     verify: ["rn-template-anatomy"],
     build_loop: ["rn-template-anatomy"],
     visual_qa_loop: ["10ft-ui", "rn-theming", "rn-spatial-navigation"],
-    android_test_loop: ["android-tv-testing", "android-cli-agent"],
+    android_test_loop: ["android-tv-testing"],
   },
   "kmp": {
     scaffold: ["kmp-template-anatomy"],
@@ -118,7 +119,7 @@ export const STACK_SKILLS: Record<TechStack, Partial<Record<string, string[]>>> 
     navigation: ["kmp-template-anatomy", "kmp-navigation"],
     verify: ["kmp-verify-patterns"],
     build_loop: ["kmp-build-commands"],
-    android_test_loop: ["android-tv-testing", "android-cli-agent"],
+    android_test_loop: ["android-tv-testing"],
   },
   "native-android": {
     scaffold: ["kmp-template-anatomy"],
@@ -126,8 +127,24 @@ export const STACK_SKILLS: Record<TechStack, Partial<Record<string, string[]>>> 
     screens: ["kmp-compose-tv", "10ft-ui"],
     verify: ["kmp-verify-patterns"],
     build_loop: ["kmp-build-commands"],
-    android_test_loop: ["android-tv-testing", "android-cli-agent"],
+    android_test_loop: ["android-tv-testing"],
   },
   "flutter": {},
   "unknown": {},
 };
+
+export function getAndroidBuildProfile(stack: TechStack): AndroidBuildProfile {
+  if (stack === "kmp") return {
+    projectDir: ".", module: "androidtv-app", variant: "debug",
+    compileTask: ":androidtv-app:compileDebugKotlin", assembleTask: ":androidtv-app:assembleDebug",
+    installTask: ":androidtv-app:installDebug", apkPath: "androidtv-app/build/outputs/apk/debug/androidtv-app-debug.apk",
+  };
+  if (stack === "native-android") return {
+    projectDir: ".", module: "app", variant: "debug", compileTask: ":app:compileDebugKotlin",
+    assembleTask: ":app:assembleDebug", installTask: ":app:installDebug", apkPath: "app/build/outputs/apk/debug/app-debug.apk",
+  };
+  return {
+    projectDir: "apps/expo-multi-tv/android", module: "app", variant: "debug", compileTask: ":app:compileDebugKotlin",
+    assembleTask: ":app:assembleDebug", installTask: ":app:installDebug", apkPath: "app/build/outputs/apk/debug/app-debug.apk",
+  };
+}

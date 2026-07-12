@@ -1,6 +1,6 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import type { SkillLibrary } from "./skill-library.js";
@@ -22,11 +22,13 @@ export function createAgentSdkToolServer(input: {
       if (existsSync(join(target_dir, "package.json"))) {
         return { content: [{ type: "text" as const, text: `Template already exists at ${target_dir}` }] };
       }
-      execSync(`git clone ${templateRepo} "${target_dir}"`, { stdio: "pipe", timeout: 60_000 });
-      execSync(`git checkout --detach ${templateCommit}`, { cwd: target_dir, stdio: "pipe", timeout: 60_000 });
-      execSync(`rm -rf "${join(target_dir, ".git")}"`, { stdio: "pipe" });
-      execSync(`git init && git add -A && git commit -m "initial template"`, { cwd: target_dir, stdio: "pipe" });
-      execSync("yarn install", { cwd: target_dir, stdio: "pipe", timeout: 120_000 });
+      execFileSync("git", ["clone", templateRepo, target_dir], { stdio: "pipe", timeout: 60_000 });
+      execFileSync("git", ["checkout", "--detach", templateCommit], { cwd: target_dir, stdio: "pipe", timeout: 60_000 });
+      rmSync(join(target_dir, ".git"), { recursive: true, force: true });
+      execFileSync("git", ["init"], { cwd: target_dir, stdio: "pipe" });
+      execFileSync("git", ["add", "-A"], { cwd: target_dir, stdio: "pipe" });
+      execFileSync("git", ["commit", "-m", "initial template"], { cwd: target_dir, stdio: "pipe" });
+      execFileSync("yarn", ["install"], { cwd: target_dir, stdio: "pipe", timeout: 120_000 });
       return { content: [{ type: "text" as const, text: `Template cloned to ${target_dir}, deps installed. App: ${app_name}` }] };
     }
   );
@@ -87,7 +89,7 @@ export function createAgentSdkToolServer(input: {
     "Install a package into a workspace",
     { package_name: z.string(), workspace: z.string(), dev: z.boolean().optional() },
     async ({ package_name, workspace, dev }) => {
-      execSync(`yarn workspace ${workspace} add${dev ? " -D" : ""} ${package_name}`, { cwd: appDir, stdio: "pipe", timeout: 120_000 });
+      execFileSync("yarn", ["workspace", workspace, "add", ...(dev ? ["-D"] : []), package_name], { cwd: appDir, stdio: "pipe", timeout: 120_000 });
       return { content: [{ type: "text" as const, text: `Installed ${package_name} in ${workspace}` }] };
     }
   );
@@ -104,10 +106,10 @@ export function createAgentSdkToolServer(input: {
     "Create a git commit to snapshot progress",
     { message: z.string() },
     async ({ message }) => {
-      const status = execSync("git status --porcelain", { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+      const status = execFileSync("git", ["status", "--porcelain"], { cwd: appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
       if (!status.trim()) return { content: [{ type: "text" as const, text: "No changes to commit" }] };
-      execSync("git add -A", { cwd: appDir, stdio: "pipe" });
-      execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: appDir, stdio: "pipe" });
+      execFileSync("git", ["add", "-A"], { cwd: appDir, stdio: "pipe" });
+      execFileSync("git", ["commit", "-m", message], { cwd: appDir, stdio: "pipe" });
       return { content: [{ type: "text" as const, text: `Committed: ${message}` }] };
     }
   );
@@ -155,10 +157,11 @@ export function createAgentSdkToolServer(input: {
     { platform: z.enum(["android", "ios"]) },
     async ({ platform }) => {
       try {
-        execSync(`EXPO_TV=1 npx expo prebuild --platform ${platform} --no-install`, {
+        execFileSync("npx", ["expo", "prebuild", "--platform", platform, "--no-install"], {
           cwd: join(appDir, "apps", "expo-multi-tv"),
           stdio: "pipe",
           timeout: 600_000,
+          env: { ...process.env, EXPO_TV: "1" },
         });
         return { content: [{ type: "text" as const, text: `Prebuild succeeded for ${platform}` }] };
       } catch (err) {
@@ -175,11 +178,15 @@ export function createAgentSdkToolServer(input: {
     async ({ platform, screen_name }) => {
       const name = screen_name ?? "home";
       const outPath = join(workdir, "screenshots", `${platform}-${name}.png`);
+      mkdirSync(join(workdir, "screenshots"), { recursive: true });
       try {
         if (platform === "appletv") {
-          execSync(`xcrun simctl io booted screenshot "${outPath}"`, { stdio: "pipe", timeout: 10_000 });
+          execFileSync("xcrun", ["simctl", "io", "booted", "screenshot", outPath], { stdio: "pipe", timeout: 10_000 });
         } else {
-          execSync(`adb exec-out screencap -p > "${outPath}"`, { stdio: "pipe", timeout: 10_000 });
+          const remotePath = `/sdcard/tv-build-${Date.now()}.png`;
+          execFileSync("adb", ["shell", "screencap", "-p", remotePath], { stdio: "pipe", timeout: 10_000 });
+          execFileSync("adb", ["pull", remotePath, outPath], { stdio: "pipe", timeout: 10_000 });
+          execFileSync("adb", ["shell", "rm", remotePath], { stdio: "pipe", timeout: 10_000 });
         }
         return { content: [{ type: "text" as const, text: `Screenshot saved: ${outPath}` }] };
       } catch {
