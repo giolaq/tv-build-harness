@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "mini-harness": "dist/index.js"
+    "mini-harness": "dist/src/index.js"
   },
   "scripts": {
     "build": "tsc",

@@ -18,6 +18,12 @@ jobs:
             typecheck: true
           - package: packages/verification
             typecheck: false
+          - package: packages/mini-harness
+            typecheck: true
+          - package: packages/web-ui
+            typecheck: false
+          - package: packages/shared-types
+            typecheck: false
 
     steps:
       - name: Checkout
@@ -46,8 +52,14 @@ jobs:
         run: yarn typecheck
 
       - name: Test
+        if: ${{ matrix.package == 'packages/harness' || matrix.package == 'packages/verification' }}
         working-directory: ${{ matrix.package }}
         run: yarn test
+
+      - name: Build
+        if: ${{ matrix.package != 'packages/harness' }}
+        working-directory: ${{ matrix.package }}
+        run: yarn build
 
       - name: Check generated input docs
         if: ${{ matrix.package == 'packages/harness' }}
@@ -57,6 +69,10 @@ jobs:
         if: ${{ matrix.package == 'packages/harness' }}
         run: packages/harness/node_modules/.bin/tsx scripts/check-course-paths.ts
 
+      - name: Check phase resources
+        if: ${{ matrix.package == 'packages/harness' }}
+        run: packages/harness/node_modules/.bin/tsx scripts/check-resources.ts
+
       - name: Check example owner domains
         if: ${{ matrix.package == 'packages/harness' }}
         run: packages/harness/node_modules/.bin/tsx scripts/check-example-links.ts --domains-only
@@ -64,6 +80,11 @@ jobs:
       - name: Check docs and examples for secrets
         if: ${{ matrix.package == 'packages/harness' }}
         run: packages/harness/node_modules/.bin/tsx scripts/scrub.ts --check docs examples
+
+      - name: Replay full harness contract fixture
+        if: ${{ matrix.package == 'packages/harness' }}
+        working-directory: packages/harness
+        run: npx tsx src/index.ts replay cooking-shows --json --speed 50
 
   fixture-replay:
     name: fixture replay

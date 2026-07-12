@@ -1,40 +1,63 @@
 # Mini Harness
 
-This package is a small teaching harness. It shows the harness loop without the production TV app machinery.
+This package is workshop material. It builds the same idea four times, adding one harness concept per step until the final version mirrors the real TV Build architecture.
 
-Run the zero-key fixture:
+Run commands from `packages/mini-harness`.
+
+## The Four Steps
+
+| Step | What it teaches | Run it |
+| --- | --- | --- |
+| `01-single-agent` | Prompt -> model -> write files. No verification. | `npx tsx steps/01-single-agent/index.ts run fixtures/phases.json --replay fixtures/demo-recording.json` |
+| `02-verify-loop` | Add `file_exists`/`grep` checks and retry with failure text. | `npx tsx steps/02-verify-loop/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json` |
+| `03-phases` | Add config loading, a phase loop, checkpoints, run context, reports, and git commits. | `npx tsx steps/03-phases/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json` |
+| `04-skills` | Add skills, prompt assembly, executor interface, and record/replay. | `npx tsx steps/04-skills/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json` |
+
+The invocation shape stays the same:
 
 ```sh
-yarn install
+npx tsx steps/<step>/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json
+```
+
+## Existing Course Command
+
+The old entrypoint still works. It now runs step 04:
+
+```sh
 yarn dev --phases fixtures/phases.json --replay fixtures/demo-recording.json
 ```
 
-Run live with Anthropic:
+## Live Run
+
+Use a model key only when you want to record a new fixture:
 
 ```sh
-ANTHROPIC_API_KEY=... yarn dev --phases fixtures/phases.json
+ANTHROPIC_API_KEY=... npx tsx steps/04-skills/index.ts run fixtures/phases.json
 ```
 
-The harness loads `phases.json`, calls a model for each phase, writes files under `./out`, verifies one check, retries once with the failure text, commits the phase in `./out/.git`, and writes `out/report.md`.
+The live run writes `out/recording.json`. Scrub it before committing.
 
-`phases.json` shape:
+## Inputs
+
+`phases.json` is intentionally small:
 
 ```json
 {
   "phases": [
-    { "name": "scaffold", "prompt": "Create files", "verify": { "type": "file_exists", "path": "out/index.html" } },
-    { "name": "content", "prompt": "Add copy", "verify": { "type": "grep", "path": "out/index.html", "pattern": "Tiny TV" } }
+    {
+      "name": "content",
+      "prompt": "Add the required show title.",
+      "verify": { "type": "grep", "path": "out/shows.html", "pattern": "Kitchen Stories" },
+      "skills": ["optional-skill-name"]
+    }
   ]
 }
 ```
 
-Non-goals:
+Only step 04 reads `skills`. Steps 01-03 ignore that field.
 
-- No tools or MCP. Production tool wiring lives in `packages/harness/src/agent-sdk-tools.ts` and `packages/harness/src/strands-tools.ts`.
-- No skills. Production knowledge injection lives in `packages/harness/src/phase-context.ts`.
-- No resume. Production checkpoint handling lives in `packages/harness/src/checkpoint.ts`.
-- No TUI. Production display lives in `packages/harness/src/tui.tsx`.
-- No multi-provider model factory. Production provider selection lives in `packages/harness/src/model-factory.ts`.
-- No full pipeline engine. Production retries, skips, dependencies, and abort behavior live in `packages/harness/src/pipeline-engine.ts`.
+## Output
 
-Use this package to explain the core loop, then use `packages/harness` to show what changes when the same idea has to survive real app generation.
+Every step writes a static site under `./out`. Later steps also write checkpoints, git commits, reports, and recordings.
+
+Read `ISOMORPHISM.md` to map step-04 files to the real harness modules.

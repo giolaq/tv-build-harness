@@ -115,6 +115,16 @@ npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger her
 
 Use `refine` for phase concerns such as branding, content, screens, creative UI, and navigation. It amends the current app state; it does not rewind to the old phase commit. Never refine without showing the plan. On exit `2`, report the failed checks and stop.
 
+For an Android TV target, show the Android lifecycle plan before touching a device:
+
+```sh
+npx tsx src/index.ts android <runId> --plan --json
+# After human confirmation:
+npx tsx src/index.ts android <runId> --build --install --launch --test --yes --json
+```
+
+Report the generated `android-handoff.json`. Do not change Gradle tasks, device selection, or package metadata without showing a new plan.
+
 ## Exit Codes
 
 | Code | Meaning | What you do |

@@ -2,11 +2,11 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const args = process.argv.slice(2);
-const value = (name: string): string | undefined => {
+const value = (name) => {
   const flag = args.indexOf(name);
   return flag >= 0 ? args[flag + 1] : undefined;
 };
-const option = (name: string, fallback: string): string => {
+const option = (name, fallback) => {
   const prefix = `${name}=`;
   return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length) ?? value(name) ?? fallback;
 };
@@ -22,39 +22,28 @@ if (!args.includes("--json") || !args.includes("--no-tui") || !args.includes("--
   console.error("missing required harness flags");
   process.exit(3);
 }
-
 if (!inputDir || !existsSync(resolve(inputDir))) {
   console.error(`input dir missing or split incorrectly: ${inputDir ?? "<none>"}`);
   process.exit(3);
 }
-
-if (args.includes("--fake-stderr")) {
-  console.error("stray human stderr from fake harness");
-}
+if (args.includes("--fake-stderr")) console.error("stray human stderr from fake harness");
 
 const outDir = join(process.cwd(), "out", runId);
 mkdirSync(join(outDir, "app"), { recursive: true });
-
-function emit(payload: Record<string, unknown>): void {
-  process.stdout.write(`${JSON.stringify({ schemaVersion, ...payload })}\n`);
-}
+const emit = (payload) => process.stdout.write(`${JSON.stringify({ schemaVersion, ...payload })}\n`);
 
 emit({ event: "run_start", mode: "claude-run", seed });
-
-if (args.includes("--fake-schema-only")) {
-  process.exit(exitCode);
+if (!args.includes("--fake-schema-only")) {
+  emit({ event: "phase_start", phase: "branding" });
+  emit({ event: "phase_complete", phase: "branding", result: { phase: "branding", status: "success", iterations: 1 }, cost });
+  emit({
+    event: "run_complete",
+    runId,
+    outDir,
+    seed,
+    status: exitCode === 0 ? "success" : "failed",
+    costSoFar: cost,
+    phases: [{ phase: "branding", status: exitCode === 0 ? "success" : "failed", iterations: 1 }],
+  });
 }
-
-emit({ event: "phase_start", phase: "branding" });
-emit({ event: "phase_complete", phase: "branding", result: { phase: "branding", status: "success", iterations: 1 }, cost });
-emit({
-  event: "run_complete",
-  runId,
-  outDir,
-  seed,
-  status: exitCode === 0 ? "success" : "failed",
-  costSoFar: cost,
-  phases: [{ phase: "branding", status: exitCode === 0 ? "success" : "failed", iterations: 1 }],
-});
-
 process.exit(exitCode);

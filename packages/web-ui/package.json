@@ -2,6 +2,7 @@
   "name": "@tv-build/web-ui",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "yarn@1.22.21",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -8,7 +8,7 @@ Cost: free (reading).
 
 ## How this repo solves it
 
-The mini harness shows the irreducible loop in `packages/mini-harness/src/index.ts:34`: load phases, run a phase, verify it, commit it, and write a report.
+The mini harness shows the irreducible loop in `packages/mini-harness/steps/04-skills/pipeline-engine.ts:10`: load phases, run a phase, verify it, commit it, and write a report.
 
 The production harness keeps that shape but adds durable state in `packages/harness/src/run-context.ts:19`, pipeline policy in `packages/harness/src/pipeline-engine.ts:33`, and CLI modes in `packages/harness/src/index.ts:72`.
 
@@ -37,7 +37,7 @@ What artifact makes each mini-harness phase auditable?
 
 <details><summary>Answer</summary>
 
-The Git commit created by `commitPhase()` in `packages/mini-harness/src/index.ts:136`.
+The Git commit created by `commitPhase()` in `packages/mini-harness/steps/04-skills/run-context.ts:23`.
 
 </details>
 

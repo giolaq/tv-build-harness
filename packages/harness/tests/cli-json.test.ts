@@ -255,6 +255,26 @@ describe("CLI JSON contract", () => {
     }
   });
 
+  it("prints a stack-aware Android lifecycle plan without an SDK", () => {
+    const app = mkdtempSync(join(tmpdir(), "tv-build-android-plan-"));
+    try {
+      writeFileSync(join(app, "settings.gradle.kts"), "include(\":app\")\n");
+      writeFileSync(join(app, "build.gradle"), "plugins {}\n");
+      const result = runCli(["src/index.ts", "android", app, "--build", "--install", "--plan", "--json"]);
+      expect(result.status).toBe(0);
+      expect(parseJson(result.stdout)).toMatchObject({
+        schemaVersion: 1,
+        command: "android",
+        appDir: app,
+        stack: "native-android",
+        profile: { compileTask: ":app:compileDebugKotlin", assembleTask: ":app:assembleDebug" },
+        steps: expect.arrayContaining(["build", "install"]),
+      });
+    } finally {
+      rmSync(app, { recursive: true, force: true });
+    }
+  });
+
   it("detaches a run and reports failed status when the child exits early", async () => {
     const detached = runCli(
       ["src/index.ts", "run", "--example", "changelog-site", "--detach", "--yes", "--json"],

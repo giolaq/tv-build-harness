@@ -16,7 +16,7 @@ Replay supports file paths and fixture names in `packages/harness/src/index.ts:6
 
 Creative UI runs include controlled randomness through a creative seed. The seed is selected at run start, written into `spec.json`, `report.md`, checkpoints, and recordings, and reused by replay fixtures. Fix the seed when you regenerate fixtures or compare verification runs; leave it random when you want demo variety.
 
-The mini harness adds the simplest observable Git trail: each successful phase commits in `packages/mini-harness/src/index.ts:136`.
+The mini harness adds the simplest observable Git trail: each successful phase commits in `packages/mini-harness/steps/04-skills/run-context.ts:23`.
 
 The full harness uses the same per-phase commit idea to make targeted `refine` safe: a successful refine becomes a new app commit, while a failed refine restores a clean tree. See `docs/course/07-your-harness-as-a-tool.md`.
 

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { VerifyCheck } from "./harness-config.js";
 import { focusCheckHandler } from "./tools/focus-check.js";
+import { commandRunner } from "./process/command-runner.js";
 
 export interface VerifyContext {
   appDir: string;
@@ -109,11 +110,19 @@ async function runCheck(
 
     case "command": {
       try {
-        execSync(substituteVars(check.run, ctx.vars), {
-          cwd: ctx.appDir,
-          encoding: "utf-8",
-          stdio: ["pipe", "pipe", "pipe"],
-          timeout: check.timeoutMs,
+        if (check.command) {
+          const result = await commandRunner.run({
+            command: substituteVars(check.command, ctx.vars),
+            args: check.args.map((arg) => substituteVars(arg, ctx.vars)),
+            cwd: ctx.appDir,
+            timeoutMs: check.timeoutMs,
+          });
+          if (result.exitCode === 0 && !result.timedOut) return { ok: true };
+          return fail(`Command failed: ${(result.stderr || result.stdout || `exit ${result.exitCode}`).slice(0, 1000)}`);
+        }
+        // Compatibility only: legacy configs may still rely on shell syntax.
+        execSync(substituteVars(check.run!, ctx.vars), {
+          cwd: ctx.appDir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], timeout: check.timeoutMs,
         });
         return { ok: true };
       } catch (err) {

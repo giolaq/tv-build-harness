@@ -1,7 +1,7 @@
-import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ToolDefinition, ToolHandler, ToolResult } from "../types.js";
+import { commandRunner } from "../process/command-runner.js";
 
 export const installDepDefinition: ToolDefinition = {
   name: "install_dep",
@@ -35,21 +35,17 @@ export const installDepHandler: ToolHandler = async (input): Promise<ToolResult>
   if (!pkg.match(/^[@a-z0-9][a-z0-9._\-/@^~>=<*]*$/i)) {
     return { ok: false, output: null, error: `Invalid package name: ${pkg}` };
   }
-
-  const devFlag = dev ? " -D" : "";
-  const cmd = `yarn workspace ${workspace} add${devFlag} ${pkg}`;
+  if (!workspace.match(/^[@a-z0-9][a-z0-9._\-/@]*$/i)) {
+    return { ok: false, output: null, error: `Invalid workspace name: ${workspace}` };
+  }
 
   try {
-    const output = execSync(cmd, {
-      cwd: workdir,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-      timeout: 120_000,
-    });
+    const result = await commandRunner.run({ command: "yarn", args: ["workspace", workspace, "add", ...(dev ? ["-D"] : []), pkg], cwd: workdir, timeoutMs: 120_000 });
+    if (result.exitCode !== 0) throw new Error(result.stderr || result.stdout || `exit ${result.exitCode}`);
 
     return {
       ok: true,
-      output: `Installed ${pkg} in workspace ${workspace}${dev ? " (dev)" : ""}.\n${output.slice(0, 200)}`,
+      output: `Installed ${pkg} in workspace ${workspace}${dev ? " (dev)" : ""}.\n${result.stdout.slice(0, 200)}`,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

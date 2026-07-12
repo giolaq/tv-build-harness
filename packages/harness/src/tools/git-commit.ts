@@ -1,7 +1,7 @@
-import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ToolDefinition, ToolHandler, ToolResult } from "../types.js";
+import { commandRunner } from "../process/command-runner.js";
 
 export const gitCommitDefinition: ToolDefinition = {
   name: "git_commit",
@@ -25,27 +25,20 @@ export const gitCommitHandler: ToolHandler = async (input): Promise<ToolResult> 
   }
 
   try {
-    const status = execSync("git status --porcelain", {
-      cwd: workdir,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const status = await commandRunner.run({ command: "git", args: ["status", "--porcelain"], cwd: workdir, timeoutMs: 30_000 });
+    if (status.exitCode !== 0) throw new Error(status.stderr || "git status failed");
 
-    if (!status.trim()) {
+    if (!status.stdout.trim()) {
       return { ok: true, output: "No changes to commit" };
     }
 
-    execSync("git add -A", { cwd: workdir, stdio: ["pipe", "pipe", "pipe"] });
-    execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, {
-      cwd: workdir,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    const hash = execSync("git rev-parse --short HEAD", {
-      cwd: workdir,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    }).trim();
+    const add = await commandRunner.run({ command: "git", args: ["add", "-A"], cwd: workdir, timeoutMs: 30_000 });
+    if (add.exitCode !== 0) throw new Error(add.stderr || "git add failed");
+    const commit = await commandRunner.run({ command: "git", args: ["commit", "-m", message], cwd: workdir, timeoutMs: 30_000 });
+    if (commit.exitCode !== 0) throw new Error(commit.stderr || "git commit failed");
+    const hashResult = await commandRunner.run({ command: "git", args: ["rev-parse", "--short", "HEAD"], cwd: workdir, timeoutMs: 30_000 });
+    if (hashResult.exitCode !== 0) throw new Error(hashResult.stderr || "git rev-parse failed");
+    const hash = hashResult.stdout.trim();
 
     return { ok: true, output: `Committed ${hash}: ${message}` };
   } catch (err) {

@@ -10,7 +10,7 @@ Supported workshop hosts: macOS and Linux. On Windows, use WSL2. Native Windows 
 
 ## How this repo solves it
 
-Start with the smallest loop in `packages/mini-harness/src/index.ts:34`. It loads phases, runs each phase, verifies output, retries once, commits progress, and writes a report.
+Start with the staged mini harness in `packages/mini-harness/steps/04-skills/pipeline-engine.ts:10`. It loads phases, runs each phase, verifies output, retries once, commits progress, and writes a report.
 
 Then compare the production engine in `packages/harness/src/pipeline-engine.ts:33`. It keeps phase ordering, dependencies, retries, aborts, filtering, and resume deterministic.
 
@@ -40,7 +40,7 @@ Lessons:
 
 Open these three files:
 
-`packages/mini-harness/src/index.ts:34`
+`packages/mini-harness/steps/04-skills/pipeline-engine.ts:10`
 
 `packages/harness/src/pipeline-engine.ts:33`
 

@@ -1,0 +1,13 @@
+{
+  "id": "GS-10-kmp-compose-build",
+  "name": "Kotlin Multiplatform Compose TV build",
+  "description": "Generate the KMP example and compile the shared Android source set plus the Android TV application module.",
+  "tier": "hard",
+  "inputDir": "../../../../../examples/kmp-cooking-shows",
+  "expected": {
+    "files_exist": ["settings.gradle.kts", "build.gradle.kts", "androidtv-app/build.gradle.kts"],
+    "nav_routes": ["Home", "Details"],
+    "focus_nodes_min": 3,
+    "platforms_build": ["androidtv"]
+  }
+}

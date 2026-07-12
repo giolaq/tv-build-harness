@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { fetchExamples, fetchExample, startRun } from "../api/client";
+import { fetchExamples, fetchExample } from "../api/client";
 import { useRunStore } from "../store/useRunStore";
 
 export function ConfigPanel() {
-  const { status, reset } = useRunStore();
+  const { status } = useRunStore();
   const [examples, setExamples] = useState<string[]>([]);
   const [selectedExample, setSelectedExample] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -39,31 +39,6 @@ export function ConfigPanel() {
     }
   };
 
-  const handleStart = async () => {
-    setError("");
-    try {
-      const content = JSON.parse(contentJson);
-      reset();
-      await startRun({
-        prompt,
-        content,
-        brand: {
-          name: appName,
-          primary_color: primaryColor,
-          accent_color: accentColor,
-          background_color: backgroundColor,
-          font_family: "System",
-          logo_path: "",
-          splash_path: "",
-        },
-        design: { navigation_style: navStyle },
-        config: { platforms },
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start");
-    }
-  };
-
   const togglePlatform = (p: string) => {
     setPlatforms((prev) =>
       prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]
@@ -74,7 +49,8 @@ export function ConfigPanel() {
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto">
-      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Configuration</h2>
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Read-only run explorer</h2>
+      <p className="text-xs text-gray-500">Launch runs with the CLI after reviewing the plan and cost cap.</p>
 
       <div>
         <label className="text-xs text-gray-400 block mb-1">Example</label>
@@ -174,11 +150,10 @@ export function ConfigPanel() {
       {error && <div className="text-red-400 text-xs">{error}</div>}
 
       <button
-        onClick={handleStart}
-        disabled={isRunning || !contentJson.trim()}
+        disabled
         className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
       >
-        {isRunning ? "Running..." : "Start Generation"}
+        Read-only
       </button>
     </div>
   );

@@ -44,6 +44,9 @@ find skills -maxdepth 2 -name SKILL.md | sort
 |-------|------------|------|
 | `10ft-ui` | `[phase_screens]` | `skills/10ft-ui/SKILL.md` |
 | `android-tv-testing` | `[android_test_loop]` | `skills/android-tv-testing/SKILL.md` |
+| `amazon-devices-vega-app-performance` | `[vega_perf_trace, vega_hot_functions]` | `skills/amazon-devices-vega-app-performance/SKILL.md` |
+| `amazon-devices-vega-best-practices` | `[vega_setup_check, vega_qa_loop]` | `skills/amazon-devices-vega-best-practices/SKILL.md` |
+| `amazon-devices-vega-setup-sdk` | `[vega_setup_check]` | `skills/amazon-devices-vega-setup-sdk/SKILL.md` |
 | `creative-tv-ui` | `[creative_ui]` | `skills/creative-tv-ui/SKILL.md` |
 | `eas-build` | `[phase_eas_build]` | `skills/eas-build/SKILL.md` |
 | `expo-tv-config` | `[phase_clone, phase_prebuild]` | `skills/expo-tv-config/SKILL.md` |

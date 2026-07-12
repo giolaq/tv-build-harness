@@ -1,0 +1,34 @@
+[
+  {
+    "timestamp": "2026-07-12T10:00:00.000Z",
+    "phase": "plan",
+    "seed": "workshop-android-v1",
+    "request": { "model": "contract-fixture", "system": "TV Build replay contract", "messages": [] },
+    "response": [{ "type": "assistant", "message": { "content": [{ "type": "text", "text": "Resolved a cooking catalog into a hero, rails, detail screen, and player plan." }] } }, { "type": "result", "total_cost_usd": 0.01 }],
+    "usage": { "input_tokens": 120, "output_tokens": 80 }
+  },
+  {
+    "timestamp": "2026-07-12T10:00:01.000Z",
+    "phase": "branding",
+    "seed": "workshop-android-v1",
+    "request": { "model": "contract-fixture", "system": "TV Build replay contract", "messages": [] },
+    "response": [{ "type": "assistant", "message": { "content": [{ "type": "text", "text": "Applied the warm editorial palette and visible TV focus treatment." }] } }, { "type": "result", "total_cost_usd": 0.02 }],
+    "usage": { "input_tokens": 160, "output_tokens": 100 }
+  },
+  {
+    "timestamp": "2026-07-12T10:00:02.000Z",
+    "phase": "navigation",
+    "seed": "workshop-android-v1",
+    "request": { "model": "contract-fixture", "system": "TV Build replay contract", "messages": [] },
+    "response": [{ "type": "assistant", "message": { "content": [{ "type": "text", "text": "Removed duplicate D-pad event handling and preserved one focus owner." }] } }, { "type": "result", "total_cost_usd": 0.02 }],
+    "usage": { "input_tokens": 180, "output_tokens": 110 }
+  },
+  {
+    "timestamp": "2026-07-12T10:00:03.000Z",
+    "phase": "verify",
+    "seed": "workshop-android-v1",
+    "request": { "model": "contract-fixture", "system": "TV Build replay contract", "messages": [] },
+    "response": [{ "type": "assistant", "message": { "content": [{ "type": "text", "text": "Type checking and static focus verification passed." }] } }, { "type": "result", "total_cost_usd": 0.01 }],
+    "usage": { "input_tokens": 100, "output_tokens": 50 }
+  }
+]

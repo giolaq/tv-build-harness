@@ -12,3 +12,5 @@ packages/harness/app/
 .thumbnails/
 video/
 examples/nintendo-games/content.fetched.json
+packages/harness/resources/
+*.tsbuildinfo

@@ -30,3 +30,7 @@ Mitigation: `tv-build validate` warns on instruction-like content through `instr
 ## Secrets And Transcripts
 
 Run `packages/harness/node_modules/.bin/tsx scripts/scrub.ts --check docs examples` before committing recordings, transcripts, fixtures, or demo assets. CI runs the same guard for docs and examples.
+
+## External Commands
+
+Run tools through `packages/harness/src/process/command-runner.ts` with an executable and argument array. This preserves argument boundaries, bounds output, kills timed-out process groups, and redacts configured secrets. The legacy string form of a configurable verification command is unsafe compatibility behavior; use `command` plus `args` for new configurations.

@@ -34,10 +34,12 @@ export const VerifyCheckSchema = z.discriminatedUnion("type", [
   // Arbitrary shell command; non-zero exit fails the check.
   z.object({
     type: z.literal("command").describe("Check kind."),
-    run: z.string().describe("Shell command to run."),
+    command: z.string().optional().describe("Executable to run without a shell."),
+    args: z.array(z.string()).default([]).describe("Arguments passed directly to the executable."),
+    run: z.string().optional().describe("Deprecated unsafe shell command. Prefer command plus args."),
     timeoutMs: z.number().default(60_000).describe("Command timeout in milliseconds."),
     error: z.string().optional().describe("Custom failure message."),
-  }),
+  }).refine((check) => Boolean(check.command || check.run), { message: "Set command or legacy run." }),
 ]);
 
 export type VerifyCheck = z.infer<typeof VerifyCheckSchema>;
@@ -147,6 +149,17 @@ export const HarnessConfigSchema = z.object({
   vega: VegaConfigSchema.default(DEFAULT_VEGA_CONFIG).describe("Vega build and performance thresholds."),
   tokenBudget: z.number().default(500_000).describe("Maximum token budget for a run."),
   maxCostUsd: z.number().optional().describe("Optional maximum run cost in US dollars."),
+  android: z.object({
+    projectDir: z.string().optional().describe("Gradle project directory relative to the generated app."),
+    module: z.string().optional().describe("Android application module."),
+    variant: z.string().default("debug").describe("Android build variant."),
+    packageName: z.string().optional().describe("Application package used for launch."),
+    activity: z.string().optional().describe("Launch activity, for example .MainActivity."),
+    compileTask: z.string().optional().describe("Fast Gradle compilation task."),
+    assembleTask: z.string().optional().describe("Gradle APK assembly task."),
+    installTask: z.string().optional().describe("Gradle device installation task."),
+    apkPath: z.string().optional().describe("APK path relative to the Gradle project."),
+  }).default({ variant: "debug" }),
   phases: z.array(PhaseOverrideSchema).optional().describe("Phase overrides or additional phases."),
 });
 
@@ -156,6 +169,7 @@ export interface HarnessConfig {
   vega: z.infer<typeof VegaConfigSchema>;
   tokenBudget: number;
   maxCostUsd?: number;
+  android: z.infer<typeof HarnessConfigSchema>["android"];
   phases: PhaseSpec[];
 }
 
@@ -295,6 +309,7 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
   vega: DEFAULT_VEGA_CONFIG,
   tokenBudget: 500_000,
   maxCostUsd: undefined,
+  android: { variant: "debug" },
   phases: DEFAULT_PHASES,
 };
 
@@ -326,6 +341,7 @@ export function mergeHarnessConfig(user: z.infer<typeof HarnessConfigSchema>): H
     vega: user.vega,
     tokenBudget: user.tokenBudget,
     maxCostUsd: user.maxCostUsd,
+    android: user.android,
     phases,
   };
 }
