@@ -6,6 +6,7 @@
     "verify": "dist/cli.js"
   },
   "scripts": {
+    "prebuild": "yarn --cwd ../shared-types build",
     "build": "tsc",
     "test": "vitest run",
     "clean": "rm -rf dist"
