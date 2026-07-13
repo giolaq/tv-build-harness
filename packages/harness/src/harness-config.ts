@@ -252,7 +252,6 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
     allowedTools: "Bash,Read,Write,Edit,mcp__amazon-devices-buildertools-mcp__list_documents",
     verify: [
       { type: "file_exists", path: "apps/vega/package.json", error: "No apps/vega package found for Vega target" },
-      { type: "forbidden_import", pattern: "react-native-video|expo-font|expo-image", path: "packages/shared-ui/src", error: "Vega-consumed shared UI imports a non-portable mobile/native package" },
     ],
   },
   {

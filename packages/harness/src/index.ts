@@ -263,7 +263,21 @@ function positionalArgs(): string[] {
 
 function loadInputs() {
   const exampleFlag = args.indexOf("--example");
+  const resumeFlag = args.indexOf("--resume");
   let inputDir: string;
+
+  // When resuming without an explicit input source, load from the run's saved input.json
+  if (resumeFlag >= 0 && exampleFlag < 0 && positionalArgs().length === 0) {
+    const runId = (args[resumeFlag + 1] && !args[resumeFlag + 1].startsWith("--"))
+      ? args[resumeFlag + 1] : undefined;
+    const resumeDir = findResumableRun(resolve("."), runId);
+    if (resumeDir) {
+      const savedInputPath = join(resumeDir, "input.json");
+      if (existsSync(savedInputPath)) {
+        return loadInputsFromSaved(savedInputPath);
+      }
+    }
+  }
 
   if (exampleFlag >= 0 && args[exampleFlag + 1]) {
     const exampleName = args[exampleFlag + 1];
@@ -328,6 +342,23 @@ function loadInputs() {
   const maxCostUsd = maxCostFlag(harness.maxCostUsd, exampleFlag >= 0);
 
   return { inputDir, content, brand, config, design, screenTree, prompt, harness, runId, creativeSeed, maxCostUsd };
+}
+
+function loadInputsFromSaved(savedInputPath: string) {
+  const raw = JSON.parse(readFileSync(savedInputPath, "utf-8"));
+  const content = ContentManifestSchema.parse(raw.content);
+  const brand = raw.brand ? BrandKitSchema.parse(raw.brand) : BrandKitSchema.parse({
+    name: "App", primary_color: "#1a1a2e", accent_color: "#e94560", background_color: "#16213e", font_family: "System", logo_path: "", splash_path: "",
+  });
+  const config = raw.config ? RunConfigSchema.parse(raw.config) : RunConfigSchema.parse({ platforms: ["androidtv", "appletv", "web"] });
+  const design = raw.design ? DesignTokensSchema.parse(raw.design) : DesignTokensSchema.parse({});
+  const screenTree = raw.screenTree ? ScreenTreeSchema.parse(raw.screenTree) : undefined;
+  const prompt = raw.prompt ?? `A streaming app called "${content.title}". ${content.description}`;
+  const harness = raw.harness ? raw.harness as HarnessConfig : loadHarness(".");
+  const runId = runIdFlag() ?? raw.runId;
+  const creativeSeed = seedFlag() ?? raw.creativeSeed;
+  const maxCostUsd = maxCostFlag(harness.maxCostUsd, false);
+  return { inputDir: ".", content, brand, config, design, screenTree, prompt, harness, runId, creativeSeed, maxCostUsd };
 }
 
 function runIdFlag(): string | undefined {

@@ -25,6 +25,7 @@ export interface TUIState {
   selectedIndex: number;
   detailPhase: Phase | null;
   detailScroll: number;
+  expandedMessage: number | null;
 }
 
 interface DashboardProps {
@@ -185,9 +186,42 @@ function Stats({ state }: DashboardProps) {
 }
 
 
+function ExpandedMessageView({ state }: DashboardProps) {
+  const phase = state.detailPhase!;
+  const messages = state.phaseMessages.get(phase) ?? [];
+  const msg = messages[state.expandedMessage!];
+  if (!msg) return null;
+
+  const label = msg.type === "tool_use" ? `Tool: ${msg.toolName}` :
+                msg.type === "tool_result" ? "Tool Result" : "Text";
+  const color = msg.type === "tool_use" ? "yellow" : msg.type === "tool_result" ? "green" : "white";
+
+  return (
+    <Box flexDirection="column" padding={1}>
+      <Box marginBottom={1}>
+        <Text bold color={color}>{label}</Text>
+        <Text color="gray"> │ Message {state.expandedMessage! + 1}/{messages.length}</Text>
+        <Text color="gray"> │ </Text>
+        <Text color="gray" dimColor>Esc: back to list  ↑↓: prev/next message</Text>
+      </Box>
+      <Box>
+        <Text color="gray">{"─".repeat(70)}</Text>
+      </Box>
+      <Box flexDirection="column" marginTop={1}>
+        <Text wrap="wrap">{msg.content}</Text>
+      </Box>
+    </Box>
+  );
+}
+
 function DetailView({ state }: DashboardProps) {
   const phase = state.detailPhase!;
   const messages = state.phaseMessages.get(phase) ?? [];
+
+  if (state.expandedMessage !== null) {
+    return <ExpandedMessageView state={state} />;
+  }
+
   const maxVisible = 20;
   const scroll = state.detailScroll;
   const visible = messages.slice(scroll, scroll + maxVisible);
@@ -199,40 +233,47 @@ function DetailView({ state }: DashboardProps) {
         <Text color="gray"> │ </Text>
         <Text color="gray">{messages.length} messages</Text>
         <Text color="gray"> │ </Text>
-        <Text color="gray" dimColor>Esc: back  ↑↓: scroll</Text>
+        <Text color="gray" dimColor>Esc: back  ↑↓: scroll  Enter: expand</Text>
       </Box>
       <Box>
         <Text color="gray">{"─".repeat(70)}</Text>
       </Box>
       <Box flexDirection="column">
-        {visible.map((msg, i) => (
-          <Box key={scroll + i} marginBottom={0}>
-            <Box width={3}>
-              <Text color={
-                msg.type === "text" ? "white" :
-                msg.type === "tool_use" ? "yellow" : "green"
-              }>
-                {msg.type === "text" ? "▪" : msg.type === "tool_use" ? "▶" : "◀"}
-              </Text>
+        {visible.map((msg, i) => {
+          const globalIdx = scroll + i;
+          const isSelected = globalIdx === state.detailScroll;
+          return (
+            <Box key={globalIdx} marginBottom={0}>
+              <Box width={2}>
+                <Text color={isSelected ? "cyan" : "gray"}>{isSelected ? "▸" : " "}</Text>
+              </Box>
+              <Box width={3}>
+                <Text color={
+                  msg.type === "text" ? "white" :
+                  msg.type === "tool_use" ? "yellow" : "green"
+                }>
+                  {msg.type === "text" ? "▪" : msg.type === "tool_use" ? "▶" : "◀"}
+                </Text>
+              </Box>
+              <Box flexGrow={1}>
+                {msg.type === "tool_use" ? (
+                  <Text wrap="truncate-end">
+                    <Text color="yellow" bold>{msg.toolName}</Text>
+                    <Text color="gray"> {msg.content.slice(0, 55)}</Text>
+                  </Text>
+                ) : msg.type === "tool_result" ? (
+                  <Text color="green" wrap="truncate-end" dimColor>
+                    {msg.content.slice(0, 63)}
+                  </Text>
+                ) : (
+                  <Text wrap="truncate-end">
+                    {msg.content.slice(0, 63)}
+                  </Text>
+                )}
+              </Box>
             </Box>
-            <Box flexGrow={1}>
-              {msg.type === "tool_use" ? (
-                <Text wrap="truncate-end">
-                  <Text color="yellow" bold>{msg.toolName}</Text>
-                  <Text color="gray"> {msg.content.slice(0, 60)}</Text>
-                </Text>
-              ) : msg.type === "tool_result" ? (
-                <Text color="green" wrap="truncate-end" dimColor>
-                  {msg.content.slice(0, 68)}
-                </Text>
-              ) : (
-                <Text wrap="truncate-end">
-                  {msg.content.slice(0, 68)}
-                </Text>
-              )}
-            </Box>
-          </Box>
-        ))}
+          );
+        })}
         {visible.length === 0 && (
           <Text color="gray" italic>  No messages yet...</Text>
         )}
@@ -282,19 +323,42 @@ function InteractiveDashboard({ initialState }: { initialState: TUIState }) {
   }, [initialState]);
 
   useInput((input, key) => {
-    if (state.detailPhase) {
+    if (state.detailPhase && state.expandedMessage !== null) {
+      // Expanded message view
+      if (key.escape) {
+        initialState.expandedMessage = null;
+        (initialState as any).__notify?.();
+      } else if (key.upArrow) {
+        if (initialState.expandedMessage! > 0) {
+          initialState.expandedMessage = initialState.expandedMessage! - 1;
+          (initialState as any).__notify?.();
+        }
+      } else if (key.downArrow) {
+        const msgs = initialState.phaseMessages.get(initialState.detailPhase!) ?? [];
+        if (initialState.expandedMessage! < msgs.length - 1) {
+          initialState.expandedMessage = initialState.expandedMessage! + 1;
+          (initialState as any).__notify?.();
+        }
+      }
+    } else if (state.detailPhase) {
+      // Message list view
       if (key.escape) {
         initialState.detailPhase = null;
+        initialState.expandedMessage = null;
         (initialState as any).__notify?.();
       } else if (key.upArrow) {
         initialState.detailScroll = Math.max(0, initialState.detailScroll - 1);
         (initialState as any).__notify?.();
       } else if (key.downArrow) {
         const msgs = initialState.phaseMessages.get(initialState.detailPhase!) ?? [];
-        initialState.detailScroll = Math.min(Math.max(0, msgs.length - 20), initialState.detailScroll + 1);
+        initialState.detailScroll = Math.min(Math.max(0, msgs.length - 1), initialState.detailScroll + 1);
+        (initialState as any).__notify?.();
+      } else if (key.return) {
+        initialState.expandedMessage = initialState.detailScroll;
         (initialState as any).__notify?.();
       }
     } else {
+      // Phase list view
       if (key.upArrow) {
         initialState.selectedIndex = Math.max(0, initialState.selectedIndex - 1);
         (initialState as any).__notify?.();
@@ -306,6 +370,7 @@ function InteractiveDashboard({ initialState }: { initialState: TUIState }) {
         if (phase) {
           initialState.detailPhase = phase;
           initialState.detailScroll = Math.max(0, (initialState.phaseMessages.get(phase)?.length ?? 0) - 20);
+          initialState.expandedMessage = null;
           (initialState as any).__notify?.();
         }
       }
@@ -350,6 +415,7 @@ export class TUI {
       selectedIndex: 0,
       detailPhase: null,
       detailScroll: 0,
+      expandedMessage: null,
     };
   }
 
@@ -415,8 +481,8 @@ export class TUI {
     }
     const messages = this.state.phaseMessages.get(phase)!;
     messages.push(message);
-    if (messages.length > 500) {
-      messages.splice(0, messages.length - 500);
+    if (messages.length > 1000) {
+      messages.splice(0, messages.length - 1000);
     }
 
     // Auto-scroll if in detail view for this phase

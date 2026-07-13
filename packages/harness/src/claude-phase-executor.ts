@@ -315,8 +315,8 @@ export class ClaudePhaseExecutor {
           this.ctx.events.onPhaseMessage(phase, { type: "text", content: block.text });
         } else if (block.type === "tool_use") {
           const input = typeof block.input === "string"
-            ? block.input.slice(0, 200)
-            : JSON.stringify(block.input ?? "").slice(0, 200);
+            ? block.input
+            : JSON.stringify(block.input ?? "", null, 2);
           this.ctx.events.onPhaseMessage(phase, { type: "tool_use", content: input, toolName: block.name });
 
           if (block.name === "Write" || block.name === "Edit") {
@@ -335,8 +335,8 @@ export class ClaudePhaseExecutor {
         for (const block of content) {
           if (block.type === "tool_result" && block.content) {
             const text = typeof block.content === "string"
-              ? block.content.slice(0, 300)
-              : JSON.stringify(block.content).slice(0, 300);
+              ? block.content
+              : JSON.stringify(block.content, null, 2);
             this.ctx.events.onPhaseMessage(phase, {
               type: "tool_result",
               content: text,
