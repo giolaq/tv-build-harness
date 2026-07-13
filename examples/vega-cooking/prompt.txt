@@ -1,0 +1,1 @@
+A streaming app for indie cooking shows, built exclusively for Fire TV Vega OS. Clean, modern design with warm tones. Home screen with a hero banner and category rails. Drawer navigation with Home, Categories, Search, and Settings screens. Detail screen for individual shows with a Watch Now button.

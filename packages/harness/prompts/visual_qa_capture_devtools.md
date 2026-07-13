@@ -28,6 +28,28 @@ Use the chrome-devtools MCP tools to navigate, interact, and capture screenshots
    ```
 4. Wait 3 more seconds: `evaluate_script` with `async () => { await new Promise(r => setTimeout(r, 3000)); return true; }`
 
+## STEP 1.5: App health check
+
+Before capturing any screenshots, verify the app actually rendered. Call `evaluate_script` with:
+```
+(() => {
+  const root = document.getElementById('root') || document.body;
+  const text = root.innerText || '';
+  const bg = getComputedStyle(document.body).backgroundColor;
+  const isBlank = text.trim().length < 20 && (bg === 'rgb(255, 255, 255)' || bg === 'rgba(0, 0, 0, 0)');
+  const hasError = /error|Error boundary|Unhandled|Cannot read prop|undefined is not/i.test(text.slice(0, 2000));
+  const hasRedBox = !!document.querySelector('[style*="background: rgb(204, 0, 0)"], [style*="background-color: red"], #redbox');
+  const hasContent = root.querySelectorAll('img[src]:not([src=""]), [data-focusable], [role="button"], h1, h2').length > 2;
+  return JSON.stringify({ isBlank, hasError: hasError || hasRedBox, hasContent, textLength: text.trim().length, snippet: text.slice(0, 200) });
+})()
+```
+
+Based on the result:
+- If `isBlank` is true: Take a screenshot as "{{iterDir}}/FAIL-blank-screen.png" and STOP. Report "App did not render — blank screen."
+- If `hasError` is true: Take a screenshot as "{{iterDir}}/FAIL-error-screen.png" and STOP. Report the error snippet.
+- If `hasContent` is false: Take a screenshot as "{{iterDir}}/WARN-no-content.png" but continue (the app may still have some content).
+- Otherwise: The app is healthy — proceed to Step 2.
+
 ## STEP 2: Home screen default state
 
 1. Call `take_screenshot` with filePath "{{iterDir}}/01-home-default.png"
@@ -80,10 +102,23 @@ For EACH screen (up to {{routeCount}} screens):
   d. Call `take_screenshot` with filePath "{{iterDir}}/09-nav-item-N-focused.png" (replace N with the item number)
   e. Press Enter to navigate to that screen
   f. Wait 1500ms
-  g. Call `take_screenshot` with filePath "{{iterDir}}/10-screen-N.png"
-  h. Test focus on this screen: Press Tab, then ArrowRight, wait 500ms
-  i. Call `take_screenshot` with filePath "{{iterDir}}/11-screen-N-focused.png"
-  j. Open the drawer again: Press ArrowLeft, wait 800ms
+  g. **VERIFY navigation happened**: Call `evaluate_script` to read the current screen identity:
+     ```
+     (() => {
+       const h = document.querySelector('h1, h2, [role="heading"]');
+       if (h && h.textContent.trim()) return h.textContent.trim();
+       const t = document.querySelector('[data-testid*="screen"],[data-testid*="Screen"]');
+       if (t) return t.getAttribute('data-testid');
+       return document.body.innerText.slice(0, 100).trim();
+     })()
+     ```
+     Use the RESULT of this script as the screen name in the filename. For example if it returns "Categories" or "Quick Meals", use that (lowercased, spaces replaced with dashes) as the name.
+  h. Call `take_screenshot` with filePath "{{iterDir}}/10-screen-<actual-name>.png" where <actual-name> is what you detected in step g (e.g. "10-screen-categories.png", "10-screen-quick-meals.png"). Do NOT use the intended route name — use what the page actually shows.
+  i. Test focus on this screen: Press Tab, then ArrowRight, wait 500ms
+  j. Call `take_screenshot` with filePath "{{iterDir}}/11-screen-<actual-name>-focused.png"
+  k. Open the drawer again: Press ArrowLeft, wait 800ms
+
+IMPORTANT: If the screen identity in step g matches the PREVIOUS screen (navigation did not happen), append "-nav-failed" to the filename so it's obvious the navigation didn't work. Do NOT name it after the intended destination.
 
 After visiting all screens, press Backspace to return to home. Wait 1000ms.
 

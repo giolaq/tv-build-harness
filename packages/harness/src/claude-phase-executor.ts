@@ -95,6 +95,7 @@ export class ClaudePhaseExecutor {
       const output = await this.runClaude(fullPrompt, cwd, {
         timeoutMs: spec.timeoutMs,
         model: spec.model,
+        allowedTools: spec.allowedTools,
         recordedModel: spec.model ?? this.ctx.harness.models.execution,
         phase,
         system: "claude-run phase prompt",

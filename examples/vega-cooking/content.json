@@ -1,0 +1,102 @@
+{
+  "title": "Indie Kitchen",
+  "description": "Independent cooking shows from creators around the world",
+  "categories": [
+    { "id": "quick-meals", "name": "Quick Meals", "items": ["v1", "v2", "v3"] },
+    { "id": "baking", "name": "Baking & Pastry", "items": ["v4", "v5", "v6"] },
+    { "id": "world-cuisine", "name": "World Cuisine", "items": ["v7", "v8", "v9"] }
+  ],
+  "videos": [
+    {
+      "id": "v1",
+      "title": "15-Minute Pad Thai",
+      "description": "A fast weeknight pad thai with rice noodles, shrimp, and tamarind sauce",
+      "duration_sec": 912,
+      "thumbnail_url": "https://picsum.photos/seed/padthai/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["thai", "quick", "noodles"]
+    },
+    {
+      "id": "v2",
+      "title": "One-Pan Shakshuka",
+      "description": "Eggs poached in spiced tomato sauce with crusty bread",
+      "duration_sec": 720,
+      "thumbnail_url": "https://picsum.photos/seed/shakshuka/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["middle-eastern", "breakfast", "eggs"]
+    },
+    {
+      "id": "v3",
+      "title": "5-Ingredient Ramen",
+      "description": "Rich tonkotsu-style ramen with instant noodles elevated",
+      "duration_sec": 600,
+      "thumbnail_url": "https://picsum.photos/seed/ramen/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["japanese", "quick", "soup"]
+    },
+    {
+      "id": "v4",
+      "title": "Sourdough from Scratch",
+      "description": "A beginner's guide to maintaining a starter and baking your first loaf",
+      "duration_sec": 2400,
+      "thumbnail_url": "https://picsum.photos/seed/sourdough/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["bread", "fermentation", "beginner"]
+    },
+    {
+      "id": "v5",
+      "title": "French Macarons",
+      "description": "Master the art of perfect macarons with Italian meringue method",
+      "duration_sec": 1800,
+      "thumbnail_url": "https://picsum.photos/seed/macarons/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["french", "pastry", "advanced"]
+    },
+    {
+      "id": "v6",
+      "title": "No-Knead Focaccia",
+      "description": "Olive oil-rich focaccia with rosemary that practically makes itself",
+      "duration_sec": 1200,
+      "thumbnail_url": "https://picsum.photos/seed/focaccia/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["italian", "bread", "easy"]
+    },
+    {
+      "id": "v7",
+      "title": "Butter Chicken",
+      "description": "Creamy tomato-based curry with tender chicken tikka",
+      "duration_sec": 1500,
+      "thumbnail_url": "https://picsum.photos/seed/butterchicken/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["indian", "curry", "chicken"]
+    },
+    {
+      "id": "v8",
+      "title": "Handmade Pasta",
+      "description": "Fresh egg pasta from scratch with three classic sauces",
+      "duration_sec": 2100,
+      "thumbnail_url": "https://picsum.photos/seed/pasta/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["italian", "pasta", "from-scratch"]
+    },
+    {
+      "id": "v9",
+      "title": "Korean Bibimbap",
+      "description": "Colorful rice bowl with seasoned vegetables and gochujang",
+      "duration_sec": 1350,
+      "thumbnail_url": "https://picsum.photos/seed/bibimbap/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["korean", "rice", "vegetables"]
+    }
+  ],
+  "featured": ["v1", "v4", "v7"]
+}

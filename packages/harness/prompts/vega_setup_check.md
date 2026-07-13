@@ -27,20 +27,25 @@ Prepare the generated app for Vega OS support.
 
 If those imports appear in shared UI, create a `.kepler.ts` override or move the platform-specific implementation behind an existing shared component.
 
-## Builder Tools MCP Usage
+## Builder Tools MCP — REQUIRED
 
-If Amazon Devices Builder Tools MCP is configured, use its documentation/search capabilities for any uncertain Vega manifest, media, navigation, focus, or performance question.
+The Amazon Devices Builder Tools MCP server MUST be configured for the Vega pipeline to proceed. Check status:
+Run: npx -y @amazon-devices/amazon-devices-buildertools-mcp@latest check-status 2>&1
 
-Expected MCP capabilities include:
-- `search_documentation`
-- `analyze_perfetto_traces`
-- `get_app_hot_functions`
-- `symbolicate_acr`
+If the output does NOT show "✅ Configured" for the active agent:
+- Report FAILURE and STOP.
+- Tell the user to run: `npx -y @amazon-devices/amazon-devices-buildertools-mcp@latest init-context --agent claude-code-cli --force`
+- Do NOT proceed to any Vega build or QA phase without Builder Tools MCP.
+
+If configured, verify MCP tools are accessible by calling:
+- `mcp__amazon-devices-buildertools-mcp__list_documents` with type "SKILL"
+
+If that tool call succeeds, Builder Tools MCP is live and the pipeline can proceed.
 
 ## Output
 
 Write a short status report:
-- Builder Tools MCP configured: yes/no/unknown
+- Builder Tools MCP configured: yes/no (REQUIRED — if no, this is a STOP)
 - Kepler CLI available: yes/no
 - VDA available: yes/no
 - Manifest status

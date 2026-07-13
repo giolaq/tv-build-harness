@@ -68,6 +68,8 @@ export const PhaseSpecSchema = z.object({
   // Working directory for the agent: the run out dir or the app dir.
   cwd: z.enum(["app", "out"]).default("app").describe("Working directory for the agent."),
   verify: z.array(VerifyCheckSchema).default([]).describe("Verification checks after the phase."),
+  // Explicit tool allowlist for the Claude subprocess (comma-separated). Includes MCP tool names.
+  allowedTools: z.string().optional().describe("Comma-separated tool allowlist for the Claude subprocess (e.g. 'Bash,Read,Write,Edit,mcp__server__tool')."),
   // For user-added phases: insert after this default phase instead of appending.
   insertAfter: z.string().optional().describe("Insert a new phase after this existing phase."),
 });
@@ -89,6 +91,7 @@ export const PhaseOverrideSchema = z.object({
   abortOnFailure: z.boolean().optional().describe("Abort the pipeline if this phase ultimately fails."),
   cwd: z.enum(["app", "out"]).optional().describe("Working directory for the agent."),
   verify: z.array(VerifyCheckSchema).optional().describe("Verification checks after the phase."),
+  allowedTools: z.string().optional().describe("Comma-separated tool allowlist for the Claude subprocess."),
   insertAfter: z.string().optional().describe("Insert a new phase after this existing phase."),
 });
 
@@ -245,7 +248,8 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
     name: "vega_setup_check", kind: "agent", prompt: "vega_setup_check",
     skills: ["vega-sdk", "amazon-devices-vega-setup-sdk", "amazon-devices-vega-best-practices"],
     deps: ["verify"], timeoutMs: 600_000, requiresPlatform: "firetv-vega",
-    buildPhase: true, internalLoop: false, abortOnFailure: false, cwd: "app",
+    buildPhase: true, internalLoop: false, abortOnFailure: true, cwd: "app",
+    allowedTools: "Bash,Read,Write,Edit,mcp__amazon-devices-buildertools-mcp__list_documents",
     verify: [
       { type: "file_exists", path: "apps/vega/package.json", error: "No apps/vega package found for Vega target" },
       { type: "forbidden_import", pattern: "react-native-video|expo-font|expo-image", path: "packages/shared-ui/src", error: "Vega-consumed shared UI imports a non-portable mobile/native package" },
@@ -260,6 +264,7 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
     name: "vega_qa_loop", kind: "agent", prompt: "vega_qa_loop", skills: ["vega-sdk", "rn-spatial-navigation"],
     deps: ["vega_build_loop"], timeoutMs: 1_800_000, requiresPlatform: "firetv-vega",
     buildPhase: true, internalLoop: true, abortOnFailure: false, cwd: "app", verify: [],
+    allowedTools: "Bash,Read,Write,Edit,mcp__amazon-devices-buildertools-mcp__search_documentation,mcp__amazon-devices-buildertools-mcp__read_document,mcp__amazon-devices-buildertools-mcp__list_documents,mcp__amazon-devices-buildertools-mcp__symbolicate_acr,mcp__amazon-devices-buildertools-mcp__read_asset,mcp__amazon-devices-buildertools-mcp__analyze_perfetto_traces,mcp__amazon-devices-buildertools-mcp__get_app_hot_functions",
   },
   {
     name: "vega_perf_trace", kind: "agent", prompt: "vega_perf_trace",

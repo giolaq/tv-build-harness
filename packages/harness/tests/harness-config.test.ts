@@ -38,9 +38,9 @@ describe("harness config defaults", () => {
     expect(config.phases).toHaveLength(DEFAULT_PHASES.length);
   });
 
-  it("plan is the only abort-on-failure phase by default", () => {
+  it("abort-on-failure phases are plan and vega_setup_check", () => {
     const aborting = DEFAULT_PHASES.filter((p) => p.abortOnFailure).map((p) => p.name);
-    expect(aborting).toEqual(["plan"]);
+    expect(aborting).toEqual(["plan", "vega_setup_check"]);
   });
 });
 

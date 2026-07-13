@@ -87,6 +87,52 @@ const fs = require('fs');
 
   let cardSel = '[tabindex]';
 
+  // STEP 0: App health check — verify the app rendered real content, not a blank/error screen.
+  await section('health-check', async () => {
+    await gotoHome();
+    const health = await page.evaluate(() => {
+      const body = document.body;
+      const root = document.getElementById('root') || body;
+      const text = root.innerText || '';
+      const bg = getComputedStyle(body).backgroundColor;
+
+      // Detect blank/white screen (no text, white bg)
+      const isBlank = text.trim().length < 20 && (bg === 'rgb(255, 255, 255)' || bg === 'rgba(0, 0, 0, 0)');
+      // Detect error screens (React error boundary, red box, stack traces)
+      const hasError = /error|Error boundary|Unhandled|Cannot read prop|undefined is not|stacktrace/i.test(text.slice(0, 2000));
+      const hasRedBox = !!document.querySelector('[style*="background: rgb(204, 0, 0)"], [style*="background-color: red"], #redbox');
+      // Detect real content: images, cards, headings, meaningful text
+      const hasImages = root.querySelectorAll('img[src]:not([src=""])').length > 0;
+      const hasCards = root.querySelectorAll('[data-focusable],[role="button"],[tabindex]').length > 2;
+      const hasHeading = root.querySelectorAll('h1, h2, h3, [role="heading"]').length > 0;
+
+      return {
+        isBlank,
+        hasError: hasError || hasRedBox,
+        hasContent: hasImages || hasCards || hasHeading,
+        textLength: text.trim().length,
+        errorSnippet: hasError ? text.slice(0, 300) : null,
+      };
+    });
+
+    if (health.isBlank) {
+      console.log('HEALTH FAIL: App shows blank/white screen (text length: ' + health.textLength + ')');
+      await shot('FAIL-blank-screen');
+      throw new Error('App did not render — blank screen detected');
+    }
+    if (health.hasError) {
+      console.log('HEALTH FAIL: App shows error screen: ' + (health.errorSnippet || '').slice(0, 150));
+      await shot('FAIL-error-screen');
+      throw new Error('App crashed — error screen detected');
+    }
+    if (!health.hasContent) {
+      console.log('HEALTH WARNING: No images, cards, or headings found (text: ' + health.textLength + ' chars)');
+      await shot('WARN-no-content');
+    } else {
+      console.log('HEALTH OK: App rendered with content (images/cards/headings present)');
+    }
+  });
+
   await section('home', async () => {
     await gotoHome();
     await page.click('body').catch(() => {});
@@ -133,15 +179,42 @@ const fs = require('fs');
     const navItems = await page.evaluate(() =>
       document.querySelectorAll('[role="tab"],[role="menuitem"],[data-testid*="nav"],a[href]').length
     );
+
+    async function getScreenId() {
+      return page.evaluate(() => {
+        const heading = document.querySelector('h1, h2, [role="heading"]');
+        if (heading && heading.textContent.trim()) return heading.textContent.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
+        const testId = document.querySelector('[data-testid*="screen"],[data-testid*="Screen"]');
+        if (testId) return testId.getAttribute('data-testid').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
+        const text = document.body.innerText.slice(0, 200).trim();
+        return text.slice(0, 30).toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'unknown';
+      });
+    }
+
+    let prevScreenId = await getScreenId();
+
     for (let i = 0; i < Math.min(navItems, {{routeCount}}); i++) {
+      const navLabel = await page.evaluate((idx) => {
+        const items = document.querySelectorAll('[role="tab"],[role="menuitem"],[data-testid*="nav"],a[href]');
+        if (!items[idx]) return '';
+        return (items[idx].textContent || items[idx].getAttribute('aria-label') || '').trim();
+      }, i);
+
       await page.evaluate((idx) => {
         const items = document.querySelectorAll('[role="tab"],[role="menuitem"],[data-testid*="nav"],a[href]');
         if (items[idx]) items[idx].click();
       }, i);
       await new Promise(r => setTimeout(r, 1500));
-      await shot('screen-' + (i+1));
+
+      const currentScreenId = await getScreenId();
+      const navigated = currentScreenId !== prevScreenId;
+      const screenName = navigated ? currentScreenId : (navLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'screen-' + (i+1)) + '-nav-failed';
+
+      await shot('screen-' + screenName);
       await focusNth(cardSel, 0);
-      await shot('screen-' + (i+1) + '-focused');
+      await shot('screen-' + screenName + '-focused');
+
+      if (navigated) prevScreenId = currentScreenId;
       await page.keyboard.press('Backspace');
       await new Promise(r => setTimeout(r, 800));
     }

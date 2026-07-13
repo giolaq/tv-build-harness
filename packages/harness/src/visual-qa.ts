@@ -114,6 +114,15 @@ export async function runVisualQALoop(deps: VisualQADeps): Promise<PhaseResult> 
         continue;
       }
 
+      // If only FAIL-* screenshots exist, the app didn't launch — abort early
+      const healthFails = finalCaptures.filter(f => f.startsWith("FAIL-"));
+      const realCaptures = finalCaptures.filter(f => !f.startsWith("FAIL-") && !f.startsWith("WARN-"));
+      if (healthFails.length > 0 && realCaptures.length === 0) {
+        const failName = healthFails[0].replace(".png", "").replace("FAIL-", "");
+        deps.onLog?.(`App health check failed: ${failName}. No usable screenshots.`);
+        return { phase: "visual_qa_loop", status: "failed", iterations: iter, error: `App did not render: ${failName}` };
+      }
+
       // Step B: Analyze screenshots
       const analysisPrompt = buildAnalysisPrompt(deps, screenshotDir, iter);
       writeFileSync(join(outDir, `visual-qa-analysis-${iter}.md`), analysisPrompt);
