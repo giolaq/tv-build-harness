@@ -16,7 +16,7 @@ Then compare the production engine in `packages/harness/src/pipeline-engine.ts:3
 
 The full CLI enters through `packages/harness/src/index.ts:72`, loads inputs in `packages/harness/src/index.ts:169`, and dispatches to executors under `packages/harness/src/executors/`.
 
-The teaching default is the web target. Native Android TV, Apple TV, Fire TV, and Vega OS paths are optional victory laps after the web exercise works; budget 45-90 minutes for emulator, simulator, SDK, or device setup.
+The teaching default is the web target. Native Android TV, Apple TV, Fire TV, and Vega OS paths are optional victory laps after the web exercise works; budget 45-90 minutes for emulator, simulator, SDK, or device setup. The Android victory lap uses the official Android CLI through the workflow in `docs/android-cli-workflow.md`.
 
 The important mental model:
 

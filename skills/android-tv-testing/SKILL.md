@@ -1,146 +1,117 @@
 ---
 name: android-tv-testing
-description: "D-pad navigation testing methodology for Android TV emulators using adb and agent-device"
+description: "Android TV build and D-pad QA using Android CLI first, with bounded Gradle and ADB fallbacks"
 applies_to: [android_test_loop]
 ---
 
-# Android TV Testing with agent-device
+# Android TV Testing
 
-## agent-device Workflow Pattern
+Use the official Android CLI as the primary Android automation surface. It
+standardizes project discovery, SDK/emulator management, deployment, UI layout,
+screenshots, Android knowledge, agent skills, and Android Studio integration.
 
-The canonical loop for testing an Android TV app:
+## Set up the agent
 
-```bash
-# 1. Open the app
-agent-device open com.tvharness.myapp --platform android
-
-# 2. Inspect what's on screen
-agent-device snapshot -i
-# Output:
-# @e1 [image] "Hero Banner"
-# @e2 [button] "Live Now"  ← focused
-# @e3 [button] "Sports"
-# @e4 [button] "Schedule"
-
-# 3. Interact with D-pad
-agent-device key dpad_right    # move focus
-agent-device key dpad_down     # move focus down
-agent-device key dpad_center   # select/press
-agent-device key back          # go back
-agent-device key dpad_left     # open drawer (from leftmost position)
-
-# 4. Verify state changed
-agent-device snapshot -i
-# New refs — screen changed
-
-# 5. Capture evidence
-agent-device screenshot ./path/to/save.png
-
-# 6. Close when done
-agent-device close
+```sh
+command -v android
+android update
+android init
+android skills list --long
 ```
 
-## Key Commands for TV Testing
+`android init` installs or updates the `android-cli` skill for detected agents.
+Use `android skills find <query>` and `android skills add --skill=<name>` when a
+task needs another Android skill. Use `android docs search` followed by
+`android docs fetch kb://...` instead of relying on remembered Android advice.
 
-| Action | Command | Notes |
-|--------|---------|-------|
-| Open app | `agent-device open <bundleId> --platform android` | Starts or brings to foreground |
-| Get UI state | `agent-device snapshot -i` | `-i` = interactive elements only |
-| D-pad Right | `agent-device key dpad_right` | Move focus right |
-| D-pad Left | `agent-device key dpad_left` | Move focus left / open drawer |
-| D-pad Up | `agent-device key dpad_up` | Move focus up |
-| D-pad Down | `agent-device key dpad_down` | Move focus down |
-| Select/Enter | `agent-device key dpad_center` | Press the focused element |
-| Back | `agent-device key back` | Navigate back |
-| Home | `agent-device key home` | Go to launcher |
-| Screenshot | `agent-device screenshot <path>` | Saves PNG |
-| Close session | `agent-device close` | Ends automation session |
+## Command ownership
 
-## TV-Specific Testing Patterns
+| Concern | Primary command |
+| --- | --- |
+| SDK location | `android info` |
+| Project/build metadata | `android describe --project_dir=<dir>` |
+| SDK packages | `android sdk list/install/update` |
+| Virtual devices | `android emulator list/create/start/stop` |
+| Install and launch APK | `android run --apks=<apk> --device=<serial>` |
+| UI hierarchy | `android layout --pretty --output=<file>` |
+| UI changes | `android layout --diff` |
+| Screenshot | `android screen capture --output=<png>` |
+| IDE inspection | `android studio check/analyze-file/find-usages` |
+| Android guidance | `android docs search/fetch` |
 
-### Focus Verification
-After each D-pad press, take a snapshot and verify the focused element changed:
-```bash
-agent-device key dpad_right
-sleep 0.5
-agent-device snapshot -i | grep "focused"
-```
-If the same element stays focused after multiple presses → navigation is broken.
+Android CLI's `run` command deploys an already-built APK; it does not compile.
+Use the repository's Gradle wrapper for compilation and assembly. Android CLI
+does not currently expose D-pad input, connected-device boot state, or Logcat,
+so use ADB only for those gaps.
 
-### Screen Identity Verification
-When navigating to a new screen:
-1. Take snapshot BEFORE navigation
-2. Press dpad_center or navigate
-3. Take snapshot AFTER
-4. Compare: refs should be completely different (different elements = different screen)
-5. If refs are the same → navigation didn't work
+## Canonical TV loop
 
-### Drawer Testing Pattern
-```bash
-# From home screen, go to leftmost element
-agent-device key dpad_left
-agent-device key dpad_left
-agent-device key dpad_left
-# One more left should open drawer
-agent-device key dpad_left
-sleep 1
-agent-device snapshot -i  # Should show drawer items
-```
+```sh
+# Discover the generated native project and APK metadata.
+android describe --project_dir=<android-project>
 
-### Scroll Verification
-Press down multiple times and verify new content appears:
-```bash
-for i in 1 2 3 4 5; do
-  agent-device key dpad_down
-  sleep 0.5
-done
-agent-device snapshot -i
-# Should show elements not visible in initial snapshot
+# Compile with the project-owned wrapper.
+./gradlew :app:compileDebugKotlin
+./gradlew :app:assembleDebug
+
+# Deploy and launch with Android CLI.
+android run \
+  --apks=<apk-from-describe> \
+  --device=<serial> \
+  --activity=.MainActivity
+
+# Inspect before interaction.
+android layout --pretty --output=home.json
+android screen capture --output=home.png
+
+# Android CLI has no remote-key command yet.
+adb -s <serial> shell input keyevent 22
+android layout --diff
+android screen capture --output=after-right.png
 ```
 
-## Common Failures and Fixes
+## Focus verification
 
-| Symptom | Likely Cause | Fix |
-|---------|-------------|-----|
-| Focus doesn't move | SpatialNavigation not configured | Check configureRemoteControl import |
-| All screens look the same | Drawer items not wired to routes | Fix navigation routing |
-| App crashes on launch | Missing dependency or React duplicate | Check shared-ui devDependencies |
-| Black screen | Metro bundler not started for dev build | Use release build or start metro |
-| "No session" error | App closed/crashed | Re-run `agent-device open` |
-| Snapshot empty | App not rendered yet | Wait longer (sleep 5) after open |
+Capture a layout before and after each D-pad action. Verify that the node marked
+focused changes. A changed screenshot alone is not sufficient: animation can
+change pixels while focus remains stuck.
 
-## Android TV AVD Setup
+Use these Android key codes only through the bounded fallback:
 
-If no Android TV AVD exists:
-```bash
-# Install system image
-sdkmanager "system-images;android-34;android-tv;x86_64"
+| Action | Key code |
+| --- | --- |
+| Up | `19` |
+| Down | `20` |
+| Left | `21` |
+| Right | `22` |
+| Select | `23` |
+| Back | `4` |
 
-# Create AVD
-avdmanager create avd -n TV_API_34 \
-  -k "system-images;android-34;android-tv;x86_64" \
-  -d tv_1080p
+## Android Studio integration
 
-# Verify
-emulator -list-avds  # Should show TV_API_34
+When Android Studio Quail 2 Canary 1 or newer is open with Gemini enabled:
+
+```sh
+android studio check
+android studio analyze-file app/src/main/java/.../MainActivity.kt
+android studio find-declaration --short MainActivity
+android studio find-usages --short MainActivity
 ```
 
-## Build Commands
+For Compose projects, use `android studio render-compose-preview` with
+`--print-semantics` to give the agent both an image and accessibility semantics.
 
-```bash
-# Prebuild (generates android/ directory)
-cd apps/expo-multi-tv && EXPO_TV=1 npx expo prebuild --platform android --no-install
+## Failure handling
 
-# Build debug APK (faster, no signing)
-cd apps/expo-multi-tv/android && ./gradlew assembleDebug
+| Symptom | Evidence and action |
+| --- | --- |
+| Compile error | Keep the Gradle output; inspect the affected file with `android studio analyze-file` when available. |
+| App fails to deploy | Keep `android run` output and verify the APK path from `android describe`. |
+| Empty or wrong screen | Capture `android layout` and a screenshot; verify activity metadata. |
+| Focus does not move | Compare focused nodes before/after input; inspect focus registration and screen activation. |
+| Crash | Use `adb -s <serial> logcat -d` because Android CLI has no Logcat command. |
 
-# Or use expo run (does both prebuild + build)
-cd apps/expo-multi-tv && EXPO_TV=1 npx expo run:android --no-install
-
-# APK location
-find android -name "*.apk" -path "*debug*"
-# → android/app/build/outputs/apk/debug/app-debug.apk
-
-# Install
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-```
+Do not replace `android run`, `android layout`, or `android screen capture` with
+ADB when Android CLI is available. Do not modify generated native files when an
+Expo config plugin owns them. Preserve focus-system wiring and tile dimensions
+while fixing navigation.

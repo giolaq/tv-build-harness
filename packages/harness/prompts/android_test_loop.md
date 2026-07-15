@@ -1,170 +1,114 @@
-You are a mobile QA engineer AND developer. Test the TV app on an Android TV emulator using npx agent-device. If you find issues, fix them in the source code, rebuild, and retest. Iterate until the app passes or you've tried 3 times.
+You are a mobile QA engineer and Android developer. Test the TV app with the
+official Android CLI. If you find an app defect, fix it, rebuild, and retest.
+Stop after three build/test iterations.
 
-## Prerequisites Check
+## Tool policy
 
-Run these checks first. If any fail, report the failure and skip the rest:
+Use Android CLI wherever it has a command. Do not replace these commands with
+hand-written SDK or ADB equivalents:
 
-1. Check npx agent-device is installed:
-Run: npx agent-device --version
-If "command not found": report "npx agent-device not installed. Run: npm install -g agent-device" and STOP.
+- Environment and SDK: `android info`, `android sdk ...`
+- Agent knowledge: `android init`, `android skills ...`, `android docs ...`
+- Project metadata: `android describe`
+- Virtual devices: `android emulator ...`
+- Install and launch: `android run`
+- UI evidence: `android layout`, `android screen capture`
+- Android Studio integration: `android studio ...`
 
-2. Check Android SDK:
-Run: echo $ANDROID_HOME
-If empty: report "ANDROID_HOME not set" and STOP.
+The Android CLI does not build APKs. Use the project's Gradle wrapper for
+compilation and assembly. Use ADB only for connected-device discovery, boot
+state, D-pad key events, and Logcat because Android CLI has no equivalent for
+those operations.
 
-3. Check ADB:
-Run: adb devices
-If fails: report "ADB not on PATH" and STOP.
+## Prerequisites
 
-4. Find the Android TV AVD:
-Run: $ANDROID_HOME/emulator/emulator -list-avds
-Look for an AVD with "tv" or "TV" in the name. Save the EXACT name for later.
-If none found: report "No Android TV AVD found. Create one with: avdmanager create avd -n TV_API_34 -k 'system-images;android-34;android-tv;x86_64' -d tv_1080p" and STOP.
+1. Run `command -v android`. If missing, report that Android CLI must be
+   installed from https://developer.android.com/tools/agents/android-cli and
+   stop.
+2. Run `android info`.
+3. Run `android init` to install or update the `android-cli` skill for detected
+   agents, then run `android skills list --long`.
+4. Run `android describe --project_dir={{appDir}}` and use its project/artifact
+   metadata. Do not guess an APK path when metadata is available.
+5. Run `android emulator list`. Use an existing Android TV device when one is
+   available. Start it with `android emulator start <name>` when needed.
+6. Use `adb devices` only to select the connected serial and verify boot with
+   `adb -s <serial> shell getprop sys.boot_completed`.
 
-## STEP 1: Boot the Android TV Emulator (once)
+## Iteration loop
 
-Check if an emulator is already running:
-Run: adb devices | grep emulator
+Repeat at most three times.
 
-If no emulator is running, start the TV AVD you found above:
-Run: $ANDROID_HOME/emulator/emulator -avd <TV_AVD_NAME> -no-snapshot-load -no-audio -gpu swiftshader_indirect &
-Run: adb wait-for-device
+### 1. Build
 
-Wait for full boot:
-Run: for i in $(seq 1 60); do if [ "$(adb shell getprop sys.boot_completed 2>/dev/null)" = "1" ]; then echo "Booted"; break; fi; sleep 2; done
+Use the loaded Android skill to select the correct Gradle task. Run the wrapper
+from the described Gradle project. Prefer a debug APK for local testing.
 
----
+### 2. Deploy and launch
 
-## ITERATION LOOP (repeat up to 3 times)
+Run:
 
-For each iteration:
-
-### A. Build the APK
-
-Use the loaded skill to get the correct build command for the Android target.
-If the primary build command fails, try the fallback build approach the skill describes.
-
-### B. Find and Install the APK
-
-Run: find {{appDir}} -name "*.apk" -path "*debug*" | head -5
-Run: adb install -r <apk-path>
-
-If install fails with "INSTALL_FAILED_UPDATE_INCOMPATIBLE":
-Run: adb uninstall {{bundleId}} && adb install -r <apk-path>
-
-### C. Open the App
-
-Run: npx agent-device open {{bundleId}} --platform android
-Run: sleep 5
-
-### D. Test the App
-
-Perform ALL of the following checks. Track which ones PASS and which FAIL:
-
-**Check 1: Home Screen Loads**
-Run: npx agent-device snapshot -i
-PASS if: output contains 3+ interactive elements (refs like @e1, @e2, @e3)
-FAIL if: empty output, crash, or only 1-2 elements
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-01-home.png
-
-**Check 2: D-Pad Focus Moves Right**
-Run: npx agent-device key dpad_right
-Run: sleep 1
-Run: npx agent-device snapshot -i
-PASS if: the focused element changed from the previous snapshot
-FAIL if: same element still focused
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-02-right.png
-
-**Check 3: D-Pad Focus Moves Down**
-Run: npx agent-device key dpad_down
-Run: sleep 1
-Run: npx agent-device snapshot -i
-PASS if: focused element is in a different row/section
-FAIL if: focus didn't move
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-03-down.png
-
-**Check 4: Drawer/Nav Opens**
-Run: npx agent-device key dpad_left
-Run: npx agent-device key dpad_left
-Run: npx agent-device key dpad_left
-Run: sleep 1
-Run: npx agent-device snapshot -i
-PASS if: drawer/nav items visible (menu items, route labels)
-FAIL if: no navigation UI appeared
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-04-nav.png
-
-**Check 5: Screen Navigation Works**
-The app has these routes: {{routesList}}
-Navigate to the SECOND screen:
-Run: npx agent-device key dpad_down
-Run: npx agent-device key dpad_center
-Run: sleep 2
-Run: npx agent-device snapshot -i
-PASS if: elements are DIFFERENT from the home screen snapshot
-FAIL if: same elements as home (navigation broken)
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-05-screen2.png
-Run: npx agent-device key back
-Run: sleep 1
-
-**Check 6: Detail View Opens**
-Go home first:
-Run: npx agent-device key back
-Run: sleep 1
-Select the first card:
-Run: npx agent-device key dpad_center
-Run: sleep 2
-Run: npx agent-device snapshot -i
-PASS if: content differs from home (detail/player view loaded)
-FAIL if: still on home screen
-Run: npx agent-device screenshot {{screenshotDir}}/android-iter<ITER>-06-detail.png
-Run: npx agent-device key back
-
-### E. Close Session
-
-Run: npx agent-device close
-
-### F. Evaluate Results
-
-Count passes and failures.
-
-**If ALL 6 checks pass**: Report SUCCESS and STOP iterating.
-
-**If any checks FAILED**: Diagnose and fix the source code.
-
-For "D-pad navigation broken / focus stuck": use the loaded skill to check focus registration, screen activation logic, and focusable element setup.
-
-For "Navigation to screen failed": check that navigation items are wired to the correct screen components.
-
-For "Detail view didn't open": check that card selection triggers navigation to the detail screen.
-
-For "Home screen didn't load / crash":
-Run: adb logcat -d | grep -i "error\|crash\|fatal" | tail -20
-Use the loaded skill's guidance for crash diagnosis.
-
-After fixing, go back to step A (rebuild) for the next iteration.
-
----
-
-## FINAL REPORT
-
-After the loop ends (pass or 3 iterations exhausted), output:
-
-```
-## Android TV Test Results
-- Iterations: <N>
-- Status: PASS / FAIL
-- Checks passed: <count>/6
-- Issues found: <list>
-- Issues fixed: <list>
-- Issues remaining: <list>
-- Screenshots: {{screenshotDir}}/android-iter*
+```sh
+android run --apks=<apk-from-describe> --device=<serial> --activity=.MainActivity
 ```
 
-## CONSTRAINTS
+Use the actual activity from project metadata when it differs. `android run`
+installs and launches; do not run `adb install` first.
 
-- Maximum 3 iterations (build + test cycles)
-- If npx agent-device commands fail with "no session", re-run `npx agent-device open {{bundleId}} --platform android`
-- If the emulator crashes, skip remaining tests and report what was captured
-- Screenshots go in {{screenshotDir}}/ with "android-iterN-" prefix
-- Keep the emulator running after tests (for manual inspection)
-- When fixing code, follow the loaded skill's rules: never break the focus system, never change list item sizing, follow the dependency rules
+### 3. Capture initial state
+
+```sh
+android layout --pretty --output={{screenshotDir}}/android-iter<ITER>-01-home.json
+android screen capture --output={{screenshotDir}}/android-iter<ITER>-01-home.png
+```
+
+PASS when the app is visible and the layout contains at least three interactive
+or focusable elements. FAIL on an empty layout, launcher screen, or crash.
+
+### 4. Test D-pad behavior
+
+Android CLI currently has no remote-key command, so use the documented ADB
+fallback:
+
+```sh
+adb -s <serial> shell input keyevent 22
+android layout --pretty --output={{screenshotDir}}/android-iter<ITER>-02-right.json
+android screen capture --output={{screenshotDir}}/android-iter<ITER>-02-right.png
+
+adb -s <serial> shell input keyevent 20
+android layout --pretty --output={{screenshotDir}}/android-iter<ITER>-03-down.json
+android screen capture --output={{screenshotDir}}/android-iter<ITER>-03-down.png
+```
+
+PASS when the focused node changes after Right and moves to a different row or
+section after Down.
+
+### 5. Test navigation
+
+Use Left key events to open the navigation surface, then capture layout and
+screenshot evidence with Android CLI. Navigate to the second route from
+`{{routesList}}`, select it with keyevent 23, and verify that the layout differs
+from Home. Return with keyevent 4. Select the first content card and verify that
+a detail or player layout opens.
+
+### 6. Diagnose and retry
+
+Use `android layout --diff` for UI changes. When Android Studio Quail 2 Canary 1
+or newer is already open, run `android studio check` and use
+`android studio analyze-file` for affected Kotlin/Java files. Use
+`android docs search` and `android docs fetch` for Android guidance.
+
+For crashes only, use the ADB fallback:
+
+```sh
+adb -s <serial> logcat -d
+```
+
+Fix source code, rebuild, and repeat. Preserve the existing focus system and
+list item sizing.
+
+## Final report
+
+Report iterations, pass/fail, checks passed, issues found/fixed/remaining,
+Android CLI commands used, Gradle task, device serial, and evidence under
+`{{screenshotDir}}/android-iter*`. Leave the emulator running for inspection.

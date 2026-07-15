@@ -1,7 +1,7 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { commandRunner, type CommandRunner } from "../process/command-runner.js";
-import type { PlatformAdapter, PlatformContext, PlatformResult, RemoteAction } from "./types.js";
+import type { AndroidToolBackend, PlatformAdapter, PlatformContext, PlatformResult, RemoteAction } from "./types.js";
 import type { FocusObservation } from "./dpad-flow.js";
 
 const KEYCODES: Record<RemoteAction, string> = {
@@ -9,12 +9,92 @@ const KEYCODES: Record<RemoteAction, string> = {
 };
 
 export class AndroidTvAdapter implements PlatformAdapter {
-  constructor(private readonly runner: CommandRunner = commandRunner) {}
+  private backend: AndroidToolBackend = "gradle-adb";
+  private initialized = false;
+  private deployedWithCli = false;
+
+  constructor(
+    private readonly runner: CommandRunner = commandRunner,
+    private readonly cliMode: "auto" | "required" | "legacy" = "auto",
+  ) {}
+
+  getBackend(): AndroidToolBackend {
+    return this.backend;
+  }
+
+  async initialize(cwd = process.cwd()): Promise<PlatformResult> {
+    if (this.initialized) return toolingResult(this.backend);
+    this.initialized = true;
+    if (this.cliMode === "legacy") return toolingResult(this.backend);
+
+    try {
+      const probe = await this.run("android", ["info"], cwd, 5_000);
+      if (probe.exitCode === 0) {
+        this.backend = "android-cli";
+        return { ok: true, step: "tooling", message: "Android CLI is the preferred Android backend", command: probe, details: { backend: this.backend } };
+      }
+      if (this.cliMode === "required") return failure("tooling", "Android CLI is required but `android info` failed", "environment", probe);
+    } catch (error) {
+      if (this.cliMode === "required") return failure("tooling", `Android CLI is required but unavailable: ${errorMessage(error)}`, "environment");
+    }
+    return { ok: true, step: "tooling", message: "Android CLI unavailable; using the Gradle/ADB compatibility path", details: { backend: this.backend, fallback: true } };
+  }
+
+  async setupAgent(cwd = process.cwd()): Promise<PlatformResult> {
+    const ready = await this.initialize(cwd);
+    if (!ready.ok || this.backend !== "android-cli") return failure("agent-skill", "Android CLI is required to install its agent skill", "environment", ready.command);
+    const init = await this.run("android", ["init"], cwd, 120_000);
+    if (init.exitCode !== 0) return failure("agent-skill", init.stderr || init.stdout || "android init failed", "environment", init);
+    const list = await this.run("android", ["skills", "list", "--long"], cwd, 30_000);
+    return list.exitCode === 0
+      ? { ok: true, step: "agent-skill", message: "Android CLI agent skill installed and discoverable", command: list }
+      : failure("agent-skill", list.stderr || list.stdout || "Android CLI skill verification failed", "environment", list);
+  }
+
+  async describe(context: PlatformContext): Promise<PlatformResult> {
+    await this.initialize(context.appDir);
+    if (this.backend !== "android-cli") {
+      return { ok: true, step: "describe", message: "Project description skipped on the compatibility backend", details: { backend: this.backend, skipped: true } };
+    }
+    mkdirSync(context.artifactsDir, { recursive: true });
+    const projectDir = resolve(context.appDir, context.profile.projectDir);
+    const result = await this.run("android", ["describe", `--project_dir=${projectDir}`], context.appDir, 120_000);
+    const artifact = join(context.artifactsDir, "android-describe.txt");
+    writeFileSync(artifact, result.stdout || result.stderr);
+    const metadata = readDescribeMetadata(result.stdout, context.appDir);
+    const describedApk = findArtifact(metadata.documents, /\.apk$/i);
+    const resolvedApk = describedApk ? resolve(projectDir, describedApk) : undefined;
+    if (resolvedApk) context.profile.apkPath = resolvedApk;
+    const normalized = join(context.artifactsDir, "android-describe.json");
+    writeFileSync(normalized, JSON.stringify({
+      schemaVersion: 1,
+      metadataFiles: metadata.files,
+      apk: resolvedApk,
+    }, null, 2));
+    return result.exitCode === 0
+      ? {
+          ok: true, step: "describe", message: resolvedApk
+            ? `Android CLI described the project; using APK ${resolvedApk}`
+            : "Android CLI described the project; using the configured APK path",
+          command: result, artifact: normalized, details: { metadataFiles: metadata.files, apk: resolvedApk },
+        }
+      : failure("describe", result.stderr || result.stdout || "android describe failed", "environment", result);
+  }
+
+  async startEmulator(name: string, cwd = process.cwd()): Promise<PlatformResult> {
+    const ready = await this.initialize(cwd);
+    if (!ready.ok || this.backend !== "android-cli") return failure("emulator-start", "Android CLI is required to start an emulator by profile", "environment", ready.command);
+    const result = await this.run("android", ["emulator", "start", name], cwd, 120_000);
+    return result.exitCode === 0
+      ? { ok: true, step: "emulator-start", message: `Android CLI started emulator ${name}`, command: result, details: { name } }
+      : failure("emulator-start", result.stderr || result.stdout || `Could not start emulator ${name}`, "environment", result);
+  }
 
   async doctor(): Promise<PlatformResult[]> {
     return Promise.all([
+      this.probe("android", ["info"], "android-cli"),
       this.probe("adb", ["version"], "adb"),
-      this.probe("emulator", ["-list-avds"], "emulator"),
+      this.probe("android", ["emulator", "list"], "emulator"),
     ]);
   }
 
@@ -49,6 +129,8 @@ export class AndroidTvAdapter implements PlatformAdapter {
   }
 
   async install(context: PlatformContext): Promise<PlatformResult> {
+    await this.initialize(context.appDir);
+    if (this.backend === "android-cli") return this.deployWithCli(context, "install");
     const cwd = resolve(context.appDir, context.profile.projectDir);
     const args = [context.profile.installTask];
     if (context.deviceSerial) args.push(`-Pandroid.injected.device.serial=${context.deviceSerial}`);
@@ -59,6 +141,11 @@ export class AndroidTvAdapter implements PlatformAdapter {
   }
 
   async launch(context: PlatformContext): Promise<PlatformResult> {
+    await this.initialize(context.appDir);
+    if (this.backend === "android-cli") {
+      if (this.deployedWithCli) return { ok: true, step: "launch", message: "Android CLI already installed and launched the APK", details: { backend: this.backend } };
+      return this.deployWithCli(context, "launch");
+    }
     if (!context.profile.packageName || !context.profile.activity) {
       return failure("launch", "Android packageName and activity are required", "input");
     }
@@ -79,6 +166,14 @@ export class AndroidTvAdapter implements PlatformAdapter {
 
   async screenshot(context: PlatformContext, name: string): Promise<PlatformResult> {
     mkdirSync(context.artifactsDir, { recursive: true });
+    await this.initialize(context.appDir);
+    if (this.backend === "android-cli") {
+      const output = join(context.artifactsDir, `${name}.png`);
+      const capture = await this.run("android", ["screen", "capture", `--output=${output}`], context.appDir, 30_000);
+      return capture.exitCode === 0
+        ? { ok: true, step: "screenshot", message: `Android CLI screenshot saved to ${output}`, artifact: output, command: capture }
+        : failure("screenshot", capture.stderr || capture.stdout || "Android CLI screenshot capture failed", "environment", capture);
+    }
     const remote = `/sdcard/tv-build-${Date.now()}.png`;
     const output = join(context.artifactsDir, `${name}.png`);
     const capture = await this.run("adb", this.adbArgs(context, ["shell", "screencap", "-p", remote]), context.appDir, 10_000);
@@ -100,6 +195,22 @@ export class AndroidTvAdapter implements PlatformAdapter {
 
   async observeFocus(context: PlatformContext): Promise<FocusObservation | undefined> {
     mkdirSync(context.artifactsDir, { recursive: true });
+    await this.initialize(context.appDir);
+    if (this.backend === "android-cli") {
+      const local = join(context.artifactsDir, "layout.json");
+      const layout = await this.run("android", ["layout", "--pretty", `--output=${local}`], context.appDir, 30_000);
+      if (layout.exitCode !== 0) return undefined;
+      try {
+        const focused = findFocusedNode(JSON.parse(readFileSync(local, "utf-8")));
+        return focused ? {
+          id: stringField(focused, "resourceId", "resource-id", "id"),
+          text: stringField(focused, "text", "contentDescription", "content-desc", "label"),
+          bounds: stringField(focused, "bounds"),
+        } : undefined;
+      } catch {
+        return undefined;
+      }
+    }
     const remote = `/sdcard/tv-build-window-${Date.now()}.xml`;
     const local = join(context.artifactsDir, "window.xml");
     const dump = await this.run("adb", this.adbArgs(context, ["shell", "uiautomator", "dump", remote]), context.appDir, 10_000);
@@ -134,6 +245,19 @@ export class AndroidTvAdapter implements PlatformAdapter {
       : failure(step, result.stderr || result.stdout || `${task} failed`, "product", result);
   }
 
+  private async deployWithCli(context: PlatformContext, step: "install" | "launch"): Promise<PlatformResult> {
+    const apk = resolve(context.appDir, context.profile.projectDir, context.profile.apkPath);
+    const args = ["run", `--apks=${apk}`];
+    if (context.deviceSerial) args.push(`--device=${context.deviceSerial}`);
+    if (context.profile.activity) args.push(`--activity=${context.profile.activity}`);
+    const result = await this.run("android", args, context.appDir, 180_000);
+    if (result.exitCode === 0) {
+      this.deployedWithCli = true;
+      return { ok: true, step, message: `Android CLI installed and launched ${apk}`, command: result, details: { backend: this.backend, apk } };
+    }
+    return failure(step, result.stderr || result.stdout || "Android CLI deployment failed", "product", result);
+  }
+
   private adbArgs(context: PlatformContext, args: string[]): string[] {
     return context.deviceSerial ? ["-s", context.deviceSerial, ...args] : args;
   }
@@ -141,6 +265,75 @@ export class AndroidTvAdapter implements PlatformAdapter {
   private run(command: string, args: string[], cwd: string, timeoutMs: number) {
     return this.runner.run({ command, args, cwd, timeoutMs, maxOutputBytes: 2_000_000 });
   }
+}
+
+function toolingResult(backend: AndroidToolBackend): PlatformResult {
+  return { ok: true, step: "tooling", message: `Using ${backend}`, details: { backend } };
+}
+
+function findFocusedNode(value: unknown): Record<string, unknown> | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = findFocusedNode(item);
+      if (match) return match;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  if (record.focused === true || record.isFocused === true || record.focus === true) return record;
+  for (const child of Object.values(record)) {
+    const match = findFocusedNode(child);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+function stringField(record: Record<string, unknown>, ...names: string[]): string | undefined {
+  for (const name of names) if (typeof record[name] === "string") return record[name] as string;
+  return undefined;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function readDescribeMetadata(stdout: string, cwd: string): { files: string[]; documents: unknown[] } {
+  const documents: unknown[] = [];
+  try { documents.push(JSON.parse(stdout)); } catch {}
+  const quoted = Array.from(stdout.matchAll(/["']([^"']+\.json)["']/gi), (match) => match[1]);
+  const unquoted = stdout.split("\n").map((line) => line.trim()).filter((line) => /^[^:]+\.json$/i.test(line));
+  const referenced = findArtifacts(documents, /\.json$/i);
+  const files = Array.from(new Set([...quoted, ...unquoted, ...referenced].map((value) => resolve(cwd, value))));
+  for (const file of files) {
+    if (!existsSync(file)) continue;
+    try { documents.push(JSON.parse(readFileSync(file, "utf-8"))); } catch {}
+  }
+  return { files: files.filter(existsSync), documents };
+}
+
+function findArtifact(value: unknown, pattern: RegExp): string | undefined {
+  if (typeof value === "string") return pattern.test(value) ? value : undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const match = findArtifact(item, pattern);
+      if (match) return match;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+  for (const child of Object.values(value as Record<string, unknown>)) {
+    const match = findArtifact(child, pattern);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+function findArtifacts(value: unknown, pattern: RegExp): string[] {
+  if (typeof value === "string") return pattern.test(value) ? [value] : [];
+  if (Array.isArray(value)) return value.flatMap((item) => findArtifacts(item, pattern));
+  if (!value || typeof value !== "object") return [];
+  return Object.values(value as Record<string, unknown>).flatMap((child) => findArtifacts(child, pattern));
 }
 
 function failure(step: string, message: string, failureClass: PlatformResult["failureClass"], command?: PlatformResult["command"]): PlatformResult {

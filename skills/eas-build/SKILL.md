@@ -119,15 +119,17 @@ The harness produces an EAS-ready repo. Wiring it into CI is the user's next ste
 
 EAS is metered. Free tier covers small teams; busier projects need a paid plan. A typical harness run with `production-tv-android` + `production-tv-ios` + `preview-tv-firetv` = 3 builds. Multiply by users / iterations.
 
-For dev runs, prefer **local builds** via `expo run:*`. EAS only when you need a real artifact.
+For dev runs, prefer local builds. On Android, prebuild with Expo, compile with
+the Gradle wrapper, and deploy with Android CLI. Use EAS only when you need a
+signed or distributable artifact.
 
 ## Decision: EAS or local build?
 
 | Need | Use |
 |------|-----|
-| Run on simulator/emulator | Local (`expo run:*`) |
+| Run on simulator/emulator | Local build; Android CLI for Android deployment |
 | Run on a real Apple TV for the first time | EAS preview-tv-ios (device, internal) |
-| Run on a real Fire TV / Android TV for the first time | Local (`expo run:android` + adb) is usually faster |
+| Run on a real Fire TV / Android TV for the first time | Local Gradle build + `android run` is usually faster |
 | Signed APK for sharing | EAS preview-tv-android |
 | Store submission | EAS production-* |
 | Vega artifact | `vega_build` tool, not EAS |

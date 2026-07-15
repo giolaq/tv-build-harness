@@ -1804,6 +1804,9 @@ function printUsage() {
     --fix                  With doctor: print exact fix commands for failing checks
     --device <serial>      Select an Android device for the android command
     --flow <path>          Run an asserted Android D-pad flow JSON file
+    --setup-agent         Install/update the Android CLI agent skill with android init
+    --require-android-cli Fail instead of using the Gradle/ADB compatibility path
+    --start-emulator <id> Start an emulator with Android CLI before Android lifecycle steps
 
   Exit codes:
     0 success
@@ -1848,6 +1851,7 @@ function printUsage() {
     npx tv-build validate ./my-app-inputs --json
     npx tv-build templates check --json
     npx tv-build android d811afcb --plan --json
+    npx tv-build android d811afcb --setup-agent --yes --json
     npx tv-build android d811afcb --build --install --launch --test --yes --json
     npx tv-build refine d811afcb --phase branding "warmer palette, larger hero cards" --plan
     npx tv-build refine d811afcb --phase branding "warmer palette, larger hero cards" --yes

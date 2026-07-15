@@ -20,6 +20,10 @@ This **must** be set when:
 - Running `expo run:android` or `expo run:ios` for a TV build
 - Running EAS Build for a TV profile
 
+For harness-driven Android work, prefer `expo prebuild` followed by the Gradle
+wrapper and `android run`. Treat `expo run:android` as a manual compatibility
+command because Android CLI should own deployment and launch when available.
+
 Without it, the plugin no-ops and you get a mobile build. The `expo_prebuild` tool always sets it; if a user invokes prebuild manually, the symptom is silent — the build succeeds but the app is wrong.
 
 A handy `.envrc` (direnv) or shell alias avoids forgetting:

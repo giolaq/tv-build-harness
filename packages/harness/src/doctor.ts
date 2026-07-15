@@ -32,8 +32,8 @@ export async function runDoctor(options: { vega?: boolean; appDir?: string } = {
   results.push(checkPuppeteer());
   results.push(checkXcode());
   results.push(checkAndroidSDK());
+  results.push(checkAndroidCli());
   results.push(checkEmulators());
-  results.push(checkAgentDevice());
   results.push(checkTvOSSimulator());
   results.push(checkDiskSpace());
 
@@ -161,32 +161,65 @@ function checkAndroidSDK(): CheckResult {
   };
 }
 
-function checkEmulators(): CheckResult {
+function checkAndroidCli(): CheckResult {
   try {
-    const avds = execSync("emulator -list-avds", { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString().trim();
-    // emulator prints INFO/WARNING noise on stdout — AVD names never contain spaces
-    const list = avds.split("\n").filter((line) => line.trim() && !line.includes(" "));
-    const tvAvd = list.find((a) => /(^|[^a-z])tv|television/i.test(a));
+    const info = execSync("android info", { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString().trim().split("\n")[0];
+    return {
+      name: "Android CLI",
+      ok: true,
+      detail: `${info || "Installed"} (preferred Android agent tooling; run android init once to install its skill)`,
+    };
+  } catch {
+    return {
+      name: "Android CLI",
+      ok: false,
+      optional: true,
+      detail: "Not found; Android phases will use the Gradle/ADB compatibility path.",
+      fix: "Install Android CLI from https://developer.android.com/tools/agents/android-cli, then run: android update && android init",
+    };
+  }
+}
+
+function checkEmulators(): CheckResult {
+  let source = "Android CLI";
+  let output: string;
+  try {
+    output = execSync("android emulator list", { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString().trim();
+  } catch {
+    source = "legacy emulator tool";
+    try {
+      output = execSync("emulator -list-avds", { stdio: "pipe", timeout: DOCTOR_PROBE_TIMEOUT_MS }).toString().trim();
+    } catch {
+      return {
+        name: "Android TV AVD", ok: false, optional: true,
+        detail: "No emulator manager is available.",
+        fix: "Install Android CLI, then run: android emulator create --list-profiles",
+      };
+    }
+  }
+  try {
+    const list = output.split("\n").map((line) => line.trim()).filter(Boolean);
+    const tvAvd = list.find((line) => /(^|[^a-z])tv|television/i.test(line));
     if (tvAvd) {
-      return { name: "Android TV AVD", ok: true, detail: tvAvd };
+      return { name: "Android TV AVD", ok: true, detail: `${tvAvd} (${source})` };
     }
     if (list.length > 0) {
       return {
         name: "Android TV AVD", ok: false, optional: true,
-        detail: `Found AVDs but none with 'TV' in name: ${list.join(", ")}`,
-        fix: 'avdmanager create avd -n TV_API_34 -k "system-images;android-34;android-tv;x86" -d tv_1080p',
+        detail: `Found emulator entries but no TV profile (${source}).`,
+        fix: "Run: android emulator create --list-profiles, then android emulator create --profile=<tv-profile>",
       };
     }
     return {
       name: "Android TV AVD", ok: false, optional: true,
       detail: "No AVDs found.",
-      fix: "Create an Android TV device in Android Studio > Device Manager",
+      fix: "Run: android emulator create --list-profiles, then android emulator create --profile=<tv-profile>",
     };
   } catch {
     return {
       name: "Android TV AVD", ok: false, optional: true,
-      detail: "emulator command not found.",
-      fix: 'export PATH="$PATH:$ANDROID_HOME/emulator" after installing the Android SDK',
+      detail: "Could not parse the emulator list.",
+      fix: "Run: android emulator list",
     };
   }
 }
@@ -222,23 +255,6 @@ function checkPuppeteer(): CheckResult {
       name: "Puppeteer", ok: false, optional: true,
       detail: "Not found (visual QA screenshots disabled).",
       fix: "yarn add puppeteer   # in packages/harness",
-    };
-  }
-}
-
-function checkAgentDevice(): CheckResult {
-  try {
-    const version = execSync("npx --yes --no-install agent-device --version", {
-      stdio: "pipe",
-      timeout: DOCTOR_PROBE_TIMEOUT_MS,
-      env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
-    }).toString().trim();
-    return { name: "agent-device", ok: true, detail: `v${version} (Android TV emulator testing enabled)` };
-  } catch {
-    return {
-      name: "agent-device", ok: false, optional: true,
-      detail: "Not found (android_test_loop phase will be skipped).",
-      fix: "npm install -g agent-device",
     };
   }
 }

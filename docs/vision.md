@@ -6,6 +6,12 @@ The primary users are developers and shell-capable agents building TV experience
 
 The pipeline, tools, verification, artifacts, and CLI contracts are the product. Model runtimes are replaceable executors.
 
+On Android, prefer the official Android CLI as the platform contract. Keep
+Gradle as the build authority and use ADB only for operations Android CLI does
+not expose. This lets agents share Android's current skills and knowledge while
+the harness retains deterministic phase, confirmation, verification, and
+evidence policies.
+
 ## Support Tiers
 
 - Tier 1: Claude CLI, Android TV, and web.

@@ -34,3 +34,17 @@ Deprecated compatibility paths remain for one release:
 - `src/strands-orchestrator.ts`
 
 New code should import from `src/executors/*`.
+
+## Android tooling
+
+The Android phase and `tv-build android` command prefer the official Android
+CLI. `src/platforms/android-tv.ts` uses `android describe`, `android run`,
+`android emulator start`, `android layout`, and `android screen capture`.
+Metadata emitted by `android describe` overrides guessed APK paths. Gradle
+remains responsible for building APKs. ADB is limited to connected-device
+discovery, boot state, D-pad input, and Logcat because Android CLI does not
+currently expose those actions.
+
+Run `android init` directly or pass `--setup-agent` to install/update the
+official `android-cli` agent skill. Pass `--require-android-cli` when a run must
+fail instead of using the Gradle/ADB compatibility backend.

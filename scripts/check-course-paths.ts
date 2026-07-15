@@ -20,7 +20,7 @@ for (const file of files) {
     const path = raw.replace(/:\d+$/, "");
     if (!existsSync(path)) missing.push(`${file}: ${raw}`);
   }
-  const fences = text.matchAll(/```(?:sh|bash)?\n([\s\S]*?)```/g);
+  const fences = text.matchAll(/^```(?:sh|bash)\n([\s\S]*?)^```$/gm);
   for (const match of fences) {
     const block = match[1];
     if (/\b(adb|emulator|xcrun|simctl|xcodebuild|maestro)\b/i.test(block)) {

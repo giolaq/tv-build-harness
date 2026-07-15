@@ -96,6 +96,12 @@ See `AGENTS.md` for the full contract and `docs/course/07-your-harness-as-a-tool
 
 For local validation, release smoke, and workshop checks, use `docs/run-and-test.md`.
 
+New to the harness? Read `docs/getting-started.md`. For the technical design,
+see `docs/technical-architecture.md`.
+
+For the Android implementation and presentation demo, read
+`docs/android-cli-workflow.md`.
+
 Agent-facing features added in v0.3:
 
 - `schema` prints the input contract on demand, including JSON Schema with `--json`.
@@ -157,14 +163,36 @@ npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger her
 
 ## Android TV lifecycle
 
-Use Android Studio to inspect and debug generated source. Use the harness to operate the stable Android interfaces: the Gradle wrapper, emulator, ADB, screenshots, and Logcat.
+Use the official [Android CLI](https://developer.android.com/tools/agents/android-cli)
+as the primary Android automation interface. Install it, then initialize its
+agent skill once:
 
 ```sh
-npx tsx src/index.ts android <runId|appDir> --plan --json
-npx tsx src/index.ts android <runId|appDir> --build --install --launch --test --yes --json
+android update
+android init
 ```
 
-The command writes `android-handoff.json` with the project directory, module, variant, Gradle tasks, APK path, device serial, artifacts, and last failure. D-pad flows can assert focused accessibility ids with `--flow <path>`.
+TV Build uses `android describe` for project metadata, `android run` to install
+and launch APKs, `android layout` for UI/focus evidence, and
+`android screen capture` for screenshots. The project-owned Gradle wrapper still
+builds the APK because Android CLI intentionally does not build. ADB is limited
+to device discovery, boot status, D-pad input, and Logcat where Android CLI has
+no equivalent.
+
+```sh
+npx tsx src/index.ts android <runId|appDir> --setup-agent --plan --json
+npx tsx src/index.ts android <runId|appDir> --setup-agent --require-android-cli \
+  --build --install --launch --test --yes --json
+```
+
+Add `--start-emulator <name>` to start an existing virtual device through
+`android emulator start` before the lifecycle runs.
+
+Without `--require-android-cli`, the command uses a Gradle/ADB compatibility
+path when Android CLI is unavailable. The command writes `android-handoff.json`
+with the selected backend, project directory, module, variant, Gradle tasks, APK
+path, device serial, artifacts, and last failure. D-pad flows can assert focused
+accessibility ids with `--flow <path>`.
 
 ## Examples
 
@@ -298,6 +326,11 @@ You can swap the template, add custom phases, change retry counts:
 | `--yes` | Confirm a detached JSON run after the human has seen the plan |
 | `--max-cost <usd>` | Abort cleanly when model cost exceeds the cap |
 | `--seed <value>` | Fix creative constraints for repeatable output |
+| `--setup-agent` | Install/update the official Android CLI agent skill with `android init` |
+| `--require-android-cli` | Fail the Android lifecycle instead of using compatibility mode |
+| `--start-emulator <name>` | Start an existing virtual device through Android CLI |
+| `--device <serial>` | Select a connected Android device |
+| `--flow <path>` | Run an asserted Android D-pad flow |
 | `--from-example <name>` | Use an example as the `init` starting point |
 
 ## Vega optimization

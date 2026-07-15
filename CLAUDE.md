@@ -44,6 +44,8 @@ All three paths delegate phase ordering and retries to `packages/harness/src/pip
 | Change report output | `packages/harness/src/run-report.ts` |
 | Change phase dependencies/types | `packages/harness/src/types.ts` |
 | Change Vega tooling checks | `packages/harness/src/vega-tools.ts` |
+| Change Android CLI lifecycle behavior | `packages/harness/src/platforms/android-tv.ts` and `packages/harness/src/commands/android.ts` |
+| Change Android phase knowledge | `packages/harness/prompts/android_test_loop.md` and `skills/android-tv-testing/SKILL.md` |
 
 Skill frontmatter must keep this contract:
 

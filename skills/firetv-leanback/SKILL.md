@@ -102,10 +102,18 @@ Use the template's themed `<Pressable>` (which is already wrapped) or wrap manua
 ```bash
 # In apps/expo-multi-tv/
 EXPO_TV=1 npx expo prebuild --platform android --clean
-npx expo run:android -d <deviceId>
+cd android && ./gradlew assembleDebug
+cd ..
+android describe --project_dir=android
+android run \
+  --apks=android/app/build/outputs/apk/debug/app-debug.apk \
+  --device=<deviceId> \
+  --activity=.MainActivity
 ```
 
-The `-d` is required when multiple emulators / devices are connected, including a phone emulator that may also be running. Forget this and the app installs on the phone.
+`--device` is required when multiple emulators or devices are connected,
+including a phone emulator that may also be running. Forget this and the app
+can install on the wrong target.
 
 To find Fire TV device IDs:
 ```bash
@@ -115,7 +123,7 @@ adb devices
 
 To find the leanback emulator:
 ```bash
-emulator -list-avds | grep -i tv
+android emulator list
 ```
 
 ## Verifying it's actually a TV build

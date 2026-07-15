@@ -1,6 +1,7 @@
 import type { CommandResult } from "../process/command-runner.js";
 
 export type RemoteAction = "up" | "down" | "left" | "right" | "select" | "back";
+export type AndroidToolBackend = "android-cli" | "gradle-adb";
 
 export interface AndroidBuildProfile {
   projectDir: string;
@@ -19,6 +20,7 @@ export interface PlatformContext {
   profile: AndroidBuildProfile;
   deviceSerial?: string;
   artifactsDir: string;
+  androidBackend?: AndroidToolBackend;
 }
 
 export interface PlatformResult {

@@ -16,7 +16,15 @@ export async function runAndroidCommand(args: string[], jsonMode: boolean): Prom
   const profile = loadProfile(appDir, getAndroidBuildProfile(stack));
   const runDir = appDir.endsWith(`${join("", "app")}`) ? dirname(appDir) : appDir;
   const artifactsDir = join(runDir, "android");
-  const plan = { command: "android", appDir, stack, profile, steps: selectedSteps(args) };
+  const plan = {
+    command: "android", appDir, stack, profile, steps: selectedSteps(args),
+    tooling: {
+      preferred: "android-cli",
+      build: "Gradle wrapper",
+      fallback: "ADB only for device discovery, boot state, D-pad input, and Logcat",
+      requireAndroidCli: args.includes("--require-android-cli"),
+    },
+  };
   if (args.includes("--plan")) {
     if (jsonMode) writeJson(plan);
     else printPlan(plan);
@@ -25,14 +33,32 @@ export async function runAndroidCommand(args: string[], jsonMode: boolean): Prom
   if (jsonMode && !args.includes("--yes")) return fail(jsonMode, "confirmation_required", "Android execution requires --yes in JSON mode.", "Show the Android plan to the human, then rerun with --yes.", EXIT.input);
 
   mkdirSync(artifactsDir, { recursive: true });
-  const adapter = new AndroidTvAdapter();
+  const adapter = new AndroidTvAdapter(undefined, args.includes("--require-android-cli") ? "required" : "auto");
+  const tooling = await adapter.initialize(appDir);
+  if (!tooling.ok) return finishFailure(jsonMode, tooling);
+  const results: PlatformResult[] = [tooling];
+  if (args.includes("--setup-agent")) {
+    const setup = await adapter.setupAgent(appDir);
+    results.push(setup);
+    if (!setup.ok) return finishFailure(jsonMode, setup);
+  }
+  const context: PlatformContext = { appDir, profile, artifactsDir, androidBackend: adapter.getBackend() };
+  const description = await adapter.describe(context);
+  results.push(description);
+  if (!description.ok) return finishFailure(jsonMode, description);
+  const emulatorName = flagValue(args, "--start-emulator");
+  if (emulatorName) {
+    const emulator = await adapter.startEmulator(emulatorName, appDir);
+    results.push(emulator);
+    if (!emulator.ok) return finishFailure(jsonMode, emulator);
+  }
   const device = await adapter.discoverDevice(flagValue(args, "--device"));
   if (!device.ok) return finishFailure(jsonMode, device);
   const serial = String(device.details?.serial);
   const boot = await adapter.waitForBoot(serial);
   if (!boot.ok) return finishFailure(jsonMode, boot);
-  const context: PlatformContext = { appDir, profile, deviceSerial: serial, artifactsDir };
-  const results: PlatformResult[] = [device, boot];
+  context.deviceSerial = serial;
+  results.push(device, boot);
 
   if (args.includes("--build")) results.push(...await adapter.build(context));
   if (results.every((result) => result.ok) && args.includes("--install")) results.push(await adapter.install(context));
@@ -60,7 +86,7 @@ export async function runAndroidCommand(args: string[], jsonMode: boolean): Prom
   }
   const failed = results.find((result) => !result.ok);
   if (failed) return finishFailure(jsonMode, failed, handoff);
-  if (jsonMode) writeEvent("run_complete", { mode: "android", status: "success", appDir, deviceSerial: serial, handoff });
+  if (jsonMode) writeEvent("run_complete", { mode: "android", status: "success", appDir, deviceSerial: serial, androidBackend: adapter.getBackend(), handoff });
   else console.log(`\n  Android handoff: ${handoff}\n`);
 }
 
@@ -90,7 +116,14 @@ function loadProfile(appDir: string, base: AndroidBuildProfile): AndroidBuildPro
 }
 
 function selectedSteps(args: string[]): string[] {
-  const steps = ["device", "boot"];
+  const steps = [
+    "tooling",
+    ...(args.includes("--setup-agent") ? ["agent-skill"] : []),
+    "describe",
+    ...(flagValue(args, "--start-emulator") ? ["emulator-start"] : []),
+    "device",
+    "boot",
+  ];
   for (const [flag, name] of [["--build", "build"], ["--install", "install"], ["--launch", "launch"], ["--test", "test"], ["--screenshot", "screenshot"], ["--logs", "logs"]]) {
     if (args.includes(flag)) steps.push(name);
   }
@@ -113,6 +146,7 @@ function writeHandoff(runDir: string, context: PlatformContext, results: Platfor
   const failed = results.find((result) => !result.ok);
   writeFileSync(path, JSON.stringify({
     schemaVersion: 1, appDir: context.appDir, projectDir: context.profile.projectDir,
+    androidBackend: context.androidBackend,
     module: context.profile.module, variant: context.profile.variant, packageName: context.profile.packageName,
     activity: context.profile.activity, apk: resolve(context.appDir, context.profile.projectDir, context.profile.apkPath),
     deviceSerial: context.deviceSerial, gradleTasks: {
@@ -120,7 +154,7 @@ function writeHandoff(runDir: string, context: PlatformContext, results: Platfor
     }, artifactsDir: context.artifactsDir, lastFailure: failed ? { step: failed.step, message: failed.message } : null,
   }, null, 2));
   const report = join(runDir, "report.md");
-  appendFileSync(report, `\n## Android handoff\n\n- Project: \`${resolve(context.appDir, context.profile.projectDir)}\`\n- Compile: \`./gradlew ${context.profile.compileTask}\`\n- Assemble: \`./gradlew ${context.profile.assembleTask}\`\n- Install: \`./gradlew ${context.profile.installTask}\`\n- Device: \`${context.deviceSerial ?? "not selected"}\`\n- Metadata: \`${path}\`\n`);
+  appendFileSync(report, `\n## Android handoff\n\n- Project: \`${resolve(context.appDir, context.profile.projectDir)}\`\n- Tooling: \`${context.androidBackend ?? "gradle-adb"}\`\n- Compile: \`./gradlew ${context.profile.compileTask}\`\n- Assemble: \`./gradlew ${context.profile.assembleTask}\`\n- Deploy: \`${context.androidBackend === "android-cli" ? `android run --apks=${resolve(context.appDir, context.profile.projectDir, context.profile.apkPath)}` : `./gradlew ${context.profile.installTask}`}\`\n- Device: \`${context.deviceSerial ?? "not selected"}\`\n- Metadata: \`${path}\`\n`);
   return path;
 }
 

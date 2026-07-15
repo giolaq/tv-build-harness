@@ -46,31 +46,23 @@ load_when: building the app, installing on emulator, or locating build artifacts
 ### Prerequisites
 
 - Android TV emulator running (API 34, TV profile recommended)
-- `adb` in PATH (from Android SDK platform-tools)
+- Android CLI installed and initialized with `android init`
+- `adb` in PATH for D-pad input and Logcat only
 
-### Install debug APK
-
-```bash
-# Build and install in one step
-./gradlew :androidtv-app:installDebug
-
-# Or manually after building
-adb install androidtv-app/build/outputs/apk/debug/androidtv-app-debug.apk
-
-# Force reinstall (overwrite existing)
-adb install -r androidtv-app/build/outputs/apk/debug/androidtv-app-debug.apk
-```
-
-### Launch after install
+### Build, install, and launch the debug APK
 
 ```bash
-adb shell am start -n com.kmptv.androidtv/.MainActivity
-```
+# Android CLI describes targets and expected output artifacts.
+android describe --project_dir=.
 
-### Build + install + launch (one command)
+# Gradle owns compilation.
+./gradlew :androidtv-app:assembleDebug
 
-```bash
-./gradlew :androidtv-app:installDebug && adb shell am start -n com.kmptv.androidtv/.MainActivity
+# Android CLI owns deployment and launch.
+android run \
+  --apks=androidtv-app/build/outputs/apk/debug/androidtv-app-debug.apk \
+  --device=<serial> \
+  --activity=.MainActivity
 ```
 
 ## Shared-core builds
@@ -207,13 +199,13 @@ org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError
 ### List available emulators
 
 ```bash
-emulator -list-avds
+android emulator list
 ```
 
 ### Start TV emulator
 
 ```bash
-emulator -avd <avd-name> &
+android emulator start <avd-name>
 ```
 
 ### Check connected devices
@@ -222,10 +214,14 @@ emulator -avd <avd-name> &
 adb devices
 ```
 
-### Useful adb commands for TV testing
+### TV testing commands
 
 ```bash
-# Send D-pad events
+# Android CLI owns layout and screenshot evidence.
+android layout --pretty --output=layout.json
+android screen capture --output=screenshot.png
+
+# Android CLI has no remote-key command, so ADB sends D-pad events.
 adb shell input keyevent KEYCODE_DPAD_UP
 adb shell input keyevent KEYCODE_DPAD_DOWN
 adb shell input keyevent KEYCODE_DPAD_LEFT
@@ -233,14 +229,8 @@ adb shell input keyevent KEYCODE_DPAD_RIGHT
 adb shell input keyevent KEYCODE_DPAD_CENTER  # Select
 adb shell input keyevent KEYCODE_BACK
 
-# Take screenshot
-adb exec-out screencap -p > screenshot.png
-
-# View logs
+# Android CLI has no Logcat command, so ADB captures logs.
 adb logcat -s "kmptv" --format=brief
-
-# Uninstall app
-adb uninstall com.kmptv.androidtv
 ```
 
 ## Anti-patterns

@@ -260,7 +260,7 @@ describe("CLI JSON contract", () => {
     try {
       writeFileSync(join(app, "settings.gradle.kts"), "include(\":app\")\n");
       writeFileSync(join(app, "build.gradle"), "plugins {}\n");
-      const result = runCli(["src/index.ts", "android", app, "--build", "--install", "--plan", "--json"]);
+      const result = runCli(["src/index.ts", "android", app, "--setup-agent", "--require-android-cli", "--build", "--install", "--plan", "--json"]);
       expect(result.status).toBe(0);
       expect(parseJson(result.stdout)).toMatchObject({
         schemaVersion: 1,
@@ -268,7 +268,8 @@ describe("CLI JSON contract", () => {
         appDir: app,
         stack: "native-android",
         profile: { compileTask: ":app:compileDebugKotlin", assembleTask: ":app:assembleDebug" },
-        steps: expect.arrayContaining(["build", "install"]),
+        steps: expect.arrayContaining(["tooling", "agent-skill", "describe", "build", "install"]),
+        tooling: { preferred: "android-cli", build: "Gradle wrapper", requireAndroidCli: true },
       });
     } finally {
       rmSync(app, { recursive: true, force: true });

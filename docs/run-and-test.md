@@ -78,6 +78,46 @@ npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger her
 npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes --json --max-cost 3
 ```
 
+## Android CLI Platform Check
+
+Install Android CLI from the official Android developer page, then initialize
+its agent skill:
+
+```sh
+android update
+android init
+android skills list --long
+android info
+android emulator list
+```
+
+Preview the complete lifecycle before changing a device:
+
+```sh
+cd packages/harness
+npx tsx src/index.ts android <runId|appDir> \
+  --setup-agent --require-android-cli \
+  --build --install --launch --test --logs \
+  --plan --json
+```
+
+After reviewing the plan, execute it. Add `--start-emulator <name>` when the TV
+AVD is not already running, and `--device <serial>` when multiple devices are
+connected:
+
+```sh
+npx tsx src/index.ts android <runId|appDir> \
+  --setup-agent --require-android-cli \
+  --start-emulator <name> \
+  --build --install --launch --test --logs \
+  --yes --json
+```
+
+Verify that `android-handoff.json` reports `"androidBackend": "android-cli"` and
+inspect `android/android-describe.json`, screenshots, layout evidence, D-pad
+results, and Logcat. See `docs/android-cli-workflow.md` for the full demo and
+troubleshooting guide.
+
 ## Verification Batch Rules
 
 Do not run or publish pass-rate numbers until:

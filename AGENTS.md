@@ -118,12 +118,15 @@ Use `refine` for phase concerns such as branding, content, screens, creative UI,
 For an Android TV target, show the Android lifecycle plan before touching a device:
 
 ```sh
-npx tsx src/index.ts android <runId> --plan --json
+npx tsx src/index.ts android <runId> --setup-agent --plan --json
 # After human confirmation:
-npx tsx src/index.ts android <runId> --build --install --launch --test --yes --json
+npx tsx src/index.ts android <runId> --setup-agent --require-android-cli \
+  --build --install --launch --test --yes --json
 ```
 
-Report the generated `android-handoff.json`. Do not change Gradle tasks, device selection, or package metadata without showing a new plan.
+`--setup-agent` runs `android init` and verifies the Android CLI skill. Prefer `android describe`, `android run`, `android layout`, and `android screen capture`. Use Gradle only to build the APK.
+Use ADB only for device discovery, boot status, D-pad input, and Logcat, where Android CLI has no equivalent. Prefer `--start-emulator <name>` over the emulator binary. Report `android-handoff.json`, and do not change Gradle tasks, device selection, package metadata, or fallback without a new plan.
+Read `docs/android-cli-workflow.md` before an Android presentation or live validation.
 
 ## Exit Codes
 
