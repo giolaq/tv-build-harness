@@ -158,7 +158,7 @@ export class AndroidTvAdapter implements PlatformAdapter {
 
   async input(context: PlatformContext, actions: RemoteAction[]): Promise<PlatformResult> {
     for (const action of actions) {
-      const result = await this.run("adb", this.adbArgs(context, ["shell", "input", "keyevent", KEYCODES[action]]), context.appDir, 5_000);
+      const result = await this.run("adb", this.adbArgs(context, ["shell", "input", "dpad", "keyevent", KEYCODES[action]]), context.appDir, 5_000);
       if (result.exitCode !== 0) return failure("input", `D-pad action ${action} failed`, "environment", result);
     }
     return { ok: true, step: "input", message: `Sent ${actions.length} D-pad actions`, details: { actions } };

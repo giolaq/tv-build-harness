@@ -11,6 +11,14 @@ The skill knows what the template requires (dependency resolution, config adjust
 STEP 3: Install dependencies.
 Run: cd "{{appDir}}" && {{installCommand}}
 
+STEP 3b: Fix React resolution for web platform.
+The generated app lives inside the harness repo. Without a root-level
+node_modules/react, the web bundler walks up the directory tree and resolves
+React from the harness's node_modules — a different instance than the app's,
+causing "Invalid hook call" crashes. Create symlinks at the app root pointing
+to the expo app's copies:
+Run: cd "{{appDir}}" && mkdir -p node_modules && ln -sf ../apps/expo-multi-tv/node_modules/react node_modules/react && ln -sf ../apps/expo-multi-tv/node_modules/react-dom node_modules/react-dom
+
 STEP 4: Initialize a fresh git repo.
 Run: cd "{{appDir}}" && git init && git add -A && git commit -m "initial template"
 

@@ -58,6 +58,7 @@ installs and launches; do not run `adb install` first.
 ### 3. Capture initial state
 
 ```sh
+sleep 3
 android layout --pretty --output={{screenshotDir}}/android-iter<ITER>-01-home.json
 android screen capture --output={{screenshotDir}}/android-iter<ITER>-01-home.png
 ```
@@ -71,25 +72,56 @@ Android CLI currently has no remote-key command, so use the documented ADB
 fallback:
 
 ```sh
-adb -s <serial> shell input keyevent 22
+adb -s <serial> shell input dpad keyevent 22
 android layout --pretty --output={{screenshotDir}}/android-iter<ITER>-02-right.json
 android screen capture --output={{screenshotDir}}/android-iter<ITER>-02-right.png
 
-adb -s <serial> shell input keyevent 20
+adb -s <serial> shell input dpad keyevent 20
 android layout --pretty --output={{screenshotDir}}/android-iter<ITER>-03-down.json
 android screen capture --output={{screenshotDir}}/android-iter<ITER>-03-down.png
 ```
 
 PASS when the focused node changes after Right and moves to a different row or
-section after Down.
+section after Down. If the UI appears to "shake" or the drawer toggles
+open/closed without focus ever reaching content cards, verify you are using
+`input dpad keyevent` — see step 6 for diagnosis.
 
 ### 5. Test navigation
 
 Use Left key events to open the navigation surface, then capture layout and
-screenshot evidence with Android CLI. Navigate to the second route from
-`{{routesList}}`, select it with keyevent 23, and verify that the layout differs
-from Home. Return with keyevent 4. Select the first content card and verify that
-a detail or player layout opens.
+screenshot evidence with Android CLI.
+
+Navigate to the second route from `{{routesList}}`, select it with keyevent 23,
+and verify that the layout differs from Home. Return with keyevent 4. Select the
+first content card and verify that a detail or player layout opens.
+
+### 5b. Multi-screen capture (parity with web visual QA)
+
+After basic navigation is confirmed working, systematically capture each screen
+to provide the same coverage as the web visual QA loop:
+
+1. **Home — default state** (already captured in step 3)
+2. **Home — first card focused**: send Down keys until focus reaches the first
+   content rail, then capture.
+3. **Home — scrolled**: send additional Down keys to scroll past the first rail.
+4. **Detail view**: select a content card (keyevent 23), then capture.
+5. **Back to Home**: press Back (keyevent 4), capture to confirm return.
+6. **Second route**: open drawer (Left key), move Down to the second nav item,
+   select it (keyevent 23), capture the new screen.
+7. **Return to Home**: open drawer, select Home, capture.
+
+Name captures:
+```
+{{screenshotDir}}/android-iter<ITER>-screen-home-focused.png
+{{screenshotDir}}/android-iter<ITER>-screen-home-scrolled.png
+{{screenshotDir}}/android-iter<ITER>-screen-detail.png
+{{screenshotDir}}/android-iter<ITER>-screen-back-home.png
+{{screenshotDir}}/android-iter<ITER>-screen-route2.png
+```
+
+PASS when at least Home, Detail, and one additional route are captured and show
+distinct content. FAIL if the app crashes, shows the launcher, or if the detail
+screen is identical to home.
 
 ### 6. Diagnose and retry
 
@@ -103,6 +135,14 @@ For crashes only, use the ADB fallback:
 ```sh
 adb -s <serial> logcat -d
 ```
+
+**Drawer shaking / focus not moving:** if the drawer toggles open/closed on
+every D-pad event instead of navigating content, verify you are using
+`input dpad keyevent` (NOT `input keyevent`). The default `input keyevent`
+sends events with source `keyboard`, which Android's native `DrawerLayout`
+handles differently from `dpad`-sourced events. The physical remote always
+sends `dpad` source. Using the wrong source is the #1 cause of apparent
+navigation failures during automated testing.
 
 Fix source code, rebuild, and repeat. Preserve the existing focus system and
 list item sizing.

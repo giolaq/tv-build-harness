@@ -96,6 +96,8 @@ yarn workspace expo-multi-tv run android
 
 **Anti-pattern:** running `npm install` in a sub-app directory. It breaks the workspace symlinks. Always use `yarn` at the root, or `yarn workspace ...`.
 
+**Anti-pattern:** adding `react` or `react-native` to `packages/shared-ui/devDependencies`. With `nmHoistingLimits: workspaces`, this installs a physical copy at `packages/shared-ui/node_modules/react/` which the web bundler resolves as a separate React instance, crashing the app with "Invalid hook call." Use only `@types/react` for typechecking in shared-ui. The runtime `react` is resolved via Metro's `nodeModulesPaths` (pointing to the expo app's node_modules) on all platforms.
+
 ## Where new content goes
 
 | You want to add… | Put it here |
