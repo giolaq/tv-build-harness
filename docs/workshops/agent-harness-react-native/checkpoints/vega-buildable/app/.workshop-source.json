@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "source": "<WORKSHOP_SOURCE>",
+  "name": "workshop-pocket-cinema",
+  "scripts": {
+    "start": "react-native start",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": [
+    "@types/node",
+    "@types/react",
+    "react",
+    "react-native",
+    "tsx",
+    "typescript"
+  ],
+  "hasGit": false,
+  "ignored": [
+    "node_modules",
+    ".git",
+    ".env",
+    ".env.local",
+    "build",
+    "dist",
+    ".gradle",
+    ".kepler",
+    "coverage"
+  ]
+}

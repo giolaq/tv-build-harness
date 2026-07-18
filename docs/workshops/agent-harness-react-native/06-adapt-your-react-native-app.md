@@ -23,9 +23,18 @@ Show the source, target, findings, phases, seed, and cost cap before continuing:
 npx tsx src/index.ts run ../../apps/workshop-pocket-cinema --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs --yes --seed workshop-v1 --max-cost 10 --json
 ```
 
+For the key-free exercise, run the complete command with the canonical port recording:
+
+```sh
+npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \
+  --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \
+  --replay ../../docs/workshops/agent-harness-react-native/fixtures/port-recording.json \
+  --yes --seed workshop-v1 --max-cost 3 --json
+```
+
 ## Inspect the evidence
 
-Confirm the source Git status is unchanged. Open the run's `portability-report.json`, generated app copy, and report.
+Confirm the source Git status is unchanged. Open the run's `portability-report.json`, `port-result.json`, generated app copy, report, and phase commits. The port phases document the TV product, add the Vega boundary, and adapt the remote flow before the production build handoff.
 
 ## Checkpoint
 

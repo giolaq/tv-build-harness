@@ -10,6 +10,12 @@ if (!existsSync(source) || !process.argv[3]) {
 }
 mkdirSync(target, { recursive: true });
 cpSync(source, target, { recursive: true, filter: (path) => !/[\\/](?:node_modules|\.git)(?:[\\/]|$)|[\\/]\.env(?:\.|[\\/]|$)/.test(path) });
+const sourceMetadata = join(target, ".workshop-source.json");
+if (existsSync(sourceMetadata)) {
+  const metadata = JSON.parse(readFileSync(sourceMetadata, "utf8")) as Record<string, unknown>;
+  metadata.source = "<WORKSHOP_SOURCE>";
+  writeFileSync(sourceMetadata, JSON.stringify(metadata, null, 2));
+}
 const files = walk(target).filter((path) => !path.endsWith("CHECKSUMS.json"));
 const checksums = Object.fromEntries(files.map((path) => [relative(target, path), createHash("sha256").update(readFileSync(path)).digest("hex")]));
 writeFileSync(join(target, "CHECKSUMS.json"), JSON.stringify({ schemaVersion: 1, checksums }, null, 2));

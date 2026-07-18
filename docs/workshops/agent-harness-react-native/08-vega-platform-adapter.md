@@ -6,7 +6,7 @@ Platform shell commands spread through prompts, become hard to test, and blur kn
 
 ## The mechanism
 
-ADBT supplies Vega knowledge and diagnostics. Kepler/VDA perform deterministic platform actions. The workshop package delegates the final run to production `tv-build` through its public JSON CLI.
+ADBT supplies Vega knowledge and diagnostics. Kepler/VDA perform deterministic platform actions against the guarded `out/<runId>/app/apps/vega` package. Production `tv-build` remains unchanged because its normal flow generates from inputs rather than porting an arbitrary source tree.
 
 ## Build it
 

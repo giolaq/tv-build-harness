@@ -16,7 +16,7 @@ Retain the Vega workshop plan as an advanced platform lab under `docs/workshops/
 
 ## Implementation boundary
 
-Build workshop-specific discovery, memory, Bee integration, portability checks, and teaching orchestration in `packages/workshop-harness`. Do not add workshop commands or phases to `packages/harness`. During the final Vega exercise, call the existing production `tv-build` executable through its public CLI and consume its JSON output. If that interface exposes a real gap, file a separate production issue with evidence instead of changing the harness during workshop preparation.
+Build workshop-specific discovery, memory, Bee integration, portability checks, port phases, and Vega execution in `packages/workshop-harness`. Do not add workshop commands or phases to `packages/harness`. Production `tv-build` generates from structured inputs and does not port an arbitrary source tree, so the workshop must build and inspect its guarded app directly through the workshop Vega adapter. Keep production code unchanged and record this architectural difference explicitly.
 
 ## Learning outcomes
 

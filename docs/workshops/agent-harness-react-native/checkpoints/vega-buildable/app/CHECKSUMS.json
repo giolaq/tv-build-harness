@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "checksums": {
+    ".workshop-source.json": "7f5d9b8a6b3b570fbf84bfabf4217179b08b78076c7e373e3234ccdf3c11f670",
+    "README.md": "5842a0e70ed7eed18af64da547ed99068907ea4c43f3ea549d5300aa6e7fb82c",
+    "TV_VERIFICATION.md": "46ecc8cd6c2c75f8e16227a452021169d7394694ed603817e2668d228b25247a",
+    "VEGA_PORT.md": "839242de3f80b0bbd879157a1d0ca1ee3de340a25a653241594acb7fe0ae3f72",
+    "app.json": "eb46f5dfc4a5d1d88943705801c096eff8414ee2919ae62b0c8be103eb5ea4bf",
+    "apps/vega/index.js": "59486908b0c6f197d69b655793c19c7dcebf0d399640f93cfc6f729edc9a3b78",
+    "apps/vega/manifest.toml": "d27b74ea820b8832a057885ccfacad5ec9f352f6775c7872414fe92c2a6642f8",
+    "apps/vega/package.json": "c0b4d6d70e12f343e9eb431e4096aac1f3c1f192359ccedee6244415066f1781",
+    "babel.config.js": "d9b4d7bc789d6e08a858266accf5245603c185b7ebe695c6c6f6e82da2564582",
+    "index.js": "619e4ae28e28ae107b299d57a4a84b96fb95362a6839465fac4875af4271f619",
+    "package.json": "7694b92f74b5c5473cf9f10019c6b5416928062378284f1be9517108e8b6db9f",
+    "src/App.tsx": "42dd1e424656f2443336a87574c7ac60391da56296746384a40f8a6ce9f99d47",
+    "src/catalog.ts": "585f7c9181590d27cac2c7c81eded73d28b35947bac44ca6d4504e93da2f5f3a",
+    "src/tv/focus-state.ts": "0901f77c0ff82e9cc1d49f9547ddcbff73810445e1c2b1da4daeabbfb549c625",
+    "tests/catalog.test.ts": "82d00f0bfa723721bab9c574f611ef8c5d18ab90cfc4012ed69a6ffc82153ad6",
+    "tsconfig.json": "df08ba494abf66434c7e88a43f609ec5d8e0447493a2649b5b9ca8881151f571",
+    "workshop-brief.md": "d2448b91385e4cd61c22cbbb3efced015431448cfdcfaae49fbd09594252836e",
+    "yarn.lock": "60f87dfa81ae519ea96bd12c00c8a5ca453e499e9e2d0be7274699288c9ac670"
+  }
+}

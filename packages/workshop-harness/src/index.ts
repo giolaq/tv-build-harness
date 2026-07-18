@@ -9,7 +9,9 @@ import { BeeContextProvider } from "./context-providers/bee.js";
 import { CliFailure, failure, json } from "./output.js";
 import { applyProposal, loadMemory, loadSnapshot, propose } from "./project-memory.js";
 import { assembleProjectContext } from "./phase-context.js";
-import { ProductionHarnessClient } from "./production-harness-client.js";
+import { createPortExecutor } from "./port-executor.js";
+import { PortBudgetError, runPortPipeline } from "./port-pipeline.js";
+import { VegaAdapter } from "./platform/vega.js";
 import { copySource, discoverSource } from "./source-app.js";
 import { workshopDoctor } from "./workshop-doctor.js";
 
@@ -61,12 +63,12 @@ function planCommand(): void {
   catch (error) { failure("invalid_source", String(error), "Provide a React Native project containing package.json."); }
 }
 
-function runCommand(): void {
+async function runCommand(): Promise<void> {
   const sourcePath = args[1];
   if (!sourcePath) failure("missing_source", "A source app path is required.", "Run workshop-harness run <app> --inputs <dir> --yes --json.");
   if (!args.includes("--yes")) failure("confirmation_required", "Run requires explicit confirmation.", "Show the plan, then rerun with --yes.");
   if (args.includes("--detach") && !args.includes("--child")) return detach(sourcePath);
-  executeRun(sourcePath, flag("--run-id") ?? randomUUID().slice(0, 8));
+  await executeRun(sourcePath, flag("--run-id") ?? randomUUID().slice(0, 8));
 }
 
 function detach(sourcePath: string): void {
@@ -84,25 +86,31 @@ function detach(sourcePath: string): void {
   json({ command: "detach", runId, pid: child.pid, out });
 }
 
-function executeRun(sourcePath: string, runId: string): void {
+async function executeRun(sourcePath: string, runId: string): Promise<void> {
   const out = join(root, runId);
   mkdirSync(out, { recursive: true });
   const statusPath = join(out, "status.json");
   try {
     const plan = buildPlan(sourcePath);
     writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "running", currentPhase: "source_discovery", phasesComplete: [] }, null, 2));
-    copySource(sourcePath, join(out, "app"));
+    const appDir = join(out, "app");
+    copySource(sourcePath, appDir);
     const inputs = flag("--inputs");
     if (inputs && existsSync(resolve(inputs))) cpSync(resolve(inputs), join(out, "inputs"), { recursive: true });
     writeFileSync(join(out, "portability-report.json"), JSON.stringify({ schemaVersion: 1, ...plan }, null, 2));
     writeFileSync(join(out, "tv-build-inputs.json"), JSON.stringify({ schemaVersion: 1, sourceApp: join(out, "app"), target: "firetv-vega", seed: plan.seed, maxCostUsd: plan.maxCostUsd }, null, 2));
-    const report = `# Workshop Run ${runId}\n\n- Target: Vega SDK 0.22\n- Seed: ${plan.seed}\n- Cost cap: $${plan.maxCostUsd}\n- Source copied: yes\n- Next: review portability-report.json, then run vega-run.\n`;
+    const executor = createPortExecutor({ appDir, outDir: out, replayPath: flag("--replay") });
+    const port = await runPortPipeline({ appDir, outDir: out, findings: plan.findings, projectContext: plan.phaseContext, seed: plan.seed, maxCostUsd: plan.maxCostUsd, executor, onPhase: (currentPhase) => writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "running", currentPhase, phasesComplete: ["source_discovery", "vega_portability_audit"] }, null, 2)) });
+    writeFileSync(join(out, "port-result.json"), JSON.stringify({ schemaVersion: 1, ...port }, null, 2));
+    const report = `# Workshop Run ${runId}\n\n- Target: Vega SDK 0.22\n- Seed: ${plan.seed}\n- Cost cap: $${plan.maxCostUsd}\n- Port cost: $${port.costUsd.toFixed(4)}\n- Source copied: yes\n- Port phases: ${port.phases.map((phase) => `${phase.name} (${phase.attempts} attempt${phase.attempts === 1 ? "" : "s"})`).join(", ")}\n- Next: inspect the generated app, then run vega-run for production build and QA.\n`;
     writeFileSync(join(out, "report.md"), report);
-    writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "complete", currentPhase: null, phasesComplete: ["source_discovery", "vega_portability_audit"], out }, null, 2));
-    json({ event: "run_complete", runId, state: "complete", out, seed: plan.seed });
+    const phasesComplete = ["source_discovery", "vega_portability_audit", ...port.phases.map((phase) => phase.name)];
+    writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "complete", currentPhase: null, phasesComplete, costUsd: port.costUsd, out }, null, 2));
+    json({ event: "run_complete", runId, state: "complete", out, seed: plan.seed, costUsd: port.costUsd, phasesComplete });
   } catch (error) {
-    writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "failed", error: String(error) }, null, 2));
-    failure("run_failed", String(error), `Inspect ${out}/run.log and portability-report.json.`, 2);
+    const budget = error instanceof PortBudgetError;
+    writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: budget ? "aborted" : "failed", reason: budget ? "budget" : undefined, error: String(error) }, null, 2));
+    failure(budget ? "budget_exceeded" : "run_failed", String(error), `Inspect ${out}/run.log and portability-report.json.`, budget ? 4 : 2);
   }
 }
 
@@ -148,12 +156,19 @@ async function contextCommand(): Promise<void> {
 
 async function vegaRunCommand(): Promise<void> {
   const runId = args[1];
-  const input = runId && join(root, runId, "inputs");
-  if (!input || !existsSync(input)) failure("vega_inputs_missing", "Validated TV Build inputs are missing.", `Prepare ${input ?? "the run inputs"} before Vega execution.`);
-  const client = new ProductionHarnessClient();
-  const response = await client.run(input, { plan: args.includes("--plan"), yes: args.includes("--yes"), seed: flag("--seed") ?? "workshop-v1", maxCost: Number(flag("--max-cost") ?? 10) });
-  for (const event of response.events) process.stdout.write(`${JSON.stringify(event)}\n`);
-  process.exitCode = response.result.code;
+  const out = runId && join(root, runId);
+  const appDir = out && join(out, "app");
+  const vegaDir = appDir && join(appDir, "apps", "vega");
+  if (!vegaDir || !existsSync(join(vegaDir, "package.json"))) failure("vega_app_missing", "The guarded run has no apps/vega package.", "Run the verified port pipeline before Vega execution.");
+  const adapter = new VegaAdapter(process.env.KEPLER_BIN ?? "kepler", vegaDir);
+  if (args.includes("--plan")) return json({ command: "vega_run_plan", runId, appDir, sdkVersion: "0.22", steps: [{ capability: "device_status", command: adapter.command("device_status") }, { capability: "build", command: adapter.command("build") }], requiresConfirmation: true });
+  if (!args.includes("--yes")) failure("confirmation_required", "Vega execution requires explicit confirmation.", "Show vega-run --plan, then rerun with --yes.");
+  const device = await adapter.execute("device_status");
+  const build = await adapter.execute("build");
+  const platformResult = { schemaVersion: 1, sdkVersion: "0.22", adbtVersion: process.env.ADBT_PACKAGE ?? "unrecorded", device: { status: device.code === 0 ? "available" : "unavailable", detail: device.stderr || device.stdout }, build: { ok: build.code === 0, durationMs: 0, output: build.stdout, error: build.stderr }, checks: [], screenshots: [], logFiles: [], blockers: build.code === 0 ? [] : ["Kepler build failed"] };
+  writeFileSync(join(out, "vega-platform-result.json"), JSON.stringify(platformResult, null, 2));
+  json({ event: "run_complete", runId, state: build.code === 0 ? "complete" : "failed", platformResult });
+  if (build.code !== 0) process.exitCode = 2;
 }
 
 function flag(name: string): string | undefined { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; }

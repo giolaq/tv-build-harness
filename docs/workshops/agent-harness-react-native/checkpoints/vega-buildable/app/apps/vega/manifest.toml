@@ -1,0 +1,7 @@
+[package]
+name = "com.tvbuild.pocketcinema"
+version = "0.1.0"
+
+[application]
+display_name = "Pocket Cinema"
+entry_point = "index.js"

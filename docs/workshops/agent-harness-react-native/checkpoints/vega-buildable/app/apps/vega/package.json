@@ -1,0 +1,6 @@
+{
+  "name": "@pocket-cinema/vega",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": { "build": "kepler build" }
+}

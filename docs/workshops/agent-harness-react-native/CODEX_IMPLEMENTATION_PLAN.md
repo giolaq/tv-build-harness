@@ -6,7 +6,7 @@ Implement all code, examples, documentation, fixtures, checkpoints, and instruct
 
 Attendees build a harness incrementally, apply it to either their own React Native app or the prepared Pocket Cinema app, adapt one vertical slice for TV, run it on Vega, and optionally import approved product context from Bee.
 
-Implement workshop behavior outside `packages/harness`. Extend the staged teaching code into `packages/workshop-harness`, then invoke the existing production `tv-build` CLI as an external tool for the final Vega run. Do not import production-harness internals or add workshop commands to its CLI.
+Implement workshop behavior outside `packages/harness`. Extend the staged teaching code into `packages/workshop-harness`, port the guarded source there, and execute its Vega package through the workshop adapter. Do not import production-harness internals or add workshop commands to its CLI.
 
 The harness architecture is reusable. The only live platform path in this workshop is **Vega**:
 
@@ -103,7 +103,6 @@ packages/workshop-harness/
     source-app.ts
     portability-audit.ts
     workshop-doctor.ts
-    production-harness-client.ts
     platform/
       vega.ts
     context-providers/
@@ -150,19 +149,19 @@ npx tsx src/index.ts memory apply ../../my-tv-inputs --from ../../candidate-cont
 npx tsx src/index.ts context bee search "Pocket Cinema product decisions" --json
 npx tsx src/index.ts context bee snapshot <conversationId...> --out ../../candidate-context.json --json
 
-# Final platform execution delegates to the existing production CLI
+# Final platform execution operates on the guarded port
 npx tsx src/index.ts vega-run <workshopRunId> --plan --json
 npx tsx src/index.ts vega-run <workshopRunId> --yes --json
 ```
 
-`vega-run` must spawn the installed `tv-build` executable, configurable in development through `TV_BUILD_BIN`, with array arguments and consume its versioned JSON output. It must not duplicate production orchestration or reach into production source modules. If the existing production CLI cannot execute the prepared Vega inputs, stop W07 and file a focused production issue.
+`vega-run` must operate on `out/<runId>/app/apps/vega` through array-argument Kepler/VDA subprocesses and emit a versioned platform result. Production `tv-build` remains unchanged because its input-generated application flow is not a source-porting API.
 
 ## Production harness boundary
 
 Workshop PRs may:
 
 - read production documentation and public CLI help while designing lessons;
-- invoke the built or source-run `tv-build` executable as a subprocess in development;
+- inspect production `tv-build` CLI behavior for architectural comparison;
 - add a root README link to the workshop.
 
 Workshop PRs may not:
@@ -173,7 +172,7 @@ Workshop PRs may not:
 - copy production orchestration into the workshop package;
 - weaken production tests to make the workshop pass.
 
-When the public CLI lacks something required, file a separate issue containing the failing command, expected contract, workaround, and workshop impact. Continue with a fixture or checkpoint when possible.
+When production would benefit from a capability proven by the workshop, file a separate issue containing evidence and the proposed public contract. Do not couple the workshop release to that issue.
 
 ## Core data contracts
 
@@ -357,7 +356,7 @@ Add `workshop-brief.md` describing purpose, audience, target flow, essential beh
 
 ### W07 - Teaching pipeline and production-harness handoff
 
-**Files:** `packages/workshop-harness/**`, `production-harness-client.ts`, tests.
+**Files:** `packages/workshop-harness/**`, tests.
 
 Run these bounded phases:
 
@@ -378,8 +377,7 @@ source_discovery
 - Commit only after phase checks pass.
 - On failure, leave the generated workspace clean and resumable.
 - Produce a validated TV Build input directory from the teaching pipeline.
-- Implement `production-harness-client.ts` as an array-argument subprocess adapter to the existing `tv-build` CLI. Consume schema-versioned JSON and pass through plan confirmation, seed, cost, detach, status, and logs.
-- Make the production harness's existing Vega performance phases an opt-in extension; do not reproduce them in the teaching pipeline.
+- Keep performance diagnostics as an opt-in ADBT extension after the core guarded app builds.
 
 **Acceptance:** fake executors cover success, verify/retry, budget abort, resume, and product failure; run events remain valid schemaVersion 1 NDJSON; source app is unchanged; an integration test uses a fake `tv-build` binary; `rg "packages/harness/src" packages/workshop-harness` finds no source import.
 
@@ -388,7 +386,7 @@ source_discovery
 **Files:** workshop `platform/vega.ts`, `workshop-doctor.ts`, workshop prompts/skills, tests, lesson 08.
 
 - Teach capabilities for `build`, `install`, `launch`, `logs`, `capture`, `remote_input`, and `device_status` through one workshop adapter.
-- For the live capstone, delegate orchestration to the existing production CLI. Use direct fake Kepler/VDA calls only in the isolated adapter lesson and its tests.
+- For the live capstone, run the guarded `apps/vega` package through the workshop adapter. Unit tests use fake Kepler/VDA executables.
 - Use ADBT MCP tools only by their documented names.
 - Prefer ADBT skills/documentation for Vega decisions.
 - Record SDK, ADBT, VDA image, commands, durations, outputs, and evidence.
@@ -579,4 +577,4 @@ W11 may begin alongside implementation after each command contract stabilizes. D
 8. Bee contributes selected context with provenance and is never required for replay or reproducibility.
 9. Every live dependency has a committed fallback and a rehearsed recovery path.
 10. Docs, commands, fixtures, reports, screenshots, instructor materials, and release artifacts are complete and tested from a fresh clone.
-11. `packages/harness` remains unchanged except for an optional documentation link; the workshop uses it only through its public CLI.
+11. `packages/harness` remains unchanged except for an optional documentation link; the workshop explains the relationship without importing production internals.

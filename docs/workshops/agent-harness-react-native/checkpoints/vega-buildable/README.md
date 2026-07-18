@@ -1,5 +1,5 @@
 # Vega-buildable Checkpoint
 
-This checkpoint is populated during the pinned Vega rehearsal. Until then, use the audit and complete evidence fixtures to continue key-free.
+This checkpoint is generated from Pocket Cinema with `fixtures/port-recording.json`. It contains the guarded, typechecked result after the TV product, Vega boundary, and TV behavior phases.
 
-**Status:** `[deferred: needs Vega SDK/VDA rehearsal]`
+It is ready for Kepler/VDA build validation. It does not claim that live device QA has passed; that evidence belongs in the complete checkpoint.

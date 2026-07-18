@@ -1,7 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
-const EXCLUDED = new Set(["node_modules", ".env", ".env.local", "build", "dist", ".gradle", ".kepler", "coverage"]);
+const EXCLUDED = new Set(["node_modules", ".git", ".env", ".env.local", "build", "dist", ".gradle", ".kepler", "coverage"]);
 
 export type SourceDiscovery = {
   source: string;

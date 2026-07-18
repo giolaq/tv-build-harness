@@ -14,7 +14,8 @@ npx tsx src/index.ts plan ../../apps/workshop-pocket-cinema \
   --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs --json
 npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \
   --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \
+  --replay ../../docs/workshops/agent-harness-react-native/fixtures/port-recording.json \
   --yes --seed workshop-v1 --max-cost 10 --json
 ```
 
-`run` copies the source under `out/<runId>/app`; it never edits the original. `vega-run` delegates final execution to the installed `tv-build` executable. Set `TV_BUILD_BIN` during source development.
+`run` copies the source under `out/<runId>/app`; it never edits the original. It executes three verified, committed port phases and rolls a failed phase back before retry. Without `--replay`, the Claude CLI reads prompts through stdin and may use configured ADBT documentation tools. `vega-run` operates on that guarded app through the workshop Vega adapter; it never asks production `tv-build` to regenerate a different app from inputs.

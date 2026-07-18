@@ -18,3 +18,5 @@ Choose either your own working React Native project or `apps/workshop-pocket-cin
 10. [Take it home](10-take-it-home.md)
 
 Complete [setup](00-before-you-arrive.md) before the session. Use [troubleshooting](troubleshooting.md) whenever a live dependency blocks you.
+
+The canonical key-free port uses `fixtures/port-recording.json` and produces the app captured in `checkpoints/vega-buildable/app`. Live Kepler/VDA validation remains a separate evidence gate.

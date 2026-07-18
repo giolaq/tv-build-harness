@@ -8,6 +8,8 @@
 - Source-copy exclusions, portability report, fixed seed, cost cap, and JSON contracts.
 - File and Bee context providers with approval-gated memory.
 - Vega capability adapter and production `tv-build` subprocess boundary.
+- Guarded three-phase Vega port with structured patches, Git commits, verification retry, rollback, recording/replay, and cost abort.
+- Key-free Pocket Cinema port recording and typechecked `vega-buildable` checkpoint.
 - Lessons 00-10, worksheet, instructor guide, troubleshooting, checkpoint contracts, and replay guidance.
 - Workshop path checker, checkpoint packager, unit tests, and production regression checks.
 - Pocket Cinema TV Build inputs validated with zero errors and zero warnings.
@@ -18,7 +20,6 @@ These artifacts require the workshop's pinned live environment and must not be f
 
 - Final ADBT package version.
 - Live Vega SDK 0.22/Kepler/VDA build, install, launch, and D-pad recording.
-- `vega-buildable` generated-app checkpoint.
 - Complete generated Vega app, device screenshots, logs, and platform result.
 - Real model cost and duration.
 - Consented live Bee transcript demonstration; the synthetic snapshot already covers the key-free path.
