@@ -1,0 +1,19 @@
+{
+  "title": "Pocket Cinema TV",
+  "description": "Small stories for the big screen",
+  "categories": [
+    { "id": "new", "name": "New this week", "items": ["signal", "orbit", "paper", "seconds"] },
+    { "id": "slow", "name": "Stories to settle into", "items": ["garden", "lantern", "frame", "north"] }
+  ],
+  "videos": [
+    { "id": "signal", "title": "Signal Coast", "description": "A radio host follows a transmission across a fogbound coastline.", "duration_sec": 1260, "thumbnail_url": "https://placehold.co/640x360/176B87/FFFFFF?text=Signal+Coast", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["mystery"] },
+    { "id": "orbit", "title": "Small Orbit", "description": "Two engineers improvise a home aboard a failing research station.", "duration_sec": 1140, "thumbnail_url": "https://placehold.co/640x360/5B4B8A/FFFFFF?text=Small+Orbit", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["drama"] },
+    { "id": "paper", "title": "Paper City", "description": "A cartographer finds a district that redraws itself every night.", "duration_sec": 1320, "thumbnail_url": "https://placehold.co/640x360/C05746/FFFFFF?text=Paper+City", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["adventure"] },
+    { "id": "seconds", "title": "Borrowed Seconds", "description": "A courier discovers that every delivery changes yesterday.", "duration_sec": 1080, "thumbnail_url": "https://placehold.co/640x360/2D6A4F/FFFFFF?text=Borrowed+Seconds", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["thriller"] },
+    { "id": "garden", "title": "The Quiet Garden", "description": "Four seasons inside a community garden above a railway.", "duration_sec": 1440, "thumbnail_url": "https://placehold.co/640x360/6A7B53/FFFFFF?text=Quiet+Garden", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["documentary"] },
+    { "id": "lantern", "title": "Lantern Weather", "description": "A forecast team predicts a festival's impossible weather.", "duration_sec": 1020, "thumbnail_url": "https://placehold.co/640x360/D18B28/FFFFFF?text=Lantern+Weather", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["comedy"] },
+    { "id": "frame", "title": "Outside the Frame", "description": "A projectionist recognizes a stranger in unfinished films.", "duration_sec": 1200, "thumbnail_url": "https://placehold.co/640x360/7A3E65/FFFFFF?text=Outside+Frame", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["drama"] },
+    { "id": "north", "title": "Northbound", "description": "Three friends restore a night train for one winter journey.", "duration_sec": 1380, "thumbnail_url": "https://placehold.co/640x360/326273/FFFFFF?text=Northbound", "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", "stream_type": "hls", "tags": ["adventure"] }
+  ],
+  "featured": ["signal"]
+}

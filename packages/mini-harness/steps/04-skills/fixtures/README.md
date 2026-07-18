@@ -1,9 +1,7 @@
 # Step 04 Fixtures
 
-Recordings for the final staged mini-harness will be added during a keyed workshop prep session.
-
-For now, run step 04 against the root fixtures:
+The committed recording runs the final teaching architecture without a key:
 
 ```sh
-npx tsx steps/04-skills/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json
+npx tsx steps/04-skills/index.ts run steps/04-skills/fixtures/phases.json --replay steps/04-skills/fixtures/demo-recording.json
 ```

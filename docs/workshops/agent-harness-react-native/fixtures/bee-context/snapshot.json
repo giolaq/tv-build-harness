@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "provider": "bee",
+  "capturedAt": "2026-07-18T09:00:00.000Z",
+  "query": "Pocket Cinema product decisions",
+  "sources": [{ "id": "workshop-conversation-01", "recordedAt": "2026-07-17T16:00:00.000Z" }],
+  "decisions": ["The featured action receives initial focus.", "Returning from details restores the originating card."],
+  "constraints": ["The workshop uses synthetic local content and no account."],
+  "openQuestions": ["Should playback remain a non-functional preview in the reference app?"],
+  "summaryHash": "sha256:fixture-reviewed-for-workshop"
+}

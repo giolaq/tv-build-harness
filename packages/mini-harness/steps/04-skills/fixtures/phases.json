@@ -1,0 +1,19 @@
+{
+  "phases": [
+    {
+      "name": "scaffold",
+      "prompt": "Create the initial HTML and CSS for a simple streaming guide called Tiny TV.",
+      "verify": { "type": "file_exists", "path": "out/index.html" }
+    },
+    {
+      "name": "content",
+      "prompt": "Add release notes and featured shows. The shows page must mention Kitchen Stories.",
+      "verify": { "type": "grep", "path": "out/shows.html", "pattern": "Kitchen Stories" }
+    },
+    {
+      "name": "polish",
+      "prompt": "Improve accessibility and focus styling. The CSS must include focus-ring.",
+      "verify": { "type": "grep", "path": "out/styles.css", "pattern": "focus-ring" }
+    }
+  ]
+}

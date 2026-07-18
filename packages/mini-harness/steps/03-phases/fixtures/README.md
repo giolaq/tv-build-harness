@@ -1,9 +1,7 @@
 # Step 03 Fixtures
 
-Recordings for this step will be added during a keyed workshop prep session.
-
-For now, run step 03 against the root fixtures:
+The committed recording runs this step without a key:
 
 ```sh
-npx tsx steps/03-phases/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json
+npx tsx steps/03-phases/index.ts run steps/03-phases/fixtures/phases.json --replay steps/03-phases/fixtures/demo-recording.json
 ```

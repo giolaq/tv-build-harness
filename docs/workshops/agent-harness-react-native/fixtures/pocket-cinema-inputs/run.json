@@ -1,0 +1,6 @@
+{
+  "platforms": ["firetv-vega"],
+  "max_iterations": 40,
+  "max_retries_per_phase": 2,
+  "build_locally": true
+}

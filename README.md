@@ -8,6 +8,10 @@ Supports **React Native** (Android TV, Apple TV, Fire TV, web) and **Kotlin Mult
 
 Read `docs/vision.md` for the product boundary and `docs/capabilities.md` for tested support levels.
 
+## Workshop
+
+Build the loop yourself in [Past the Vibes: Build an Agent Harness for Your React Native App](docs/workshops/agent-harness-react-native/README.md). The workshop progresses from one agent call to verification, phases, checkpoints, skills, project memory, a guarded React Native adaptation, and a Vega capstone using ADBT. Bring your app or use the included Pocket Cinema sample.
+
 ![TV Build terminal UI](docs/tui-screenshot.png)
 
 ## Why
