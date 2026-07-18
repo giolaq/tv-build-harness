@@ -2,6 +2,8 @@
 
 Build an agent harness for a React Native app, then prove it by adapting one flow for Vega TV.
 
+Use the [interactive workshop companion](index.html) during the session. It tracks your progress, keeps every command copyable, and provides checkpoint fallbacks when a live dependency blocks you.
+
 Choose either your own working React Native project or `apps/workshop-pocket-cinema`. The workshop changes a bounded vertical slice, not an entire application. All source work happens in a generated copy.
 
 ## Four-hour path
