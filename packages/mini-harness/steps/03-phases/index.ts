@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readCheckpoint } from "./checkpoint.js";
 import { loadHarnessConfig } from "./harness-config.js";
 import { runPipeline } from "./pipeline-engine.js";
 import { createRunContext } from "./run-context.js";
+import { callLiveModel } from "../../model-runtime.js";
 
 type RecordedTurn = { phase: string; response: unknown; usage?: { input_tokens: number; output_tokens: number } };
 const args = process.argv.slice(2);
@@ -30,15 +30,8 @@ async function callModel(phase: string, prompt: string): Promise<{ text: string;
     const usage = turn.usage ?? { input_tokens: 0, output_tokens: 0 };
     return { text: responseText(turn.response), costUsd: (usage.input_tokens + usage.output_tokens) / 1_000_000 };
   }
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error("Set ANTHROPIC_API_KEY or pass --replay <recording.json>");
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const msg = await client.messages.create({
-    model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
-    max_tokens: 4096,
-    system: "Return only JSON: {\"summary\":\"...\",\"files\":{\"out/path\":\"contents\"}}.",
-    messages: [{ role: "user", content: prompt }],
-  });
-  return { text: msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n"), costUsd: 0 };
+  const result = await callLiveModel(prompt);
+  return { text: result.text, costUsd: result.costUsd };
 }
 
 function nextTurn(phase: string): RecordedTurn {

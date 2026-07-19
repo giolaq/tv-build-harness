@@ -4,6 +4,8 @@ Build an agent harness for a React Native app, then prove it by adapting one flo
 
 Use the [interactive workshop companion](index.html) during the session. It tracks your progress, keeps every command copyable, and provides checkpoint fallbacks when a live dependency blocks you.
 
+Model execution is replaceable: use committed replay fixtures, local Claude Code with `--executor claude-cli`, or a remote Bedrock/OpenAI/OpenRouter model through the Strands Agents SDK with `--executor strands`. The workshop packages do not use the Anthropic SDK directly.
+
 Choose either your own working React Native project or `apps/workshop-pocket-cinema`. The workshop changes a bounded vertical slice, not an entire application. All source work happens in a generated copy.
 
 ## Four-hour path

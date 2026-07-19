@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { BeeContextProvider } from "../src/context-providers/bee.js";
 import { VegaAdapter } from "../src/platform/vega.js";
 import { runProcess } from "../src/process.js";
+import { resolveExecutorConfig } from "../src/port-executor.js";
 
 function script(body: string): string {
   const path = join(mkdtempSync(join(tmpdir(), "workshop-bin-")), "fake tool");
@@ -44,4 +45,13 @@ test("Bee search parses candidates without transcript text", async () => {
 test("Bee failure is explicit", async () => {
   const fake = script("echo unavailable >&2; exit 3");
   await assert.rejects(() => new BeeContextProvider(fake).search("TV"), /unavailable/);
+});
+
+test("executor config defaults to local Claude Code", () => {
+  assert.deepEqual(resolveExecutorConfig({ command: "claude-test", model: "sonnet" }), { kind: "claude-cli", command: "claude-test", model: "sonnet" });
+});
+
+test("executor config supports Strands remote providers", () => {
+  assert.deepEqual(resolveExecutorConfig({ executor: "strands", provider: "openai", model: "gpt-test" }), { kind: "strands", model: { provider: "openai", modelId: "gpt-test", region: undefined } });
+  assert.throws(() => resolveExecutorConfig({ executor: "strands", provider: "unknown" }), /Unknown Strands provider/);
 });

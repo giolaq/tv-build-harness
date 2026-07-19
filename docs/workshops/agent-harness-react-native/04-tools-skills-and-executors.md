@@ -8,6 +8,12 @@ One prompt accumulates every command and domain rule, making capability broad an
 
 Step 4 separates phase-context assembly, skills, executor, recorder, and replay. A phase receives only relevant knowledge and tools.
 
+The workshop offers three implementations behind that boundary:
+
+- `--replay <file>` for deterministic, key-free teaching.
+- `--executor claude-cli` for local Claude Code with prompts delivered through stdin.
+- `--executor strands --provider <name>` for Bedrock, OpenAI, or OpenRouter models through the Strands Agents SDK.
+
 ## Build it
 
 ```sh
@@ -16,6 +22,20 @@ npx tsx steps/04-skills/index.ts run fixtures/phases.json --replay fixtures/demo
 ```
 
 Compare `packages/mini-harness/ISOMORPHISM.md` with the production architecture.
+
+Run live with local Claude Code:
+
+```sh
+npx tsx steps/04-skills/index.ts run fixtures/phases.json --executor claude-cli --model sonnet
+```
+
+Or use a remote Bedrock model through Strands:
+
+```sh
+npx tsx steps/04-skills/index.ts run fixtures/phases.json \
+  --executor strands --provider bedrock \
+  --model anthropic.claude-3-5-sonnet-20241022-v2:0 --region us-west-2
+```
 
 ## Inspect the evidence
 

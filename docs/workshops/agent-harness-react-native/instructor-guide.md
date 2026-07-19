@@ -16,7 +16,7 @@
 | 00:40 | Run the failed verify/retry fixture | Read fixture together |
 | 01:10 | Demonstrate kill and resume | Give resume checkpoint |
 | 01:45 | Break and move everyone to Step 4 | Use Step 4 recording |
-| 01:55 | Trace skill, executor, recorder boundaries | Use isomorphism table |
+| 01:55 | Trace replay, Claude Code, and Strands executor boundaries | Use isomorphism table |
 | 02:25 | Choose own app or Pocket Cinema and run audit | Switch to audit-complete |
 | 02:50 | Define and test TV focus flow | Use focus-failure fixture |
 | 03:25 | Run production Vega plan and device loop | Use complete checkpoint |

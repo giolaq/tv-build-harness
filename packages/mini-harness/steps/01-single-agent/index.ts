@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import Anthropic from "@anthropic-ai/sdk";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { z } from "zod";
+import { callLiveModel } from "../../model-runtime.js";
 
 type RecordedTurn = { phase: string; response: unknown; usage?: { input_tokens: number; output_tokens: number } };
 const Phase = z.object({ name: z.string(), prompt: z.string() });
@@ -31,15 +31,7 @@ async function main() {
 
 async function call(phase: string, prompt: string): Promise<string> {
   if (replayPath) return responseText(nextTurn(phase).response);
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error("Set ANTHROPIC_API_KEY or pass --replay <recording.json>");
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const msg = await client.messages.create({
-    model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
-    max_tokens: 4096,
-    system: "Return only JSON: {\"summary\":\"...\",\"files\":{\"out/path\":\"contents\"}}.",
-    messages: [{ role: "user", content: prompt }],
-  });
-  return msg.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  return (await callLiveModel(prompt)).text;
 }
 
 function writeFile(path: string, content: string) {

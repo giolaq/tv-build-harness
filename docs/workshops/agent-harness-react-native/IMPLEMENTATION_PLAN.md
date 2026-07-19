@@ -226,7 +226,7 @@ Do not reveal the complete implementation during the exercise. Keep it available
 - Assemble prompts from phase intent, project context, selected skills, current files, and prior failures.
 - Give phases explicit tool allowlists.
 - Record and replay the executor boundary.
-- Compare Claude Agent SDK, CLI, and Strands as executor choices without requiring attendees to implement all three.
+- Compare replay, local Claude Code, and remote Strands as executor choices without requiring attendees to implement all three.
 
 **Acceptance:** Replacing the executor does not change pipeline, verification, or checkpoint logic.
 

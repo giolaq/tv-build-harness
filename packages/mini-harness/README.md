@@ -29,13 +29,21 @@ yarn dev --phases fixtures/phases.json --replay fixtures/demo-recording.json
 
 ## Live Run
 
-Use a model key only when you want to record a new fixture:
+Every step uses the same supplied model runtime. The default is local Claude Code:
 
 ```sh
-ANTHROPIC_API_KEY=... npx tsx steps/04-skills/index.ts run fixtures/phases.json
+npx tsx steps/04-skills/index.ts run fixtures/phases.json --executor claude-cli --model sonnet
 ```
 
-The live run writes `out/recording.json`. Scrub it before committing.
+Use a remote model through Strands instead:
+
+```sh
+npx tsx steps/04-skills/index.ts run fixtures/phases.json \
+  --executor strands --provider bedrock \
+  --model anthropic.claude-3-5-sonnet-20241022-v2:0 --region us-west-2
+```
+
+Supported Strands providers are `bedrock`, `openai`, and `openrouter`. No step imports the Anthropic SDK. To use Claude, choose local Claude Code or a Claude model through Bedrock/OpenRouter. The live step-04 run writes `out/recording.json`; scrub it before committing.
 
 ## Inputs
 

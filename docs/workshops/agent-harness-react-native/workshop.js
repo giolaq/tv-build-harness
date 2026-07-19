@@ -18,6 +18,14 @@ npx tsx steps/03-phases/index.ts run \\
 npx tsx steps/04-skills/index.ts run \\
   steps/04-skills/fixtures/phases.json \\
   --replay steps/04-skills/fixtures/demo-recording.json`,
+  step4Local: `npx tsx steps/04-skills/index.ts run \\
+  steps/04-skills/fixtures/phases.json \\
+  --executor claude-cli --model sonnet`,
+  step4Remote: `npx tsx steps/04-skills/index.ts run \\
+  steps/04-skills/fixtures/phases.json \\
+  --executor strands --provider bedrock \\
+  --model anthropic.claude-3-5-sonnet-20241022-v2:0 \\
+  --region us-west-2`,
   memory: `cd packages/workshop-harness
 npx tsx src/index.ts memory propose \\
   ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \\
@@ -52,7 +60,7 @@ const modules = [
     lead: "Build an agent harness one pressure at a time, then use it to adapt one React Native flow for Vega TV. Bring your app or use Pocket Cinema.",
     body: `${flow([["Plan","Bound the work"],["Execute","Change one concern"],["Verify","Collect evidence"],["Retry","Use exact failures"]])}
       <h2>Choose your path</h2><div class="grid"><article><h3>Use Pocket Cinema</h3><p>The reliable path, with deliberate TV adaptation gaps.</p><code>apps/workshop-pocket-cinema</code></article><article><h3>Bring your React Native app</h3><p>Choose one bounded screen or flow. It must work locally and contain no secrets.</p><code>launch → screen → action → back</code></article></div>
-      <h2>Preflight</h2><div class="checklist">${["Node 18+, Yarn 1.22, and Git are installed","Repository dependencies are installed","My source is clean and contains no production secrets","Vega SDK 0.22 and VDA are ready, or I will use replay","The instructor supplied a pinned ADBT version"].map(item=>`<label><input type="checkbox">${item}</label>`).join("")}</div>
+      <h2>Preflight</h2><div class="checklist">${["Node 18+, Yarn 1.22, and Git are installed","Repository dependencies are installed","My source is clean and contains no production secrets","Claude Code, Strands credentials, or replay is ready","Vega SDK 0.22 and VDA are ready, or I will use replay","The instructor supplied a pinned ADBT version"].map(item=>`<label><input type="checkbox">${item}</label>`).join("")}</div>
       ${command("Run the workshop doctor","doctor")}${note("Blocked?","Use recordings and checkpoints. Device or model setup must not block the harness lesson.")}`
   },
   {
@@ -74,7 +82,7 @@ const modules = [
   {
     id:"skills", number:"04", nav:"Tools and skills", time:"30 minutes", title:"Separate knowledge, capability, and execution",
     lead:"A skill tells the agent what matters. A tool gives it capability. An executor owns the model call. The pipeline stays independent.",
-    body:`${command("Run the final mini-harness stage","step4")}<div class="grid"><article><h3>Skill</h3><p>Reusable domain procedure injected only where relevant.</p></article><article><h3>Tool</h3><p>Narrow, testable capability with explicit side effects.</p></article><article><h3>Executor</h3><p>Provider-specific model access behind an interface.</p></article><article><h3>Recorder</h3><p>A replayable tap at the executor boundary.</p></article></div><p><a href="../../../packages/mini-harness/ISOMORPHISM.md">Compare teaching and production modules</a>.</p>`
+    body:`${command("Run the final stage with replay","step4")}${command("Use local Claude Code","step4Local")}${command("Use a remote model through Strands","step4Remote")}<div class="grid"><article><h3>Skill</h3><p>Reusable domain procedure injected only where relevant.</p></article><article><h3>Tool</h3><p>Narrow, testable capability with explicit side effects.</p></article><article><h3>Executor</h3><p>Replay, Claude Code, or Strands behind one interface.</p></article><article><h3>Recorder</h3><p>A replayable tap at the executor boundary.</p></article></div><p><a href="../../../packages/mini-harness/ISOMORPHISM.md">Compare teaching and production modules</a>.</p>`
   },
   {
     id:"memory", number:"05", nav:"Project memory", time:"20 minutes", title:"Make durable context inspectable",
