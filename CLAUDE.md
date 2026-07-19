@@ -10,6 +10,9 @@ This file is for contributors changing the repository. For agents driving `tv-bu
 - `packages/verification/`: statistical verification utilities and tests for harness quality.
 - `packages/web-ui/`: experimental UI package; verify status before relying on it.
 - `packages/shared-types/`: shared TypeScript types package.
+- `packages/mini-harness/`: four small teaching stages used in the workshop.
+- `packages/workshop-harness/`: guarded React Native port and Vega workshop flow.
+- `apps/workshop-pocket-cinema/`: supported sample app for workshop exercises.
 - `skills/`: local skill library; each skill lives at `skills/<name>/SKILL.md`.
 - `examples/`: runnable input sets such as `cooking-shows`, `fitness-tv`, and KMP examples.
 - `docs/`: current docs plus `docs/archive/` for historical planning docs from the `IMPROVEMENT_PLAN.md` era.
@@ -90,4 +93,7 @@ applies_to: [phase_name]
 - Do not edit `packages/verification/src/stats/*` or golden specs unless the task explicitly asks.
 - Do not rewrite prompts or skills opportunistically; they are load-bearing.
 - Keep docs second person, imperative, and concrete.
+- Keep workshop docs and UI copy short. Use plain language and explain a technical term the first time it appears.
+- Structure each workshop exercise as goal, numbered steps, completion signal, and fallback.
+- State exactly what attendees run, inspect, and report. Mark live models, accounts, and devices as optional when replay exists.
 - To add a verify check to the branding phase, edit `packages/harness/src/harness-config.ts`.

@@ -1,40 +1,35 @@
-# TV as the Stress Test
+# 7. TV as the Stress Test
 
-## The failure
+## Goal
 
-A build can pass while a remote user cannot reach a control, see focus, go back, or recover their previous position.
+Check whether a user can complete one flow with a remote, not just whether the app builds.
 
-## The mechanism
+## Do this
 
-The TV skill makes navigation behavior explicit. Verification follows transitions rather than screenshots alone.
-
-## Build it
-
-For Pocket Cinema, write checks for:
+1. Open `packages/workshop-harness/skills/react-native-tv-adaptation/SKILL.md`.
+2. Open `docs/workshops/agent-harness-react-native/checkpoints/vega-buildable/app/TV_VERIFICATION.md`.
+3. Trace this flow through the checks and the app code:
 
 ```text
-launch -> featured action focused
-       -> enter first rail
-       -> move left/right and stop at boundaries
-       -> open details
-       -> press back
-       -> originating card focused again
+launch -> featured action has focus
+       -> down enters the first rail
+       -> left and right stop at boundaries
+       -> select opens details
+       -> back returns to the same card
 ```
 
-Read `packages/workshop-harness/skills/react-native-tv-adaptation/SKILL.md`, then inspect the focus-failure fixture.
+4. Open `docs/workshops/agent-harness-react-native/fixtures/focus-failure/README.md`.
+5. Find the failed focus-restoration evidence and explain what should be sent into a retry.
+6. In the guarded app, find `hasTVPreferredFocus` and the `onFocus` handlers that track the current card.
 
-## Inspect the evidence
+## Why this matters
 
-The fixture fails focus restoration. Trace that exact failure into the repair context and compare the before/after evidence.
+A screenshot shows one moment. It cannot prove that controls are reachable, boundaries work, or focus returns after Back.
 
-## Checkpoint
+## You are done when
 
-Use `checkpoints/vega-buildable/` before device work.
+You can name the expected focus target after every remote action and point to the recorded failure when one transition breaks.
 
-## Fallback
+## If blocked
 
-Follow the recorded focus matrix and screenshots when VDA is unavailable.
-
-## Check yourself
-
-<details><summary>Why is a screenshot insufficient?</summary>It cannot prove directional reachability, boundaries, back, or focus restoration over time.</details>
+Use the focus-failure fixture and `checkpoints/vega-buildable/`. A virtual device is not required for this lesson.

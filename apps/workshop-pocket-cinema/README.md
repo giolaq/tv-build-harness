@@ -1,6 +1,6 @@
 # Pocket Cinema
 
-Use this mobile-first React Native sample when you do not bring an app to the workshop. It has a polished, bounded product flow and deliberate TV adaptation gaps documented in `workshop-brief.md`.
+Use this React Native sample if you do not bring an app to the workshop. It contains one small home-to-details flow. The missing TV behavior is listed in `workshop-brief.md` and is added during the exercises.
 
 ```sh
 yarn install --frozen-lockfile

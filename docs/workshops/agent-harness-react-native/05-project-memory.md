@@ -1,34 +1,53 @@
-# Project Memory
+# 5. Project Memory
 
-## The failure
+## Goal
 
-Checkpoints can resume execution but should not silently become permanent product truth.
+Review proposed project facts before saving them for later runs.
 
-## The mechanism
+## Do this
 
-`packages/workshop-harness/src/project-memory.ts` stores approved decisions, constraints, conventions, open questions, and provenance. Bee or file context first becomes a proposal.
-
-## Build it
+1. Make a disposable copy of the input fixture:
 
 ```sh
+rm -rf /tmp/pocket-cinema-inputs
+cp -R docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \
+  /tmp/pocket-cinema-inputs
 cd packages/workshop-harness
-npx tsx src/index.ts memory show ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs --json
-npx tsx src/index.ts memory propose ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs --from ../../docs/workshops/agent-harness-react-native/fixtures/bee-context/snapshot.json --json
-npx tsx src/index.ts memory apply ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs --from ../../docs/workshops/agent-harness-react-native/fixtures/bee-context/snapshot.json --yes --json
 ```
 
-## Inspect the evidence
+2. Show the current project memory:
 
-Open `PROJECT_CONTEXT.md` and `project-context.json`. Verify that open questions are not product decisions and every entry cites a source.
+```sh
+npx tsx src/index.ts memory show /tmp/pocket-cinema-inputs --json
+```
 
-## Checkpoint
+3. Build a proposal from the synthetic context snapshot:
 
-Revert the fixture changes after inspection or use a copied input directory.
+```sh
+npx tsx src/index.ts memory propose /tmp/pocket-cinema-inputs \
+  --from ../../docs/workshops/agent-harness-react-native/fixtures/bee-context/snapshot.json \
+  --json
+```
 
-## Fallback
+4. Read the proposal. Check the source and keep open questions separate from decisions.
+5. Apply it only after review:
 
-The committed Bee snapshot is synthetic and works without Bee.
+```sh
+npx tsx src/index.ts memory apply /tmp/pocket-cinema-inputs \
+  --from ../../docs/workshops/agent-harness-react-native/fixtures/bee-context/snapshot.json \
+  --yes --json
+```
 
-## Check yourself
+6. Open `/tmp/pocket-cinema-inputs/PROJECT_CONTEXT.md` and `project-context.json`.
 
-<details><summary>How is memory different from a checkpoint?</summary>Memory preserves approved product facts across runs; a checkpoint preserves execution progress inside a run.</details>
+## Why this matters
+
+A checkpoint records where a run stopped. Project memory records approved facts that should survive across runs. They are not the same thing.
+
+## You are done when
+
+Every saved entry has a source, and no open question has been stored as a decision.
+
+## If blocked
+
+Use the committed synthetic snapshot. Bee is not required.

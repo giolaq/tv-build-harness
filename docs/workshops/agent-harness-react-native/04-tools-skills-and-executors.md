@@ -1,54 +1,56 @@
-# Tools, Skills, and Executors
+# 4. Tools, Skills, and Executors
 
-## The failure
+## Goal
 
-One prompt accumulates every command and domain rule, making capability broad and context noisy.
+Separate domain instructions, system capabilities, and model access.
 
-## The mechanism
+## Do this
 
-Step 4 separates phase-context assembly, skills, executor, recorder, and replay. A phase receives only relevant knowledge and tools.
-
-The workshop offers three implementations behind that boundary:
-
-- `--replay <file>` for deterministic, key-free teaching.
-- `--executor claude-cli` for local Claude Code with prompts delivered through stdin.
-- `--executor strands --provider <name>` for Bedrock, OpenAI, or OpenRouter models through the Strands Agents SDK.
-
-## Build it
+1. Run Step 4 with replay:
 
 ```sh
 cd packages/mini-harness
-npx tsx steps/04-skills/index.ts run fixtures/phases.json --replay fixtures/demo-recording.json
+npx tsx steps/04-skills/index.ts run \
+  steps/04-skills/fixtures/phases.json \
+  --replay steps/04-skills/fixtures/demo-recording.json
 ```
 
-Compare `packages/mini-harness/ISOMORPHISM.md` with the production architecture.
+2. Open these files:
 
-Run live with local Claude Code:
+- `skills.ts`: loads reusable instructions for a phase.
+- `phase-context.ts`: builds the prompt for that phase.
+- `executor.ts`: calls replay, Claude Code, or Strands.
+- `recorder.ts`: records model requests and responses.
+
+3. Find where a skill enters the phase prompt.
+4. Compare the teaching modules with the production modules in `packages/mini-harness/ISOMORPHISM.md`.
+
+Optional live run with Claude Code:
 
 ```sh
-npx tsx steps/04-skills/index.ts run fixtures/phases.json --executor claude-cli --model sonnet
+npx tsx steps/04-skills/index.ts run \
+  steps/04-skills/fixtures/phases.json \
+  --executor claude-cli --model sonnet
 ```
 
-Or use a remote Bedrock model through Strands:
+Optional live run with Strands and Bedrock:
 
 ```sh
-npx tsx steps/04-skills/index.ts run fixtures/phases.json \
+npx tsx steps/04-skills/index.ts run \
+  steps/04-skills/fixtures/phases.json \
   --executor strands --provider bedrock \
-  --model anthropic.claude-3-5-sonnet-20241022-v2:0 --region us-west-2
+  --model anthropic.claude-3-5-sonnet-20241022-v2:0 \
+  --region us-west-2
 ```
 
-## Inspect the evidence
+## Why this matters
 
-Find where the skill body enters the prompt and where the recorder taps the executor boundary.
+A skill explains what matters. A tool performs a narrow action. An executor hides provider-specific model access. Keeping them separate makes the pipeline easier to test and change.
 
-## Checkpoint
+## You are done when
 
-The remaining workshop uses `packages/workshop-harness`, which extends these concepts without changing production `tv-build`.
+You can show where to change domain knowledge without changing the pipeline, and where to change model providers without changing verification.
 
-## Fallback
+## If blocked
 
-All Step 4 concepts can be inspected without a model or device.
-
-## Check yourself
-
-<details><summary>Why put model access behind an executor?</summary>The pipeline can retain its state and checks while provider details change.</details>
+Use replay. The architecture is visible without a live model.

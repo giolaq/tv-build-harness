@@ -10,7 +10,7 @@ Read `docs/vision.md` for the product boundary and `docs/capabilities.md` for te
 
 ## Workshop
 
-Build the loop yourself in [Past the Vibes: Build an Agent Harness for Your React Native App](docs/workshops/agent-harness-react-native/README.md). The workshop progresses from one agent call to verification, phases, checkpoints, skills, project memory, a guarded React Native adaptation, and a Vega capstone using ADBT. Bring your app or use the included Pocket Cinema sample.
+Follow [Past the Vibes: Build an Agent Harness for Your React Native App](docs/workshops/agent-harness-react-native/README.md) to build the harness step by step. Every exercise tells you what to run, what to inspect, how to know you are done, and which replay or checkpoint to use if setup fails. Bring a working app or use the included Pocket Cinema sample.
 
 ![TV Build terminal UI](docs/tui-screenshot.png)
 

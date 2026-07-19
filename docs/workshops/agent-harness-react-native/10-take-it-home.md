@@ -1,29 +1,35 @@
-# Take It Home
+# 10. Build a Harness for Your Work
 
-## The failure
+## Goal
 
-A workshop repository becomes a souvenir when its TV knowledge, commands, and checks are mistaken for the architecture itself.
+Keep the pipeline and replace the TV-specific parts with one workflow from your own domain.
 
-## The mechanism
+## Do this
 
-Keep the loop and replace the domain layer: inputs, project-memory sections, skills, tools, and verification checks.
+1. Open [the worksheet](worksheet.md).
+2. Write one small outcome that can finish in a single session.
+3. Split it into the fewest useful phases.
+4. Add one independent check to every phase.
+5. List the facts the model needs and where they come from.
+6. Decide what requires human approval, what cost limit applies, and what evidence to save.
+7. Replace the TV skill, Vega adapter, and D-pad check with your domain equivalents.
 
-## Build it
+Examples:
 
-Use [the worksheet](worksheet.md) to define one workflow from your domain. Choose a mechanical check for every phase and one external context source you can snapshot.
+- Android release: update version, build, run tests, inspect APK, prepare release notes.
+- API migration: update one client, compile, run contract tests, save migration evidence.
+- Design-system change: update one component family, run visual checks, record changed screens.
 
-## Inspect the evidence
+## You are done when
 
-Your final report should show the plan, approved context, phase commits, failed checks, retries, seed, cost, and unresolved risks.
+Another developer can read your worksheet and answer:
 
-## Checkpoint
+- What will the harness change?
+- What will it not change?
+- How does each phase prove success?
+- When does it stop?
+- What can a human review later?
 
-Fork the repository at the workshop tag and keep your adapter separate from production `tv-build` until its contract is proven.
+## If blocked
 
-## Fallback
-
-Start from Step 2. A small verified loop is more useful than an elaborate untested agent system.
-
-## Check yourself
-
-<details><summary>What should remain when TV is removed?</summary>Planning, scoped context, executor/tool boundaries, verification, retry, checkpoint, evidence, and human gates.</details>
+Start with two phases and one check per phase. A small loop you can test is more useful than a large design you cannot run.

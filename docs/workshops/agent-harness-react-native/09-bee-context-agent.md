@@ -1,37 +1,41 @@
-# Bee Context Agent
+# 9. Optional: Bee Context
 
-## The failure
+## Goal
 
-Useful product conversations remain outside the repository, while importing entire transcripts creates opaque, private, and noisy prompts.
+Select useful facts from a conversation without putting a full private transcript into the prompt or repository.
 
-## The mechanism
+Skip this lesson if Bee is not configured or participants have not consented to retrieval.
 
-Bee is an optional context provider. Search, select, summarize, review, approve, and save a provenance-aware snapshot. The run remains reproducible with Bee disconnected.
+## Do this
 
-## Build it
-
-With Bee configured:
+1. Search for relevant conversations:
 
 ```sh
 cd packages/workshop-harness
-npx tsx src/index.ts context bee search "Pocket Cinema product decisions" --json
-npx tsx src/index.ts context bee snapshot <conversationId> --out candidate-context.json --json
+npx tsx src/index.ts context bee search \
+  "Pocket Cinema product decisions" --json
 ```
 
-Review the candidate, then use the memory proposal/apply flow from lesson 05. Never commit raw private transcripts.
+2. Choose one result and create a local snapshot:
 
-## Inspect the evidence
+```sh
+npx tsx src/index.ts context bee snapshot <conversationId> \
+  --out candidate-context.json --json
+```
 
-Check source ids, timestamps, query, summary hash, and the approved memory diff.
+3. Read the snapshot. Check its source ids, dates, query, summary, and hash.
+4. Use the proposal and approval steps from lesson 5.
+5. Disconnect Bee and confirm the approved snapshot still works.
+6. Delete the local candidate if it contains private material. Never commit raw transcripts.
 
-## Checkpoint
+## Why this matters
 
-Use `fixtures/bee-context/snapshot.json` when Bee is unavailable or no participant consents to live retrieval.
+External context should be selected, reviewable, and reproducible. A saved snapshot is easier to audit than a hidden live lookup.
 
-## Fallback
+## You are done when
 
-The file provider is a first-class mode, not a degraded hidden path.
+You can show where every approved fact came from and repeat the run without Bee.
 
-## Check yourself
+## If blocked
 
-<details><summary>Why save the approved snapshot?</summary>It makes later runs reviewable and reproducible without live Bee access.</details>
+Use `fixtures/bee-context/snapshot.json`. It is synthetic and contains no private conversation.

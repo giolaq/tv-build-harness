@@ -1,5 +1,5 @@
 # Vega-buildable Checkpoint
 
-This checkpoint is generated from Pocket Cinema with `fixtures/port-recording.json`. It contains the guarded, typechecked result after the TV product, Vega boundary, and TV behavior phases.
+Use this checkpoint when the recorded Pocket Cinema port does not finish. It contains the guarded, typechecked app after the TV product, Vega boundary, and TV behavior phases.
 
-It is ready for Kepler/VDA build validation. It does not claim that live device QA has passed; that evidence belongs in the complete checkpoint.
+Continue with `app/TV_VERIFICATION.md`, then use this app for the Kepler/VDA lesson. Live device QA has not passed until the complete evidence is recorded.

@@ -1,37 +1,52 @@
-# Vega Platform Adapter
+# 8. Build and Test on Vega
 
-## The failure
+## Goal
 
-Platform shell commands spread through prompts, become hard to test, and blur knowledge tools with execution tools.
+Use ADBT for Vega guidance and the Android-style device workflow, then save the build and device evidence in the run report.
 
-## The mechanism
+ADBT gives the agent current Vega instructions and diagnostics. Kepler builds the app. VDA runs it. The harness decides the order, records the result, and stops when a check fails.
 
-ADBT supplies Vega knowledge and diagnostics. Kepler/VDA perform deterministic platform actions against the guarded `out/<runId>/app/apps/vega` package. Production `tv-build` remains unchanged because its normal flow generates from inputs rather than porting an arbitrary source tree.
+## Do this
 
-## Build it
+1. Start the Vega Virtual Device.
+2. In a system terminal, check the instructor-pinned ADBT installation:
 
-Verify ADBT in a system terminal using the instructor-pinned version. Then inspect `packages/workshop-harness/src/platform/vega.ts` and run:
+```sh
+npx -y @amazon-devices/amazon-devices-buildertools-mcp@<pinned-version> check-status --agent claude-code-cli
+```
+
+3. Return to the repository. Use the `runId` from lesson 6:
 
 ```sh
 cd packages/workshop-harness
-npx tsx src/index.ts doctor --json
-npx tsx src/index.ts vega-run <workshopRunId> --plan --json
-# After showing the plan and cost:
-npx tsx src/index.ts vega-run <workshopRunId> --yes --seed workshop-v1 --max-cost 10 --json
+npx tsx src/index.ts vega-run <runId> --plan --json
 ```
 
-## Inspect the evidence
+4. Read the plan before continuing. Check the app path, SDK, device, commands, seed, and cost cap.
+5. After approval, run:
 
-Collect SDK and ADBT versions, VDA image, build/launch status, logs, screenshots, D-pad checks, seed, and cost.
+```sh
+npx tsx src/index.ts vega-run <runId> \
+  --yes --seed workshop-v1 --max-cost 10 --json
+```
 
-## Checkpoint
+6. Open the generated Vega report. Record:
 
-Use `checkpoints/complete/` if live platform execution cannot finish in 20 minutes.
+- ADBT and Vega SDK versions;
+- virtual device image and status;
+- build and launch result;
+- relevant logs and screenshots;
+- D-pad transition results;
+- any remaining blocker.
 
-## Fallback
+## Why this matters
 
-The complete checkpoint and Vega report preserve the lesson without a device.
+Platform commands should live behind a small adapter. The agent can use ADBT knowledge when needed, while the harness keeps build, install, launch, and test results consistent.
 
-## Check yourself
+## You are done when
 
-<details><summary>What is ADBT responsible for?</summary>Vega-specific skills, documentation, and diagnostics. Kepler/VDA own platform execution; the harness owns the loop.</details>
+The report separates environment failures from app failures and contains enough evidence for another developer to repeat the test.
+
+## If blocked
+
+Try one repair for no more than 10 minutes. Then use `checkpoints/complete/` and inspect its report. Device setup is optional; understanding the handoff is required.

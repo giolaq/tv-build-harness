@@ -1,32 +1,37 @@
-# Verification and Retry
+# 2. Verification and Retry
 
-## The failure
+## Goal
 
-The first response can look plausible while omitting a required file or behavior.
+See a check fail, then see the harness send the exact failure into one retry.
 
-## The mechanism
+## Do this
 
-`packages/mini-harness/steps/02-verify-loop/verify.ts` runs `file_exists` and `grep` checks. Failed evidence is appended to one retry.
-
-## Build it
+1. Run the recorded failure and repair:
 
 ```sh
 cd packages/mini-harness
-npx tsx steps/02-verify-loop/index.ts run steps/02-verify-loop/fixtures/phases.json --replay steps/02-verify-loop/fixtures/retry-recording.json
+npx tsx steps/02-verify-loop/index.ts run \
+  steps/02-verify-loop/fixtures/phases.json \
+  --replay steps/02-verify-loop/fixtures/retry-recording.json
 ```
 
-## Inspect the evidence
+2. Find this failed check in the output:
 
-Find the first failed check and the same failure text in the retry request. The retry is bounded; it cannot quietly spend forever.
+```text
+Pattern "Kitchen Stories" not found
+```
 
-## Checkpoint
+3. Open `steps/02-verify-loop/verify.ts` and find the `file_exists` and `grep` checks.
+4. Find the same failure text in the retry request.
 
-You now have the first closed loop: execute, verify, retry with evidence.
+## Why this matters
 
-## Fallback
+The model does not grade its own work. The harness runs an independent check and gives the model useful failure evidence.
 
-The committed retry recording is the canonical exercise.
+## You are done when
 
-## Check yourself
+You can trace one requirement from check, to failure, to retry, to passing result.
 
-<details><summary>Why not ask the model whether its work is correct?</summary>The model's opinion is not independent evidence. Run a mechanical check.</details>
+## If blocked
+
+Use `steps/02-verify-loop/fixtures/retry-recording.json`. Do not switch to a live model for this exercise.

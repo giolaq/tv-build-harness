@@ -1,34 +1,32 @@
-# From Prompt to Loop
+# 1. From Prompt to Loop
 
-## The failure
+## Goal
 
-A model can produce convincing code without bounded scope, evidence, cost control, or a way to resume.
+Run the smallest possible agent program, then identify what its output does not prove.
 
-## The mechanism
+## Do this
 
-Read `packages/mini-harness/steps/01-single-agent/index.ts`. It makes the smallest useful boundary visible: prompt, model call, response, and written files.
-
-## Build it
-
-Run Step 1 against its recording:
+1. Run Step 1 with the committed recording:
 
 ```sh
 cd packages/mini-harness
-npx tsx steps/01-single-agent/index.ts run steps/01-single-agent/fixtures/phases.json --replay steps/01-single-agent/fixtures/demo-recording.json
+npx tsx steps/01-single-agent/index.ts run \
+  steps/01-single-agent/fixtures/phases.json \
+  --replay steps/01-single-agent/fixtures/demo-recording.json
 ```
 
-## Inspect the evidence
+2. Open `steps/01-single-agent/index.ts`.
+3. Find where it builds the prompt, gets a response, and writes files.
+4. Write down three things the model could claim without proving. Examples: a file compiles, text is present, or navigation works.
 
-List what the model could claim without proving. Record a baseline duration and cost from the replay.
+## Why this matters
 
-## Checkpoint
+A model response can look good and still be wrong. A harness adds checks, limits, and evidence around the model call.
 
-Keep your Step 1 output. Step 2 will deliberately reject part of it.
+## You are done when
 
-## Fallback
+You can point to the model boundary and name at least three missing checks.
 
-Replay is free and requires no key.
+## If blocked
 
-## Check yourself
-
-<details><summary>What makes this an agent call rather than a harness?</summary>It lacks mechanical verification, bounded retry, phases, checkpoint state, and evidence.</details>
+Use the replay command above. It is free and needs no model account.

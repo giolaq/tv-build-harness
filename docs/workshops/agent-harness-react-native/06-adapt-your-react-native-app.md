@@ -1,29 +1,24 @@
-# Adapt Your React Native App
+# 6. Adapt Your React Native App
 
-## The failure
+## Goal
 
-An agent asked to "port my app" edits before understanding architecture, dependencies, scope, or risk.
+Inspect an app, review the plan, and change only a guarded copy.
 
-## The mechanism
+Use Pocket Cinema unless your own app already runs and passes the setup checks.
 
-The workshop performs read-only discovery, creates a portability report, and copies source into a guarded run workspace.
+## Do this
 
-## Build it
-
-Choose your app or Pocket Cinema:
+1. Create a read-only plan:
 
 ```sh
 cd packages/workshop-harness
-npx tsx src/index.ts plan ../../apps/workshop-pocket-cinema --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs --json
+npx tsx src/index.ts plan ../../apps/workshop-pocket-cinema \
+  --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \
+  --seed workshop-v1 --max-cost 3 --json
 ```
 
-Show the source, target, findings, phases, seed, and cost cap before continuing:
-
-```sh
-npx tsx src/index.ts run ../../apps/workshop-pocket-cinema --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs --yes --seed workshop-v1 --max-cost 10 --json
-```
-
-For the key-free exercise, run the complete command with the canonical port recording:
+2. Before running, check the source path, target flow, portability findings, full phase sequence, seed, and cost cap.
+3. Run the key-free port:
 
 ```sh
 npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \
@@ -32,18 +27,19 @@ npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \
   --yes --seed workshop-v1 --max-cost 3 --json
 ```
 
-## Inspect the evidence
+4. Copy the `runId` from the output. You will use it in the Vega lesson.
+5. Open `out/<runId>/portability-report.json` and `port-result.json`.
+6. Inspect `out/<runId>/app` and its Git log.
+7. Check that `apps/workshop-pocket-cinema` is still clean and unchanged.
 
-Confirm the source Git status is unchanged. Open the run's `portability-report.json`, `port-result.json`, generated app copy, report, and phase commits. The port phases document the TV product, add the Vega boundary, and adapt the remote flow before the production build handoff.
+## Why this matters
 
-## Checkpoint
+The harness reads first, states what can move, and edits a copy. One small flow keeps cost and verification manageable.
 
-Use `checkpoints/audit-complete/` if your own app is unsuitable or takes longer than ten minutes to inspect.
+## You are done when
 
-## Fallback
+You have the `runId`, all five reported phases are complete, the three edit phases have verified commits, and the source app is unchanged.
 
-Pocket Cinema is the supported path for every attendee.
+## If blocked
 
-## Check yourself
-
-<details><summary>Why adapt one vertical slice?</summary>It bounds cost and verification while still crossing UI, navigation, platform, and behavior.</details>
+Use Pocket Cinema and `checkpoints/audit-complete/`. Do not spend more than 10 minutes adapting a different app during the workshop.

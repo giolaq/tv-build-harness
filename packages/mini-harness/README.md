@@ -1,71 +1,85 @@
 # Mini Harness
 
-This package is workshop material. It builds the same idea four times, adding one harness concept per step until the final version mirrors the real TV Build architecture.
+This package builds the same small website four times. Each step adds one part of a coding harness. Run all commands from `packages/mini-harness`.
 
-Run commands from `packages/mini-harness`.
-
-## The Four Steps
-
-| Step | What it teaches | Run it |
-| --- | --- | --- |
-| `01-single-agent` | Prompt -> model -> write files. No verification. | `npx tsx steps/01-single-agent/index.ts run fixtures/phases.json --replay fixtures/demo-recording.json` |
-| `02-verify-loop` | Add `file_exists`/`grep` checks and retry with failure text. | `npx tsx steps/02-verify-loop/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json` |
-| `03-phases` | Add config loading, a phase loop, checkpoints, run context, reports, and git commits. | `npx tsx steps/03-phases/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json` |
-| `04-skills` | Add skills, prompt assembly, executor interface, and record/replay. | `npx tsx steps/04-skills/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json` |
-
-The invocation shape stays the same:
+## Install
 
 ```sh
-npx tsx steps/<step>/index.ts run fixtures/phases.json --replay fixtures/retry-recording.json
+yarn install --frozen-lockfile
 ```
 
-## Existing Course Command
+## Step 1: one model call
 
-The old entrypoint still works. It now runs step 04:
+The program sends a prompt and writes files. It does not check the result.
 
 ```sh
-yarn dev --phases fixtures/phases.json --replay fixtures/demo-recording.json
+npx tsx steps/01-single-agent/index.ts run \
+  steps/01-single-agent/fixtures/phases.json \
+  --replay steps/01-single-agent/fixtures/demo-recording.json
 ```
 
-## Live Run
+Done when `out/` contains the generated site and you can name three claims that still need checks.
 
-Every step uses the same supplied model runtime. The default is local Claude Code:
+## Step 2: check and retry
+
+This step adds `file_exists` and `grep` checks. One recorded response fails, and the exact failure is sent into one retry.
 
 ```sh
-npx tsx steps/04-skills/index.ts run fixtures/phases.json --executor claude-cli --model sonnet
+npx tsx steps/02-verify-loop/index.ts run \
+  steps/02-verify-loop/fixtures/phases.json \
+  --replay steps/02-verify-loop/fixtures/retry-recording.json
 ```
 
-Use a remote model through Strands instead:
+Done when you see `Pattern "Kitchen Stories" not found` followed by a successful repair.
+
+## Step 3: phases and resume
+
+This step adds phase config, checkpoints, cost tracking, reports, and one Git commit per passing phase.
 
 ```sh
-npx tsx steps/04-skills/index.ts run fixtures/phases.json \
+npx tsx steps/03-phases/index.ts run \
+  steps/03-phases/fixtures/phases.json \
+  --replay steps/03-phases/fixtures/demo-recording.json
+```
+
+Run it again with `--resume` to inspect the resume path.
+
+## Step 4: skills and executors
+
+This step adds skills, prompt assembly, a model interface, and recording/replay.
+
+```sh
+npx tsx steps/04-skills/index.ts run \
+  steps/04-skills/fixtures/phases.json \
+  --replay steps/04-skills/fixtures/demo-recording.json
+```
+
+Done when you can trace a skill into the prompt and show where replay or a live model is selected.
+
+## Optional live model
+
+Use local Claude Code:
+
+```sh
+npx tsx steps/04-skills/index.ts run \
+  steps/04-skills/fixtures/phases.json \
+  --executor claude-cli --model sonnet
+```
+
+Use Strands with Bedrock:
+
+```sh
+npx tsx steps/04-skills/index.ts run \
+  steps/04-skills/fixtures/phases.json \
   --executor strands --provider bedrock \
-  --model anthropic.claude-3-5-sonnet-20241022-v2:0 --region us-west-2
+  --model anthropic.claude-3-5-sonnet-20241022-v2:0 \
+  --region us-west-2
 ```
 
-Supported Strands providers are `bedrock`, `openai`, and `openrouter`. No step imports the Anthropic SDK. To use Claude, choose local Claude Code or a Claude model through Bedrock/OpenRouter. The live step-04 run writes `out/recording.json`; scrub it before committing.
+Strands also supports `openai` and `openrouter`. Live Step 4 runs write `out/recording.json`; scrub recordings before committing them.
 
-## Inputs
+## Inputs and output
 
-`phases.json` is intentionally small:
+Each `phases.json` lists a phase name, prompt, and check. Step 4 can also list skills. Every step writes the website to `out/`; later steps add checkpoints, reports, commits, and recordings.
 
-```json
-{
-  "phases": [
-    {
-      "name": "content",
-      "prompt": "Add the required show title.",
-      "verify": { "type": "grep", "path": "out/shows.html", "pattern": "Kitchen Stories" },
-      "skills": ["optional-skill-name"]
-    }
-  ]
-}
-```
-
-Only step 04 reads `skills`. Steps 01-03 ignore that field.
-
-## Output
-
-Every step writes a static site under `./out`. Later steps also write checkpoints, git commits, reports, and recordings.
-
-Read `ISOMORPHISM.md` to map step-04 files to the real harness modules.
+Read `ISOMORPHISM.md` to see how the Step 4 files map to the production harness.

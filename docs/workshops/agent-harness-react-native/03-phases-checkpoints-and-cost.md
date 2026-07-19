@@ -1,35 +1,40 @@
-# Phases, Checkpoints, and Cost
+# 3. Phases, Checkpoints, and Cost
 
-## The failure
+## Goal
 
-A long task fails late, repeats expensive work, and hides which concern caused the regression.
+Split a larger task into phases and see how the harness resumes without repeating finished work.
 
-## The mechanism
+## Do this
 
-Step 3 adds `pipeline-engine.ts`, `checkpoint.ts`, `run-context.ts`, phase commits, and accumulated cost.
-
-## Build it
+1. Run the phased example:
 
 ```sh
 cd packages/mini-harness
-npx tsx steps/03-phases/index.ts run fixtures/phases.json --replay fixtures/demo-recording.json
-npx tsx steps/03-phases/index.ts run fixtures/phases.json --replay fixtures/demo-recording.json --resume
+npx tsx steps/03-phases/index.ts run \
+  steps/03-phases/fixtures/phases.json \
+  --replay steps/03-phases/fixtures/demo-recording.json
 ```
 
-Use the instructor's Step 3 recording when the fixture is marked rehearsal-deferred.
+2. Open the generated checkpoint. Find the completed phase, next phase, summaries, and cost.
+3. Run the same command with `--resume`:
 
-## Inspect the evidence
+```sh
+npx tsx steps/03-phases/index.ts run \
+  steps/03-phases/fixtures/phases.json \
+  --replay steps/03-phases/fixtures/demo-recording.json \
+  --resume
+```
 
-Open the checkpoint and identify the next phase, summaries, and cost. Kill and resume the instructor demo.
+4. Open the generated Git log and find one commit for each successful phase.
 
-## Checkpoint
+## Why this matters
 
-Copy the instructor checkpoint if your run did not reach the next module.
+Phases limit the size of each change. Checkpoints save run progress. Commits preserve verified code states. Cost remains visible across the run.
 
-## Fallback
+## You are done when
 
-Read the committed resume transcript in `fixtures/resume/README.md`.
+You can explain which work resumes from a checkpoint and which product facts belong in source control instead.
 
-## Check yourself
+## If blocked
 
-<details><summary>What belongs in a checkpoint?</summary>Execution state needed to resume, not permanent product decisions.</details>
+Read `docs/workshops/agent-harness-react-native/fixtures/resume/README.md` and continue with the instructor checkpoint.
