@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": null,
+  "buildCommand": null,
+  "outputDirectory": "docs",
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/workshops/agent-harness-react-native/",
+      "permanent": false
+    }
+  ]
+}
