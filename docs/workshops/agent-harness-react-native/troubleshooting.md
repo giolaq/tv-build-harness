@@ -20,7 +20,9 @@ Stop. Do not raise the cap without the participant's approval. Continue from the
 
 ## ADBT is unavailable
 
-Run the pinned `check-status` command once in a system terminal. If it asks for `init-context`, remember that initialization edits `CLAUDE.md` and your Claude configuration. ADBT is optional for the replay path. If it still fails, use the committed Vega checkpoint.
+The live port stops with exit `3` before `vega_port`; it does not continue without platform context. Run the pinned `check-status` command once. The harness uses ADBT's direct `exec` interface and does not require `init-context`. Run initialization only if you also want the model to call ADBT tools directly; it edits `CLAUDE.md` and your Claude configuration.
+
+If ADBT still fails, remove `--adbt-live` and use the recorded context beside `port-recording.json`. Inspect `adbt-port-context.json` in the run output to confirm the fallback was used.
 
 ## Vega CLI build or VDA fails
 

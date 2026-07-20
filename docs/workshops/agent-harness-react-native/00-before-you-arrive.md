@@ -32,6 +32,12 @@ npx tsx src/index.ts doctor --replay --json
 
 You are ready when the output reports success. If model or device checks fail, choose replay and continue.
 
+To rehearse live ADBT context with the model and Vega device still replayed:
+
+```sh
+npx tsx src/index.ts doctor --replay --adbt-live --json
+```
+
 ## 4. Choose one execution path
 
 Replay needs no credentials:
@@ -59,7 +65,7 @@ npx tsx src/index.ts doctor --executor strands --provider bedrock --json
 
 ## 5. Optional Vega setup
 
-Install Vega SDK `0.22.5875` and create a Vega Virtual Device. ADBT is needed only for live agent guidance. Its `init-context` command updates the repository's `CLAUDE.md` and your Claude configuration, so review those changes after running it.
+Install Vega SDK `0.22.5875` and create a Vega Virtual Device. The harness calls ADBT at runtime during a live `vega_port` phase. Replay uses a committed ADBT context snapshot instead. ADBT's `init-context` command is needed only when you also want the model to call ADBT tools directly; it updates the repository's `CLAUDE.md` and your Claude configuration, so review those changes after running it.
 
 ```sh
 npx -y @amazon-devices/amazon-devices-buildertools-mcp@1.0.5 init-context --agent claude-code-cli --force

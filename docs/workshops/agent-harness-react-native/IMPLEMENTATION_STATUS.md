@@ -6,7 +6,7 @@
 - Pocket Cinema React Native source, synthetic catalog, brief, typecheck, and tests.
 - Workshop CLI for doctor, plan, guarded run, detach/status/logs, project memory, Bee context, and production Vega handoff.
 - Source-copy exclusions, portability report, fixed seed, cost cap, and JSON contracts.
-- File and Bee context providers with approval-gated memory.
+- ADBT, file, and Bee context providers. ADBT runs before `vega_port`; project memory remains approval-gated.
 - Vega capability adapter and production `tv-build` subprocess boundary.
 - Guarded three-phase Vega port with structured patches, Git commits, verification retry, rollback, recording/replay, and cost abort.
 - Executable focus-state checks for launch, movement boundaries, details, Back, and restoration.
@@ -27,4 +27,4 @@ These artifacts require the workshop's pinned live environment and must not be f
 - Consented live Bee transcript demonstration; the synthetic snapshot already covers the key-free path.
 - Clean-machine and fresh-developer timing results.
 
-ADBT is pinned to `@amazon-devices/amazon-devices-buildertools-mcp@1.0.5`. Complete the remaining live-device artifacts during rehearsal and scrub all recordings before committing them.
+ADBT is pinned to `@amazon-devices/amazon-devices-buildertools-mcp@1.0.5`. Live ports query its workflow catalog and React Native migration workflow at runtime. Replay uses `fixtures/adbt-port-context.json`. Complete the remaining live-device artifacts during rehearsal and scrub all recordings before committing them.

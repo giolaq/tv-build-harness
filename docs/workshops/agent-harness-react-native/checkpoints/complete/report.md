@@ -4,6 +4,8 @@
 - Target: Vega SDK `0.22.5875`
 - Seed: `workshop-v1`
 - ADBT package: `@amazon-devices/amazon-devices-buildertools-mcp@1.0.5`
+- ADBT port context: replay from `fixtures/adbt-port-context.json`
+- ADBT workflows: `port_tv_app_to_vega.md`, `port_tv_app_to_vega_fos_rn_app.md`
 - Source fixture: `fixtures/vega-lifecycle.json`
 - Cost: `$0`
 

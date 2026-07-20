@@ -21,7 +21,7 @@
 | 01:10 | Lesson 4: trace skills, executors, and recording | Use Step 4 replay |
 | 01:30 | **Break** | Keep it a full 10 minutes |
 | 01:40 | Lesson 5: review and apply a synthetic memory proposal | Use the copied fixture |
-| 01:55 | Lesson 6: plan and run the guarded Pocket Cinema port | Use the Vega-buildable checkpoint |
+| 01:55 | Lesson 6: trace runtime ADBT context into the guarded Pocket Cinema port | Use the recorded ADBT context and Vega-buildable checkpoint |
 | 02:30 | Lesson 7: run the focus state checks and inspect a failure | Use the focus fixture |
 | 02:50 | **Break** | Keep it a full 10 minutes |
 | 03:00 | Lesson 8: replay the complete Vega lifecycle | Use the complete checkpoint |
@@ -29,6 +29,8 @@
 | 03:40 | Recovery, questions, and optional live Vega or Bee demo | Stay with replay if setup is slow |
 
 Lesson 9, Bee context, is optional. Run it only during the final recovery block and only if setup, consent, and time allow.
+
+For lesson 6, show the four boundaries on screen: ADBT workflow lookup, `vega_port` prompt context, `NextSteps.md`, and the verified phase commit. Use `--adbt-live` with the recorded model response to demonstrate the real ADBT call without spending model budget.
 
 The core path takes 200 minutes. Two breaks and a 20-minute recovery block bring the session to four hours.
 

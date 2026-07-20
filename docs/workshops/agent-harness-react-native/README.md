@@ -11,7 +11,7 @@ Use the [workshop web app](index.html) during the session. It gives you the comm
 3. Split the work into phases, commits, and checkpoints.
 4. Separate skills, tools, and model executors.
 5. Review project context before saving it as memory.
-6. Copy and inspect a React Native app before changing it.
+6. Copy and inspect a React Native app, then inject ADBT migration context into its guarded Vega port.
 7. Adapt one flow for TV remote navigation.
 8. Replay the full Vega lifecycle, then optionally run it on a VDA device.
 9. Sketch a harness for your own work.
@@ -43,6 +43,6 @@ Start with [Before You Arrive](00-before-you-arrive.md). Keep [Troubleshooting](
 9. [Optional: Bee context](09-bee-context-agent.md)
 10. [Take it home](10-take-it-home.md)
 
-The key-free port uses `fixtures/port-recording.json`. The Vega lifecycle uses `fixtures/vega-lifecycle.json`. Replay proves the workshop control flow and report contract; it is not proof that a physical or virtual device passed. If a live Vega step fails, continue with `checkpoints/vega-buildable/` or `checkpoints/complete/`.
+The key-free port uses `fixtures/port-recording.json` plus `fixtures/adbt-port-context.json`. Add `--adbt-live` to call ADBT at runtime while keeping the model replayed. The Vega lifecycle uses `fixtures/vega-lifecycle.json`. Replay proves the workshop control flow and report contract; it is not proof that a physical or virtual device passed. If a live Vega step fails, continue with `checkpoints/vega-buildable/` or `checkpoints/complete/`.
 
 Read [the live rehearsal record](live-rehearsal.md) before teaching the Vega section. The SDK build and manifest validation pass. Install, launch, logs, and screenshots still need a VDA process that remains attached outside the automation session.

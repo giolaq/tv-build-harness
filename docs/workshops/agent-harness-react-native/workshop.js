@@ -2,6 +2,8 @@ const commands = {
   doctor: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
 yarn install --frozen-lockfile
 npx tsx src/index.ts doctor --replay --json`,
+  adbtDoctor: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+npx tsx src/index.ts doctor --replay --adbt-live --json`,
   step1: `cd "$(git rev-parse --show-toplevel)/packages/mini-harness"
 npx tsx steps/01-single-agent/index.ts run \\
   steps/01-single-agent/fixtures/phases.json \\
@@ -56,6 +58,11 @@ npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \\
   --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \\
   --replay ../../docs/workshops/agent-harness-react-native/fixtures/port-recording.json \\
   --yes --seed workshop-v1 --max-cost 3 --json`,
+  portAdbtLive: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \\
+  --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \\
+  --replay ../../docs/workshops/agent-harness-react-native/fixtures/port-recording.json \\
+  --adbt-live --yes --seed workshop-v1 --max-cost 3 --json`,
 focusCheck: `REPO="$(git rev-parse --show-toplevel)"
 cd "$REPO/packages/workshop-harness/out/<runId>/app"
 node --import tsx tests/verify-tv-focus.ts
@@ -123,8 +130,8 @@ const modules = [
   },
   {
     id: "plan", number: "06", nav: "Plan and port", time: "35 minutes", title: "Inspect first, then change a guarded copy",
-    lead: "Review scope, checks, seed, and cost before approving a recorded port. The source app stays untouched.",
-    body: `${command("Plan the Pocket Cinema port","plan")}<h2>Approve only after this review</h2>${steps(["Confirm the source app and target flow.","Read the portability findings.","Check the six-stage plan, fixed seed, and $3 cap.","Notice that the sixth stage is the separate Vega lifecycle in lesson 8."])}${command("Run the key-free port","port")}<h2>Inspect the result</h2>${steps(["Copy the <code>runId</code> from the output.","Open <code>out/&lt;runId&gt;/portability-report.json</code> and <code>port-result.json</code>.","Inspect the guarded app and its Git log.","Confirm <code>apps/workshop-pocket-cinema</code> is unchanged."])}${done("You have a runId, the five pre-Vega stages pass, the three edit phases have commits, and the source app is clean.")}${fallback("Use <code>checkpoints/vega-buildable/</code> for lessons 7 and 8.")}`
+    lead: "Review scope, checks, ADBT context, seed, and cost before approving a port. The source app stays untouched.",
+    body: `${flow([["ADBT","Load Vega workflows"],["Context","Inject into vega_port"],["Model","Edit guarded copy"],["Checks","Commit or retry"]])}${command("Plan the Pocket Cinema port","plan")}<h2>Approve only after this review</h2>${steps(["Confirm the source app and target flow.","Read the portability findings.","Check that ADBT is assigned to <code>vega_port</code>.","Check the six-stage plan, fixed seed, and $3 cap.","Notice that the sixth stage is the separate Vega lifecycle in lesson 8."])}${command("Run with recorded model and ADBT context","port")}<h2>Inspect the runtime context</h2>${steps(["Copy the <code>runId</code> from the output.","Open <code>out/&lt;runId&gt;/adbt-port-context.json</code> and find the two workflow names and hashes.","Open <code>port-result.json</code> and confirm <code>adbt.mode: replay</code>.","Open <code>app/NextSteps.md</code> and find the ADBT sources and unsupported-mappings section.","Inspect the guarded app and its Git log.","Confirm <code>apps/workshop-pocket-cinema</code> is unchanged."])}<h2>Optional: call ADBT live, keep the model replayed</h2>${command("Check the runtime ADBT interface","adbtDoctor")}${command("Run the port with runtime ADBT","portAdbtLive")}${note("What changes","The harness calls pinned ADBT <code>list_documents</code> and <code>read_document</code> before <code>vega_port</code>. The model response remains recorded, so this exercise needs no model account.")}${done("You can trace ADBT workflow lookup to the vega_port context, NextSteps evidence, verified commit, and report.")}${fallback("Use the recorded ADBT context. A live port stops with exit 3 when ADBT is unavailable; it never continues with unsupported assumptions.")}`
   },
   {
     id: "tv", number: "07", nav: "Test remote behavior", time: "20 minutes", title: "Test the flow, not one screenshot",

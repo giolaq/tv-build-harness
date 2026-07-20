@@ -4,7 +4,7 @@
 
 Use ADBT for Vega guidance, then save build and device evidence in the run report.
 
-ADBT gives the agent current Vega instructions and diagnostics. The generated package uses the SDK template shape and React Native's `build-vega` command. Vega CLI installs and launches the package. VDA supplies device status, logs, and screenshots. The harness runs those steps in order and stops when a gate fails.
+ADBT already supplied the migration context during lesson 6's `vega_port` phase. The generated package uses the SDK template shape and React Native's `build-vega` command. Vega CLI installs and launches the package. VDA supplies device status, logs, and screenshots. The harness runs those steps in order and stops when a gate fails.
 
 ## Do this
 
@@ -35,7 +35,7 @@ npx tsx src/index.ts vega-run <runId> \
 
 ## Optional live device run
 
-ADBT is optional unless an agent needs live Vega guidance. `init-context` changes `CLAUDE.md` and your Claude configuration, so run it before the workshop and review those changes. Check the pinned setup:
+The harness can call ADBT without changing your agent configuration. Run `init-context` only if you want Claude Code itself to make extra ADBT tool calls; it changes `CLAUDE.md` and your Claude configuration. Check the pinned setup:
 
 ```sh
 npx -y @amazon-devices/amazon-devices-buildertools-mcp@1.0.5 check-status --agent claude-code-cli

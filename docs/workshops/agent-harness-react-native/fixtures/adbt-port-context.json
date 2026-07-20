@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "mode": "replay",
+  "packageName": "@amazon-devices/amazon-devices-buildertools-mcp@1.0.5",
+  "targetPlatform": "vega_os",
+  "capturedAt": "2026-07-20T14:00:00.000Z",
+  "documents": [
+    {
+      "name": "port_tv_app_to_vega.md",
+      "sha256": "4ecc0af83d3a07292c59a4e6c1c56e1ceb9d2d5e966453f345df0ffdd0c9a4fd",
+      "excerpt": "## Purpose\nRoute TV migrations by detected app type and pass context through every phase.\n\n## AI Agent Instructions\nRead the selected workflow before editing. Do not invent Vega APIs. Keep unsupported mappings as explicit gaps. Preserve the plan, execute, build, and verification boundaries.\n\n## Step 1: DETECT APP TYPE\nDetect React Native from package.json instead of asking the developer to classify it.\n\n## Step 3: DISPATCH\nFor a React Native source, use port_tv_app_to_vega_fos_rn_app.md."
+    },
+    {
+      "name": "port_tv_app_to_vega_fos_rn_app.md",
+      "sha256": "ca74ed14b810e258a1478784b1a6f92d3e01035a9b3150fe8d4c06aef565999a",
+      "excerpt": "## Purpose\nPort a React Native TV app to a VegaScript app. Preserve portable JavaScript and TypeScript while replacing unsupported native integrations.\n\n## Architecture\nValidate the source, plan the mappings, then execute from the Vega React Native template. Build and device verification remain later phases.\n\n## Library Compatibility Check\nInspect native dependencies and their peers. Record unsupported modules and workarounds instead of silently dropping features.\n\n## Phase 2: PLAN\nMap components, native modules, dependencies, and manifest behavior to Vega equivalents.\n\n## Phase 3: EXECUTE\nCreate the Vega package from the template shape and apply the migration guide."
+    }
+  ]
+}

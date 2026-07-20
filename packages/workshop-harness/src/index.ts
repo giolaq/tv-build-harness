@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { auditSource, summarize } from "./portability-audit.js";
+import { ADBT_PORT_WORKFLOWS, AdbtCliContextProvider, AdbtContextError, AdbtReplayContextProvider } from "./context-providers/adbt.js";
 import { BeeContextProvider } from "./context-providers/bee.js";
 import { CliFailure, failure, json } from "./output.js";
 import { applyProposal, loadMemory, loadSnapshot, propose } from "./project-memory.js";
@@ -54,6 +55,7 @@ function buildPlan(sourcePath: string) {
     findings,
     contextEntryIds: phaseContext.entryIds,
     phaseContext: phaseContext.text,
+    adbt: { package: ADBT_PACKAGE, mode: !flag("--replay") || args.includes("--adbt-live") ? "live" : "replay", phase: "vega_port", workflows: ADBT_PORT_WORKFLOWS },
     phases: ["source_discovery", "vega_portability_audit", "tv_product_spec", "vega_port", "tv_behavior", "production_vega_run"],
   };
 }
@@ -101,19 +103,23 @@ async function executeRun(sourcePath: string, runId: string): Promise<void> {
     if (inputs && existsSync(resolve(inputs))) cpSync(resolve(inputs), join(out, "inputs"), { recursive: true });
     writeFileSync(join(out, "portability-report.json"), JSON.stringify({ schemaVersion: 1, ...plan }, null, 2));
     writeFileSync(join(out, "tv-build-inputs.json"), JSON.stringify({ schemaVersion: 1, sourceApp: join(out, "app"), target: "firetv-vega", seed: plan.seed, maxCostUsd: plan.maxCostUsd }, null, 2));
-    const executor = createPortExecutor({ appDir, outDir: out, replayPath: flag("--replay"), config: plan.executor });
-    const port = await runPortPipeline({ appDir, outDir: out, findings: plan.findings, projectContext: plan.phaseContext, seed: plan.seed, maxCostUsd: plan.maxCostUsd, executor, onPhase: (currentPhase) => writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "running", currentPhase, phasesComplete: ["source_discovery", "vega_portability_audit"] }, null, 2)) });
+    const replayPath = flag("--replay");
+    const executor = createPortExecutor({ appDir, outDir: out, replayPath, config: plan.executor });
+    const adbtReplay = args.includes("--adbt-live") ? undefined : flag("--adbt-replay") ?? (replayPath ? join(dirname(resolve(replayPath)), "adbt-port-context.json") : undefined);
+    const adbt = adbtReplay ? new AdbtReplayContextProvider(resolve(adbtReplay)) : new AdbtCliContextProvider({ cwd: appDir });
+    const port = await runPortPipeline({ appDir, outDir: out, findings: plan.findings, projectContext: plan.phaseContext, seed: plan.seed, maxCostUsd: plan.maxCostUsd, executor, adbt, onPhase: (currentPhase) => writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "running", currentPhase, phasesComplete: ["source_discovery", "vega_portability_audit"] }, null, 2)) });
     writeFileSync(join(out, "port-result.json"), JSON.stringify({ schemaVersion: 1, ...port }, null, 2));
     const executionMode = plan.executor.kind === "strands" ? `Strands (${plan.executor.model.provider}:${plan.executor.model.modelId})` : `Claude Code (${plan.executor.model})`;
-    const report = `# Workshop Run ${runId}\n\n- Target: Vega SDK ${VEGA_SDK_VERSION}\n- ADBT package: ${ADBT_PACKAGE}\n- Executor: ${executionMode}\n- Seed: ${plan.seed}\n- Cost cap: $${plan.maxCostUsd}\n- Port cost: $${port.costUsd.toFixed(4)}\n- Source copied: yes\n- Port phases: ${port.phases.map((phase) => `${phase.name} (${phase.attempts} attempt${phase.attempts === 1 ? "" : "s"})`).join(", ")}\n- Next: inspect the generated app, then run vega-run for build and device evidence.\n`;
+    const report = `# Workshop Run ${runId}\n\n- Target: Vega SDK ${VEGA_SDK_VERSION}\n- ADBT package: ${ADBT_PACKAGE}\n- ADBT port context: ${port.adbt?.mode ?? "missing"} (${port.adbt?.documents.join(", ") ?? "none"})\n- ADBT evidence: ${port.adbt?.evidence ?? "none"}\n- Executor: ${executionMode}\n- Seed: ${plan.seed}\n- Cost cap: $${plan.maxCostUsd}\n- Port cost: $${port.costUsd.toFixed(4)}\n- Source copied: yes\n- Port phases: ${port.phases.map((phase) => `${phase.name} (${phase.attempts} attempt${phase.attempts === 1 ? "" : "s"})`).join(", ")}\n- Next: inspect the generated app, then run vega-run for build and device evidence.\n`;
     writeFileSync(join(out, "report.md"), report);
     const phasesComplete = ["source_discovery", "vega_portability_audit", ...port.phases.map((phase) => phase.name)];
     writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "complete", currentPhase: null, phasesComplete, costUsd: port.costUsd, out }, null, 2));
     json({ event: "run_complete", runId, state: "complete", out, seed: plan.seed, costUsd: port.costUsd, phasesComplete });
   } catch (error) {
     const budget = error instanceof PortBudgetError;
+    const adbtFailure = error instanceof AdbtContextError;
     writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: budget ? "aborted" : "failed", reason: budget ? "budget" : undefined, error: String(error) }, null, 2));
-    failure(budget ? "budget_exceeded" : "run_failed", String(error), `Inspect ${out}/run.log and portability-report.json.`, budget ? 4 : 2);
+    failure(budget ? "budget_exceeded" : adbtFailure ? "adbt_unavailable" : "run_failed", String(error), adbtFailure ? "Run doctor once or use the recorded ADBT replay context." : `Inspect ${out}/run.log and portability-report.json.`, budget ? 4 : adbtFailure ? 3 : 2);
   }
 }
 
@@ -142,7 +148,12 @@ function memoryCommand(): void {
 }
 
 async function contextCommand(): Promise<void> {
-  if (args[1] !== "bee") failure("unknown_provider", "Only the optional Bee provider is supported.", "Use context bee search or snapshot.");
+  if (args[1] === "adbt" && args[2] === "port") {
+    const replay = flag("--adbt-replay");
+    const provider = replay ? new AdbtReplayContextProvider(resolve(replay)) : new AdbtCliContextProvider({ cwd: root });
+    return json({ command: "context_adbt_port", context: await provider.load() });
+  }
+  if (args[1] !== "bee") failure("unknown_provider", "Use the ADBT port context or optional Bee provider.", "Use context adbt port, context bee search, or context bee snapshot.");
   const provider = new BeeContextProvider();
   if (args[2] === "search") return json({ command: "context_search", candidates: await provider.search(args[3] ?? "") });
   if (args[2] === "snapshot") {
@@ -190,6 +201,6 @@ async function vegaRunCommand(): Promise<void> {
 
 function flag(name: string): string | undefined { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; }
 function BunFreeOpen(path: string): number { mkdirSync(dirname(path), { recursive: true }); return openSync(path, "a"); }
-function help(): void { process.stdout.write("Workshop Harness\n\nCommands: doctor, plan, run, status, logs, memory, context bee, vega-run\n\nModel execution:\n  --executor claude-cli                 Local Claude Code (default)\n  --executor strands --provider <name>  Remote model through Strands\n  --model <id> [--region <aws-region>]  Provider model settings\n  --replay <recording.json>             No-model workshop path\n\nStrands providers: bedrock, openai, openrouter\n"); }
+function help(): void { process.stdout.write("Workshop Harness\n\nCommands: doctor, plan, run, status, logs, memory, context adbt, context bee, vega-run\n\nModel execution:\n  --executor claude-cli                 Local Claude Code (default)\n  --executor strands --provider <name>  Remote model through Strands\n  --model <id> [--region <aws-region>]  Provider model settings\n  --replay <recording.json>             No-model workshop path\n  --adbt-replay <context.json>          Recorded ADBT context (otherwise inferred beside replay)\n  --adbt-live                           Call pinned ADBT even when model output uses replay\n\nLive ports call pinned ADBT workflows at runtime before vega_port.\nStrands providers: bedrock, openai, openrouter\n"); }
 
 main().catch((error) => { if (!(error instanceof CliFailure)) failure("unexpected_error", error instanceof Error ? error.message : String(error), "Read the workshop troubleshooting guide.", 3); });

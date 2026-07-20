@@ -36,7 +36,32 @@ Copy the returned `runId`. Inspect:
 
 - `out/<runId>/portability-report.json` for what can move to Vega;
 - `out/<runId>/port-result.json` for phases, checks, retries, and cost;
+- `out/<runId>/adbt-port-context.json` for the ADBT workflows injected into `vega_port`;
+- `out/<runId>/app/NextSteps.md` for ADBT sources and unsupported mappings;
 - `out/<runId>/app` for the generated app copy and phase commits.
+
+## ADBT during the port
+
+ADBT is runtime context for the harness, not only setup for the final device command. Before `vega_port`, a live run calls the pinned package in this order:
+
+```text
+list_documents(WORKFLOW, vega_os)
+  -> read_document(port_tv_app_to_vega.md)
+  -> read_document(port_tv_app_to_vega_fos_rn_app.md)
+  -> inject context into vega_port
+  -> save names, excerpts, and hashes
+```
+
+The normal replay command automatically loads `fixtures/adbt-port-context.json`. To call ADBT for real while keeping the model response key-free, add `--adbt-live`:
+
+```sh
+npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \
+  --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \
+  --replay ../../docs/workshops/agent-harness-react-native/fixtures/port-recording.json \
+  --adbt-live --yes --seed workshop-v1 --max-cost 3 --json
+```
+
+A fully live model run calls ADBT automatically. If ADBT cannot supply the workflows, the harness stops with exit `3`; it does not let the port continue from unsupported assumptions.
 
 ## Choose a model executor
 
