@@ -1,15 +1,19 @@
 import { runProcess } from "./process.js";
+import { ADBT_PACKAGE, VEGA_SDK_VERSION } from "./platform/vega.js";
 
 export type DoctorCheck = { name: string; status: "pass" | "repair" | "optional"; detail: string; hint?: string };
 
 export async function workshopDoctor(): Promise<DoctorCheck[]> {
+  const replay = process.argv.includes("--replay");
   const checks: DoctorCheck[] = [{ name: "node", status: Number(process.versions.node.split(".")[0]) >= 18 ? "pass" : "repair", detail: process.version, hint: "Install Node 18 or newer." }];
   checks.push(await executorCheck());
-  checks.push(await commandCheck("tv-build", process.env.TV_BUILD_BIN ?? "tv-build", ["--help"], "Build packages/harness or set TV_BUILD_BIN."));
-  const adbtPackage = process.env.ADBT_PACKAGE;
-  if (adbtPackage) checks.push(await commandCheck("adbt", "npx", ["-y", adbtPackage, "check-status", "--agent", "claude-code-cli"], "Run ADBT init-context in a system terminal."));
-  else checks.push({ name: "adbt", status: "repair", detail: "workshop version is not pinned", hint: "Set ADBT_PACKAGE to the instructor-pinned package@version." });
-  checks.push(await commandCheck("kepler", process.env.KEPLER_BIN ?? "kepler", ["--version"], "Install Vega SDK 0.22 and Kepler CLI."));
+  if (replay) {
+    checks.push({ name: "adbt", status: "optional", detail: `${ADBT_PACKAGE} is not needed for replay` });
+    checks.push({ name: "vega", status: "optional", detail: `SDK ${VEGA_SDK_VERSION} is not needed for replay` });
+  } else {
+    checks.push(await commandCheck("adbt", "npx", ["-y", process.env.ADBT_PACKAGE ?? ADBT_PACKAGE, "check-status", "--agent", "claude-code-cli"], "Run ADBT init-context in a system terminal."));
+    checks.push(await commandCheck("vega", process.env.VEGA_BIN ?? "vega", ["--version"], `Install and select Vega SDK ${VEGA_SDK_VERSION}.`));
+  }
   checks.push(await commandCheck("bee", process.env.BEE_BIN ?? "bee", ["--version"], "Optional: install/configure Bee or use the file fixture.", true));
   return checks;
 }

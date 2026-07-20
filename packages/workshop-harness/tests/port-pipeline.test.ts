@@ -24,7 +24,8 @@ test("ports three concerns and commits each verified phase", async () => {
   const result = await pipeline(app, executor);
   assert.deepEqual(result.phases.map((phase) => phase.name), ["tv_product_spec", "vega_port", "tv_behavior"]);
   assert.equal(execFileSync("git", ["rev-list", "--count", "HEAD"], { cwd: app, encoding: "utf8" }).trim(), "4");
-  assert.match(readFileSync(join(app, "src/App.tsx"), "utf8"), /hasTVPreferredFocus/);
+  assert.match(readFileSync(join(app, "src/App.tsx"), "utf8"), /focus-state/);
+  assert.equal(JSON.parse(readFileSync(join(app, "tv-focus-result.json"), "utf8")).passed, true);
 });
 
 test("feeds exact verification failure into retry", async () => {
@@ -61,7 +62,7 @@ function pipeline(appDir: string, executor: PortExecutor, maxCostUsd = 10) {
 
 function fixtureApp(): string {
   const dir = mkdtempSync(join(tmpdir(), "port-pipeline-"));
-  writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "fixture", scripts: {} }, null, 2));
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "fixture", type: "module", scripts: {} }, null, 2));
   writeFileSync(join(dir, "App.txt"), "original");
   return dir;
 }
@@ -69,8 +70,19 @@ function fixtureApp(): string {
 function successResponses(): PortModelResult[] {
   return [
     response({ "VEGA_PORT.md": "# Port\n\n## TV Flow\nremote" }),
-    response({ "apps/vega/manifest.toml": "[package]", "apps/vega/package.json": "{\"name\":\"vega-fixture\"}", "package.json": "{\"scripts\":{\"vega:build\":\"cd apps/vega && kepler build\"}}", "src/tv/focus-state.ts": "export const focus = true;" }),
-    response({ "src/App.tsx": "const app = { onFocus: true, hasTVPreferredFocus: true };", "TV_VERIFICATION.md": "Back restores the originating card." }),
+    response({
+      "apps/vega/manifest.toml": "schema-version = 1\n[[components.interactive]]",
+      "apps/vega/package.json": "{\"name\":\"vega-fixture\",\"scripts\":{\"build:debug\":\"react-native build-vega --build-type Debug\"}}",
+      "apps/vega/app.json": "{\"name\":\"fixture.main\"}",
+      "apps/vega/metro.config.js": "module.exports = {};",
+      "package.json": "{\"type\":\"module\",\"scripts\":{\"vega:build\":\"cd apps/vega && npm run build:debug\"}}",
+      "src/tv/focus-state.ts": "export const nextFocus = () => 'paper';",
+    }),
+    response({
+      "src/App.tsx": "import { nextFocus } from './tv/focus-state';\nexport const app = nextFocus();",
+      "tests/verify-tv-focus.ts": "import fs from 'node:fs'; import assert from 'node:assert/strict'; import { nextFocus } from '../src/tv/focus-state.js'; assert.equal(nextFocus(), 'paper'); fs.writeFileSync('tv-focus-result.json', JSON.stringify({ passed: true }, null, 2));",
+      "TV_VERIFICATION.md": "Back restores the originating card.",
+    }),
   ];
 }
 

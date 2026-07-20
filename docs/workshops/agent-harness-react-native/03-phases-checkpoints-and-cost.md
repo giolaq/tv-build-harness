@@ -9,14 +9,16 @@ Split a larger task into phases and see how the harness resumes without repeatin
 1. Run the phased example:
 
 ```sh
-cd packages/mini-harness
+cd "$(git rev-parse --show-toplevel)/packages/mini-harness"
 npx tsx steps/03-phases/index.ts run \
   steps/03-phases/fixtures/phases.json \
-  --replay steps/03-phases/fixtures/demo-recording.json
+  --replay steps/03-phases/fixtures/demo-recording.json \
+  --stop-after content
 ```
 
-2. Open the generated checkpoint. Find the completed phase, next phase, summaries, and cost.
-3. Run the same command with `--resume`:
+2. Confirm the command says `Paused after content`.
+3. Open the generated checkpoint. Find the completed phase, next phase, summaries, and cost.
+4. Resume from the checkpoint:
 
 ```sh
 npx tsx steps/03-phases/index.ts run \
@@ -25,7 +27,7 @@ npx tsx steps/03-phases/index.ts run \
   --resume
 ```
 
-4. Open the generated Git log and find one commit for each successful phase.
+5. Open the generated Git log and find one commit for each successful phase. Confirm the first two commits were not repeated.
 
 ## Why this matters
 
@@ -33,7 +35,7 @@ Phases limit the size of each change. Checkpoints save run progress. Commits pre
 
 ## You are done when
 
-You can explain which work resumes from a checkpoint and which product facts belong in source control instead.
+The first command stops after `content`; the second starts at `polish`; completed phases are not repeated.
 
 ## If blocked
 

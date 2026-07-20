@@ -2,22 +2,22 @@
 
 This package is used in the **Past the Vibes** workshop. It inspects a React Native app, copies it into a safe run directory, applies three small TV changes, verifies each change, and hands the result to Vega tools.
 
-It never edits the source app. Generated work goes to `out/<runId>/app`.
+It never edits the source app. Generated work goes to `out/<runId>/app`. Run the commands below from any directory inside the repository.
 
 ## Install and test
 
 ```sh
+cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
 yarn install --frozen-lockfile
 yarn typecheck
 yarn test
-npx tsx src/index.ts doctor --json
+npx tsx src/index.ts doctor --replay --json
 ```
 
 ## Run the key-free workshop path
 
-From `packages/workshop-harness`:
-
 ```sh
+cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
 npx tsx src/index.ts plan ../../apps/workshop-pocket-cinema \
   --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \
   --seed workshop-v1 --max-cost 3 --json
@@ -70,10 +70,41 @@ Use the run id from the port:
 
 ```sh
 npx tsx src/index.ts vega-run <runId> --plan --json
-# Read and approve the plan.
+# Read the plan before choosing replay or live execution.
+```
+
+The workshop pins ADBT `1.0.5` and Vega SDK `0.22.5875`. The live lifecycle checks the SDK and device, builds a `.vpkg`, installs it, launches it, captures logs, takes a screenshot, pulls the screenshot, and records the focus-check result.
+
+Use the key-free lifecycle in the workshop:
+
+```sh
+npx tsx src/index.ts vega-run <runId> \
+  --platform-replay ../../docs/workshops/agent-harness-react-native/fixtures/vega-lifecycle.json \
+  --yes --json
+```
+
+The report marks this as replay evidence. It tests the harness contract, not a Vega device. For a live run, start VDA in a system terminal and keep it open:
+
+```sh
+vega virtual-device start --gui
+```
+
+In a second terminal, require `running: true` and a non-empty device list before continuing:
+
+```sh
+vega virtual-device status
+vega exec vda devices -l
+```
+
+Then install the generated app's pinned dependencies and run the live lifecycle:
+
+```sh
+cd out/<runId>/app/apps/vega
+npm install
+cd ../../../..
 npx tsx src/index.ts vega-run <runId> --yes --json
 ```
 
-ADBT supplies Vega instructions and diagnostics. Kepler and VDA build and run the guarded app. The workshop harness records the evidence.
+An empty VDA device list stops the lifecycle even if the command exits `0`. A live claim requires install, launch, device logs, a pulled screenshot, and `evidenceMode: "live"`.
 
 See the [workshop guide](../../docs/workshops/agent-harness-react-native/README.md) for the full attendee flow.

@@ -5,25 +5,32 @@
 1. Send [setup](00-before-you-arrive.md) 48 hours early.
 2. Ask each attendee to report one status: **live ready**, **replay ready**, or **blocked**.
 3. Test every replay and checkpoint from a clean clone.
-4. Rehearse the pinned ADBT version, Vega SDK 0.22, and target VDA image.
-5. Keep the completed TV app hidden until the TV exercise ends.
+4. Rehearse ADBT `1.0.5`, Vega SDK `0.22.5875`, and the target VDA image.
+5. Read [the latest live rehearsal](live-rehearsal.md). Do not present the device path as ready until VDA remains attached.
+6. Start VDA in a separate system terminal, keep it open, and confirm `vega virtual-device status` plus `vega exec vda devices -l` before attendees arrive.
+7. Keep the completed TV app hidden until the TV exercise ends.
 
 ## Four-hour schedule
 
 | Time | Attendees do | If blocked |
 | --- | --- | --- |
-| 00:00 | Run setup and choose Pocket Cinema or their app | Use Pocket Cinema and replay |
-| 00:15 | Run one agent call and list missing evidence | Show the Step 1 output |
-| 00:40 | Trace a failed check into one retry | Read the retry recording together |
-| 01:10 | Inspect phases, commits, cost, and resume state | Use the resume fixture |
-| 01:45 | Trace skills, tools, executors, and recording | Use Step 4 replay |
-| 02:15 | Review and apply a synthetic memory proposal | Use the copied fixture |
-| 02:35 | Plan and run the guarded Pocket Cinema port | Use the audit checkpoint |
-| 03:05 | Trace the remote focus flow and failure | Use the focus fixture |
-| 03:25 | Plan and run the Vega handoff | Use the complete checkpoint |
-| 03:50 | Draft a harness for another domain | Use the worksheet example |
+| 00:00 | Set up, choose an app, and run doctor | Use Pocket Cinema and replay |
+| 00:10 | Lesson 1: run one model call and list missing evidence | Show the Step 1 replay |
+| 00:25 | Lesson 2: trace a failed check into one retry | Read the retry recording together |
+| 00:45 | Lesson 3: pause after one phase, inspect the checkpoint, and resume | Use the resume fixture |
+| 01:10 | Lesson 4: trace skills, executors, and recording | Use Step 4 replay |
+| 01:30 | **Break** | Keep it a full 10 minutes |
+| 01:40 | Lesson 5: review and apply a synthetic memory proposal | Use the copied fixture |
+| 01:55 | Lesson 6: plan and run the guarded Pocket Cinema port | Use the Vega-buildable checkpoint |
+| 02:30 | Lesson 7: run the focus state checks and inspect a failure | Use the focus fixture |
+| 02:50 | **Break** | Keep it a full 10 minutes |
+| 03:00 | Lesson 8: replay the complete Vega lifecycle | Use the complete checkpoint |
+| 03:25 | Lesson 10: draft a harness for another domain | Use the worksheet example |
+| 03:40 | Recovery, questions, and optional live Vega or Bee demo | Stay with replay if setup is slow |
 
-Bee is optional. Run it only if setup, consent, and time allow.
+Lesson 9, Bee context, is optional. Run it only during the final recovery block and only if setup, consent, and time allow.
+
+The core path takes 200 minutes. Two breaks and a 20-minute recovery block bring the session to four hours.
 
 ## Teaching rule
 
@@ -49,3 +56,17 @@ Track these separately:
 - help requests.
 
 The main learning outcome must not depend on a live model, Vega device, or Bee.
+
+## Live Vega evidence
+
+Keep replay and live results visually separate. Replay proves command order, stop conditions, and report shape. A live claim requires all of these:
+
+- SDK `0.22.5875` reported;
+- VDA listed as attached;
+- manifest validation and `.vpkg` build passed;
+- install and launch passed;
+- device logs were saved;
+- a real screenshot was pulled;
+- the focus transition suite passed.
+
+If any item is missing, say which boundary failed and continue with replay.

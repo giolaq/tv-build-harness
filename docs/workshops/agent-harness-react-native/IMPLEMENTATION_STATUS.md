@@ -9,6 +9,9 @@
 - File and Bee context providers with approval-gated memory.
 - Vega capability adapter and production `tv-build` subprocess boundary.
 - Guarded three-phase Vega port with structured patches, Git commits, verification retry, rollback, recording/replay, and cost abort.
+- Executable focus-state checks for launch, movement boundaries, details, Back, and restoration.
+- Eight-gate Vega lifecycle adapter with a clearly labeled key-free replay fixture.
+- Live `react-native build-vega` pass on SDK `0.22.5875`, producing three architecture packages.
 - Key-free Pocket Cinema port recording and typechecked `vega-buildable` checkpoint.
 - Lessons 00-10, worksheet, instructor guide, troubleshooting, checkpoint contracts, and replay guidance.
 - Workshop path checker, checkpoint packager, unit tests, and production regression checks.
@@ -18,11 +21,10 @@
 
 These artifacts require the workshop's pinned live environment and must not be fabricated:
 
-- Final ADBT package version.
-- Live Vega SDK 0.22/Kepler/VDA build, install, launch, and D-pad recording.
+- Live VDA install, launch, D-pad recording, screenshots, and device logs.
 - Complete generated Vega app, device screenshots, logs, and platform result.
 - Real model cost and duration.
 - Consented live Bee transcript demonstration; the synthetic snapshot already covers the key-free path.
 - Clean-machine and fresh-developer timing results.
 
-Complete these in W14 after the exact ADBT and VDA versions are selected. Scrub all recordings before committing them.
+ADBT is pinned to `@amazon-devices/amazon-devices-buildertools-mcp@1.0.5`. Complete the remaining live-device artifacts during rehearsal and scrub all recordings before committing them.

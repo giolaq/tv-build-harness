@@ -1,12 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
 import type { AuditFinding } from "./contracts.js";
 import type { PortExecutor } from "./port-executor.js";
 import { verifyPort, type PortCheck } from "./port-verification.js";
 
 const Output = z.object({ summary: z.string(), files: z.record(z.string(), z.string()) });
+const tsxLoader = pathToFileURL(resolve(dirname(fileURLToPath(import.meta.url)), "../node_modules/tsx/dist/loader.mjs")).href;
 export type PortPhase = { name: string; goal: string; skill: string; checks: PortCheck[] };
 export type PortResult = { phases: { name: string; summary: string; attempts: number; checks: string[] }[]; costUsd: number };
 
@@ -46,13 +48,14 @@ export async function runPortPipeline(options: { appDir: string; outDir: string;
 export function phases(): PortPhase[] {
   return [
     { name: "tv_product_spec", goal: "Write a concise migration document describing the current app, preserved product behavior, Vega replacements, and the exact remote flow.", skill: "Discovery first. Keep facts and assumptions separate. Port one vertical slice.", checks: [{ type: "contains", path: "VEGA_PORT.md", value: "## TV Flow", label: "TV flow documented" }] },
-    { name: "vega_port", goal: "Create an apps/vega package boundary and replace incompatible behavior behind isolated files without deleting reusable source logic.", skill: "Use ADBT documentation for Vega claims. Add manifest metadata, a build command, and explicit focus state.", checks: [{ type: "file_exists", path: "apps/vega/manifest.toml", label: "Vega manifest" }, { type: "file_exists", path: "apps/vega/package.json", label: "Vega package" }, { type: "contains", path: "package.json", value: "vega:build", label: "Vega build script" }, { type: "file_exists", path: "src/tv/focus-state.ts", label: "Focus state adapter" }] },
-    { name: "tv_behavior", goal: "Adapt the selected home-to-details flow for remote-only operation and document its mechanical transition matrix.", skill: "Verify initial focus, visible focus, directional movement, boundaries, details, back, and restoration.", checks: [{ type: "contains", path: "src/App.tsx", value: "onFocus", label: "Focus events" }, { type: "contains", path: "src/App.tsx", value: "hasTVPreferredFocus", label: "Initial focus" }, { type: "contains", path: "TV_VERIFICATION.md", value: "originating card", label: "Focus restoration evidence" }] },
+    { name: "vega_port", goal: "Create an apps/vega package boundary from the SDK application shape and isolate incompatible behavior without deleting reusable source logic.", skill: "Use ADBT documentation and the SDK template for Vega claims. Add the schema-versioned interactive manifest, React Native build-vega command, Metro boundary, and shared focus state.", checks: [{ type: "contains", path: "apps/vega/manifest.toml", value: "schema-version = 1", label: "Vega manifest schema" }, { type: "contains", path: "apps/vega/manifest.toml", value: "[[components.interactive]]", label: "Interactive component" }, { type: "contains", path: "apps/vega/package.json", value: "build-vega", label: "Vega React Native build" }, { type: "file_exists", path: "apps/vega/app.json", label: "Vega app registration" }, { type: "file_exists", path: "apps/vega/metro.config.js", label: "Vega Metro boundary" }, { type: "contains", path: "package.json", value: "vega:build", label: "Vega build script" }, { type: "file_exists", path: "src/tv/focus-state.ts", label: "Focus state adapter" }] },
+    { name: "tv_behavior", goal: "Adapt the selected home-to-details flow for remote-only operation and prove its focus transitions with executable checks.", skill: "Use one focus-state module from both the app and the verifier. Verify launch, movement boundaries, details, back, and restoration.", checks: [{ type: "contains", path: "src/App.tsx", value: "./tv/focus-state", label: "App uses shared focus state" }, { type: "command", command: process.execPath, args: ["--import", tsxLoader, "tests/verify-tv-focus.ts"], label: "Executable focus transitions" }, { type: "contains", path: "tv-focus-result.json", value: "\"passed\": true", label: "Focus evidence report" }, { type: "contains", path: "TV_VERIFICATION.md", value: "originating card", label: "Focus restoration documented" }] },
   ];
 }
 
 function prompt(phase: PortPhase, options: Parameters<typeof runPortPipeline>[0], failures: string[]): string {
-  return `You are porting the CURRENT guarded React Native app to Vega SDK 0.22. Read existing files before proposing edits. Preserve unrelated work.\n\nPhase: ${phase.name}\nGoal: ${phase.goal}\nSkill: ${phase.skill}\nCreative seed: ${options.seed}\n\nApproved context:\n${options.projectContext}\n\nPortability findings:\n${JSON.stringify(options.findings, null, 2)}\n\nRequired checks:\n${phase.checks.map((check) => `- ${check.label}: ${check.path}${check.value ? ` contains ${check.value}` : " exists"}`).join("\n")}\n${failures.length ? `\nPrevious attempt failed:\n${failures.map((f) => `- ${f}`).join("\n")}\nFix these exact failures.` : ""}\n\nReturn ONLY JSON: {"summary":"short commit summary","files":{"relative/path":"complete file contents"}}. Paths are relative to the app root. Do not include .git, node_modules, .env, absolute paths, or files outside the app.`;
+  const checks = phase.checks.map((check) => check.type === "command" ? `- ${check.label}: ${check.command} ${check.args.join(" ")}` : `- ${check.label}: ${check.path}${check.value ? ` contains ${check.value}` : " exists"}`).join("\n");
+  return `You are porting the CURRENT guarded React Native app to Vega SDK 0.22.5875. Read existing files before proposing edits. Preserve unrelated work.\n\nPhase: ${phase.name}\nGoal: ${phase.goal}\nSkill: ${phase.skill}\nCreative seed: ${options.seed}\n\nApproved context:\n${options.projectContext}\n\nPortability findings:\n${JSON.stringify(options.findings, null, 2)}\n\nRequired checks:\n${checks}\n${failures.length ? `\nPrevious attempt failed:\n${failures.map((f) => `- ${f}`).join("\n")}\nFix these exact failures.` : ""}\n\nReturn ONLY JSON: {"summary":"short commit summary","files":{"relative/path":"complete file contents"}}. Paths are relative to the app root. Do not include .git, node_modules, .env, absolute paths, or files outside the app.`;
 }
 
 function parseOutput(text: string) { return Output.parse(JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "{}")); }

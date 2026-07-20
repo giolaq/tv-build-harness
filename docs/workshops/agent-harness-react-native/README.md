@@ -2,7 +2,7 @@
 
 In this workshop, you build a small coding harness and use it to adapt one React Native flow for Vega TV.
 
-Use the [workshop web app](index.html) during the session. It gives you the commands, shows what to inspect, and tracks your progress. The Markdown lessons contain the same exercises.
+Use the [workshop web app](index.html) during the session. It gives you the commands, shows what to inspect, and tracks your progress. The Markdown lessons use the same numbering and exercises. If the hosted copy is unavailable, open `index.html` from your clone.
 
 ## What you will do
 
@@ -13,10 +13,14 @@ Use the [workshop web app](index.html) during the session. It gives you the comm
 5. Review project context before saving it as memory.
 6. Copy and inspect a React Native app before changing it.
 7. Adapt one flow for TV remote navigation.
-8. Build and test the guarded copy with Vega tools.
+8. Replay the full Vega lifecycle, then optionally run it on a VDA device.
 9. Sketch a harness for your own work.
 
 You can use `apps/workshop-pocket-cinema` for every exercise. Bring your own app only if it already runs and contains no secrets.
+
+## Recommended four-hour path
+
+Follow lessons 1–8, skip optional lesson 9, and finish with lesson 10. The schedule includes two 10-minute breaks and a 20-minute recovery block. Replay is the standard workshop path, so everyone can finish without a model account or Vega device.
 
 ## Choose how to run models
 
@@ -39,4 +43,6 @@ Start with [Before You Arrive](00-before-you-arrive.md). Keep [Troubleshooting](
 9. [Optional: Bee context](09-bee-context-agent.md)
 10. [Take it home](10-take-it-home.md)
 
-The key-free port uses `fixtures/port-recording.json`. If a live Vega step fails, continue with `checkpoints/vega-buildable/` or `checkpoints/complete/`.
+The key-free port uses `fixtures/port-recording.json`. The Vega lifecycle uses `fixtures/vega-lifecycle.json`. Replay proves the workshop control flow and report contract; it is not proof that a physical or virtual device passed. If a live Vega step fails, continue with `checkpoints/vega-buildable/` or `checkpoints/complete/`.
+
+Read [the live rehearsal record](live-rehearsal.md) before teaching the Vega section. The SDK build and manifest validation pass. Install, launch, logs, and screenshots still need a VDA process that remains attached outside the automation session.

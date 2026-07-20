@@ -1,6 +1,30 @@
 {
-  "name": "@pocket-cinema/vega",
-  "version": "0.1.0",
+  "name": "@amazon-devices/pocket-cinema",
+  "version": "0.0.1",
   "private": true,
-  "scripts": { "build": "kepler build" }
+  "files": ["dist"],
+  "scripts": {
+    "start": "react-native start",
+    "build:debug": "react-native build-vega --build-type Debug",
+    "build:release": "react-native build-vega --build-type Release"
+  },
+  "dependencies": {
+    "@amazon-devices/react-native-kepler": "2.0.9000000000",
+    "react": "18.2.0",
+    "react-native": "0.72.0"
+  },
+  "devDependencies": {
+    "@amazon-devices/kepler-cli-platform": "0.22.12",
+    "@react-native/metro-config": "0.72.12",
+    "@react-native-community/cli": "11.3.2",
+    "@tsconfig/react-native": "3.0.9",
+    "@types/react": "18.3.31",
+    "metro-react-native-babel-preset": "0.76.9",
+    "typescript": "4.8.4"
+  },
+  "kepler": {
+    "projectType": "application",
+    "appName": "PocketCinema",
+    "targets": ["tv"]
+  }
 }

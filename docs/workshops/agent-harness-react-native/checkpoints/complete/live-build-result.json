@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "evidenceMode": "live-partial",
+  "date": "2026-07-20",
+  "sdkVersion": "0.22.5875",
+  "adbtPackage": "@amazon-devices/amazon-devices-buildertools-mcp@1.0.5",
+  "command": ["npm", "run", "build:debug"],
+  "build": {
+    "passed": true,
+    "manifestErrors": 0,
+    "bundle": "regular Debug bundle with Hermes output",
+    "packages": [
+      "build/aarch64-debug/pocket-cinema_aarch64.vpkg",
+      "build/armv7-debug/pocket-cinema_armv7.vpkg",
+      "build/x86_64-debug/pocket-cinema_x86_64.vpkg"
+    ]
+  },
+  "device": {
+    "passed": false,
+    "reason": "VDA did not remain attached in the automation session"
+  },
+  "remainingGates": ["install", "launch", "logs", "capture", "pull"]
+}

@@ -6,7 +6,7 @@ Keep the synthetic catalog, featured story, two rails, and home-to-details flow.
 
 ## Vega Replacements
 
-Add explicit remote focus state, Vega manifest metadata, a Kepler build command, remote back handling, and behavioral evidence.
+Add explicit remote focus state, the SDK template's manifest and package metadata, the React Native `build-vega` command, remote back handling, and behavioral evidence.
 
 ## TV Flow
 

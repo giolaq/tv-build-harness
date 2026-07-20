@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { BackHandler, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
-import { movieById, movies, rails, type Movie } from "./catalog.js";
-import { focusItem, initialFocusState, openFrom, preferredFocus, type FocusState } from "./tv/focus-state.js";
+import { movieById, movies, rails, type Movie } from "./catalog";
+import { focusItem, heroPreferredFocus, initialFocusState, openFrom, preferredFocus, type FocusState } from "./tv/focus-state";
 
 export default function App() {
   const [selected, setSelected] = useState<Movie | null>(null);
@@ -19,10 +19,10 @@ function Home({ focus, setFocus, onOpen }: { focus: FocusState; setFocus(value: 
     <Text style={styles.brand}>POCKET CINEMA</Text>
     <View style={[styles.hero, { backgroundColor: featured.color }]}>
       <Text style={styles.eyebrow}>FEATURED TONIGHT</Text><Text style={styles.heroTitle}>{featured.title}</Text><Text style={styles.description}>{featured.description}</Text>
-      <Pressable hasTVPreferredFocus={!focus.restoreId} onFocus={() => setFocus((state) => focusItem(state, "featured-action"))} style={[styles.button, focus.focusedId === "featured-action" && styles.focused]} onPress={() => onOpen(featured)}><Text style={styles.buttonText}>View details</Text></Pressable>
+      <Pressable hasTVPreferredFocus={heroPreferredFocus(focus)} onFocus={() => setFocus((state) => focusItem(state, "featured-action"))} style={[styles.button, focus.focusedId === "featured-action" && styles.focused]} onPress={() => onOpen(featured)}><Text style={styles.buttonText}>View details</Text></Pressable>
     </View>
     {rails.map((rail) => <View key={rail.id} style={styles.rail}><Text style={styles.railTitle}>{rail.title}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>
-      {rail.movieIds.map((id) => { const movie = movieById(id)!; return <ContentCard key={id} movie={movie} focused={focus.focusedId === id} preferred={preferredFocus(focus, id, "signal")} onFocus={() => setFocus((state) => focusItem(state, id))} onPress={() => onOpen(movie)} />; })}
+      {rail.movieIds.map((id) => { const movie = movieById(id)!; return <ContentCard key={id} movie={movie} focused={focus.focusedId === id} preferred={preferredFocus(focus, id)} onFocus={() => setFocus((state) => focusItem(state, id))} onPress={() => onOpen(movie)} />; })}
     </ScrollView></View>)}
   </ScrollView></SafeAreaView>;
 }

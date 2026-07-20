@@ -7,7 +7,7 @@
     "start": "react-native start",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "vega:build": "cd apps/vega && kepler build"
+    "vega:build": "cd apps/vega && npm run build:debug"
   },
   "dependencies": {
     "react": "19.1.0",

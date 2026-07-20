@@ -7,8 +7,17 @@ Check whether a user can complete one flow with a remote, not just whether the a
 ## Do this
 
 1. Open `packages/workshop-harness/skills/react-native-tv-adaptation/SKILL.md`.
-2. Open `docs/workshops/agent-harness-react-native/checkpoints/vega-buildable/app/TV_VERIFICATION.md`.
-3. Trace this flow through the checks and the app code:
+2. In `packages/workshop-harness`, run the executable focus check against your guarded app:
+
+```sh
+REPO="$(git rev-parse --show-toplevel)"
+cd "$REPO/packages/workshop-harness/out/<runId>/app"
+node --import tsx tests/verify-tv-focus.ts
+cat tv-focus-result.json
+```
+
+3. Open `TV_VERIFICATION.md` in the guarded app.
+4. Trace this flow through the verifier and the app code:
 
 ```text
 launch -> featured action has focus
@@ -18,9 +27,9 @@ launch -> featured action has focus
        -> back returns to the same card
 ```
 
-4. Open `docs/workshops/agent-harness-react-native/fixtures/focus-failure/README.md`.
-5. Find the failed focus-restoration evidence and explain what should be sent into a retry.
-6. In the guarded app, find `hasTVPreferredFocus` and the `onFocus` handlers that track the current card.
+5. Open `docs/workshops/agent-harness-react-native/fixtures/focus-failure/README.md`.
+6. Find the failed focus-restoration evidence and explain what should be sent into a retry.
+7. Find `hasTVPreferredFocus`, the `onFocus` handlers, and their shared `focus-state.ts` module.
 
 ## Why this matters
 
@@ -28,7 +37,7 @@ A screenshot shows one moment. It cannot prove that controls are reachable, boun
 
 ## You are done when
 
-You can name the expected focus target after every remote action and point to the recorded failure when one transition breaks.
+`tv-focus-result.json` says `passed: true`, and you can point to the shared state function that proves each transition.
 
 ## If blocked
 

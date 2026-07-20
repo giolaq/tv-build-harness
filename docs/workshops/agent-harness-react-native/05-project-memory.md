@@ -9,22 +9,23 @@ Review proposed project facts before saving them for later runs.
 1. Make a disposable copy of the input fixture:
 
 ```sh
-rm -rf /tmp/pocket-cinema-inputs
-cp -R docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \
-  /tmp/pocket-cinema-inputs
-cd packages/workshop-harness
+REPO="$(git rev-parse --show-toplevel)"
+WORKSHOP_INPUTS="$(mktemp -d)/pocket-cinema-inputs"
+cp -R "$REPO/docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs" \
+  "$WORKSHOP_INPUTS"
+cd "$REPO/packages/workshop-harness"
 ```
 
 2. Show the current project memory:
 
 ```sh
-npx tsx src/index.ts memory show /tmp/pocket-cinema-inputs --json
+npx tsx src/index.ts memory show "$WORKSHOP_INPUTS" --json
 ```
 
 3. Build a proposal from the synthetic context snapshot:
 
 ```sh
-npx tsx src/index.ts memory propose /tmp/pocket-cinema-inputs \
+npx tsx src/index.ts memory propose "$WORKSHOP_INPUTS" \
   --from ../../docs/workshops/agent-harness-react-native/fixtures/bee-context/snapshot.json \
   --json
 ```
@@ -33,12 +34,12 @@ npx tsx src/index.ts memory propose /tmp/pocket-cinema-inputs \
 5. Apply it only after review:
 
 ```sh
-npx tsx src/index.ts memory apply /tmp/pocket-cinema-inputs \
+npx tsx src/index.ts memory apply "$WORKSHOP_INPUTS" \
   --from ../../docs/workshops/agent-harness-react-native/fixtures/bee-context/snapshot.json \
   --yes --json
 ```
 
-6. Open `/tmp/pocket-cinema-inputs/PROJECT_CONTEXT.md` and `project-context.json`.
+6. Open `$WORKSHOP_INPUTS/PROJECT_CONTEXT.md` and `project-context.json`.
 
 ## Why this matters
 

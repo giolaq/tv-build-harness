@@ -20,11 +20,23 @@ Stop. Do not raise the cap without the participant's approval. Continue from the
 
 ## ADBT is unavailable
 
-Run the pinned `check-status` command once in a system terminal. If it still fails, use the committed Vega checkpoint.
+Run the pinned `check-status` command once in a system terminal. If it asks for `init-context`, remember that initialization edits `CLAUDE.md` and your Claude configuration. ADBT is optional for the replay path. If it still fails, use the committed Vega checkpoint.
 
-## Kepler build or VDA fails
+## Vega CLI build or VDA fails
 
-Write down whether the failure came from setup or the app. Try one repair, then use `checkpoints/complete/`.
+Check each boundary separately:
+
+```sh
+vega --version
+vega virtual-device status
+vega exec vda devices -l
+```
+
+The expected SDK is `0.22.5875`. Start VDA with `vega virtual-device start --gui` in a system terminal and keep that terminal open. An empty device list is a failure even when the command exits `0`.
+
+If the device is attached but the build fails, use `checkpoints/vega-buildable/app`, run `npm ci` in `app/apps/vega`, and run `npm run build:debug`. Do not run `npm audit fix --force`; the SDK template uses pinned React Native 0.72-era dependencies.
+
+Write down whether the failure came from SDK setup, device attachment, build, or app behavior. Try one repair, then use `checkpoints/complete/`.
 
 ## Bee is unavailable
 

@@ -12,6 +12,7 @@ const args = process.argv.slice(2);
 const phasesPath = args[0] === "run" ? args[1] : flag("--phases") ?? args[0] ?? "fixtures/phases.json";
 const replayPath = flag("--replay");
 const resume = args.includes("--resume");
+const stopAfter = flag("--stop-after");
 const turns: RecordedTurn[] = replayPath ? JSON.parse(readFileSync(resolve(replayPath), "utf-8")) : [];
 let replayIndex = 0;
 
@@ -20,8 +21,12 @@ async function main() {
   const ctx = createRunContext(resume);
   const checkpoint = resume ? readCheckpoint(ctx.outDir) : null;
   if (checkpoint) Object.assign(ctx, { summaries: checkpoint.summaries, costUsd: checkpoint.costUsd });
-  await runPipeline(phases, ctx, callModel, checkpoint?.nextPhase ?? 0);
-  console.log(`Wrote ${ctx.outDir}/report.md ($${ctx.costUsd.toFixed(4)})`);
+  if (checkpoint && replayPath && checkpoint.nextPhase < phases.length) {
+    const next = turns.findIndex((turn) => turn.phase === phases[checkpoint.nextPhase].name);
+    replayIndex = Math.max(0, next);
+  }
+  const complete = await runPipeline(phases, ctx, callModel, checkpoint?.nextPhase ?? 0, stopAfter);
+  console.log(complete ? `Wrote ${ctx.outDir}/report.md ($${ctx.costUsd.toFixed(4)})` : `Paused after ${stopAfter}. Resume from ${ctx.outDir}/checkpoint.json.`);
 }
 
 async function callModel(phase: string, prompt: string): Promise<{ text: string; costUsd: number }> {

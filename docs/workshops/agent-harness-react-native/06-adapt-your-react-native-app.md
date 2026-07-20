@@ -11,7 +11,7 @@ Use Pocket Cinema unless your own app already runs and passes the setup checks.
 1. Create a read-only plan:
 
 ```sh
-cd packages/workshop-harness
+cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
 npx tsx src/index.ts plan ../../apps/workshop-pocket-cinema \
   --inputs ../../docs/workshops/agent-harness-react-native/fixtures/pocket-cinema-inputs \
   --seed workshop-v1 --max-cost 3 --json
@@ -38,7 +38,7 @@ The harness reads first, states what can move, and edits a copy. One small flow 
 
 ## You are done when
 
-You have the `runId`, all five reported phases are complete, the three edit phases have verified commits, and the source app is unchanged.
+You have the `runId`, all five pre-Vega stages are complete, the three edit phases have verified commits, `tv-focus-result.json` passes, and the source app is unchanged. The sixth planned stage is the Vega lifecycle in lesson 8.
 
 ## If blocked
 

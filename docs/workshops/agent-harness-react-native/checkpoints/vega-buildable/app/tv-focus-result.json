@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "transitions": [
+    "launch-hero",
+    "down-to-first-rail",
+    "left-boundary",
+    "right",
+    "right-boundary",
+    "open-details",
+    "back-restore"
+  ]
+}

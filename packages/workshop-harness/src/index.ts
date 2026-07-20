@@ -11,7 +11,7 @@ import { applyProposal, loadMemory, loadSnapshot, propose } from "./project-memo
 import { assembleProjectContext } from "./phase-context.js";
 import { createPortExecutor, resolveExecutorConfig } from "./port-executor.js";
 import { PortBudgetError, runPortPipeline } from "./port-pipeline.js";
-import { VegaAdapter } from "./platform/vega.js";
+import { ADBT_PACKAGE, VEGA_SDK_VERSION, VegaAdapter, VegaReplayAdapter, runVegaLifecycle, type VegaCapability } from "./platform/vega.js";
 import { copySource, discoverSource } from "./source-app.js";
 import { workshopDoctor } from "./workshop-doctor.js";
 
@@ -46,7 +46,7 @@ function buildPlan(sourcePath: string) {
   const executor = resolveExecutorConfig({ executor: flag("--executor"), provider: flag("--provider"), model: flag("--model"), region: flag("--region") });
   return {
     source,
-    target: { platform: "firetv-vega", sdk: "0.22" },
+    target: { platform: "firetv-vega", sdk: VEGA_SDK_VERSION },
     seed: flag("--seed") ?? "workshop-v1",
     maxCostUsd: Number(flag("--max-cost") ?? 10),
     executor,
@@ -54,7 +54,7 @@ function buildPlan(sourcePath: string) {
     findings,
     contextEntryIds: phaseContext.entryIds,
     phaseContext: phaseContext.text,
-    phases: ["source_discovery", "vega_portability_audit", "tv_product_spec", "vega_port", "production_vega_run"],
+    phases: ["source_discovery", "vega_portability_audit", "tv_product_spec", "vega_port", "tv_behavior", "production_vega_run"],
   };
 }
 
@@ -105,7 +105,7 @@ async function executeRun(sourcePath: string, runId: string): Promise<void> {
     const port = await runPortPipeline({ appDir, outDir: out, findings: plan.findings, projectContext: plan.phaseContext, seed: plan.seed, maxCostUsd: plan.maxCostUsd, executor, onPhase: (currentPhase) => writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "running", currentPhase, phasesComplete: ["source_discovery", "vega_portability_audit"] }, null, 2)) });
     writeFileSync(join(out, "port-result.json"), JSON.stringify({ schemaVersion: 1, ...port }, null, 2));
     const executionMode = plan.executor.kind === "strands" ? `Strands (${plan.executor.model.provider}:${plan.executor.model.modelId})` : `Claude Code (${plan.executor.model})`;
-    const report = `# Workshop Run ${runId}\n\n- Target: Vega SDK 0.22\n- Executor: ${executionMode}\n- Seed: ${plan.seed}\n- Cost cap: $${plan.maxCostUsd}\n- Port cost: $${port.costUsd.toFixed(4)}\n- Source copied: yes\n- Port phases: ${port.phases.map((phase) => `${phase.name} (${phase.attempts} attempt${phase.attempts === 1 ? "" : "s"})`).join(", ")}\n- Next: inspect the generated app, then run vega-run for production build and QA.\n`;
+    const report = `# Workshop Run ${runId}\n\n- Target: Vega SDK ${VEGA_SDK_VERSION}\n- ADBT package: ${ADBT_PACKAGE}\n- Executor: ${executionMode}\n- Seed: ${plan.seed}\n- Cost cap: $${plan.maxCostUsd}\n- Port cost: $${port.costUsd.toFixed(4)}\n- Source copied: yes\n- Port phases: ${port.phases.map((phase) => `${phase.name} (${phase.attempts} attempt${phase.attempts === 1 ? "" : "s"})`).join(", ")}\n- Next: inspect the generated app, then run vega-run for build and device evidence.\n`;
     writeFileSync(join(out, "report.md"), report);
     const phasesComplete = ["source_discovery", "vega_portability_audit", ...port.phases.map((phase) => phase.name)];
     writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "complete", currentPhase: null, phasesComplete, costUsd: port.costUsd, out }, null, 2));
@@ -163,15 +163,29 @@ async function vegaRunCommand(): Promise<void> {
   const appDir = out && join(out, "app");
   const vegaDir = appDir && join(appDir, "apps", "vega");
   if (!vegaDir || !existsSync(join(vegaDir, "package.json"))) failure("vega_app_missing", "The guarded run has no apps/vega package.", "Run the verified port pipeline before Vega execution.");
-  const adapter = new VegaAdapter(process.env.KEPLER_BIN ?? "kepler", vegaDir);
-  if (args.includes("--plan")) return json({ command: "vega_run_plan", runId, appDir, sdkVersion: "0.22", steps: [{ capability: "device_status", command: adapter.command("device_status") }, { capability: "build", command: adapter.command("build") }], requiresConfirmation: true });
+  const liveAdapter = new VegaAdapter(process.env.VEGA_BIN ?? "vega", vegaDir);
+  const capabilities: Array<{ capability: VegaCapability; values?: string[] }> = [
+    { capability: "sdk_version" }, { capability: "device_status" }, { capability: "build" },
+    { capability: "install", values: ["<build/*.vpkg>"] }, { capability: "launch", values: ["<component-id>"] },
+    { capability: "logs" }, { capability: "capture", values: ["/tmp/tv-build-launch.png"] },
+    { capability: "pull", values: ["/tmp/tv-build-launch.png", "<run>/01-launch.png"] },
+  ];
+  if (args.includes("--plan")) return json({ command: "vega_run_plan", runId, appDir, sdkVersion: VEGA_SDK_VERSION, adbtPackage: ADBT_PACKAGE, steps: capabilities.map((step) => ({ capability: step.capability, command: liveAdapter.command(step.capability, ...(step.values ?? [])) })), requiresConfirmation: true });
   if (!args.includes("--yes")) failure("confirmation_required", "Vega execution requires explicit confirmation.", "Show vega-run --plan, then rerun with --yes.");
-  const device = await adapter.execute("device_status");
-  const build = await adapter.execute("build");
-  const platformResult = { schemaVersion: 1, sdkVersion: "0.22", adbtVersion: process.env.ADBT_PACKAGE ?? "unrecorded", device: { status: device.code === 0 ? "available" : "unavailable", detail: device.stderr || device.stdout }, build: { ok: build.code === 0, durationMs: 0, output: build.stdout, error: build.stderr }, checks: [], screenshots: [], logFiles: [], blockers: build.code === 0 ? [] : ["Kepler build failed"] };
-  writeFileSync(join(out, "vega-platform-result.json"), JSON.stringify(platformResult, null, 2));
-  json({ event: "run_complete", runId, state: build.code === 0 ? "complete" : "failed", platformResult });
-  if (build.code !== 0) process.exitCode = 2;
+  const replayPath = flag("--platform-replay");
+  const replay = replayPath ? JSON.parse(readFileSync(resolve(replayPath), "utf8")) as { packagePath: string; appId: string; turns: Array<{ capability: VegaCapability; result: { code: number; stdout: string; stderr: string; timedOut: boolean } }> } : null;
+  const platformResult = await runVegaLifecycle({
+    adapter: replay ? new VegaReplayAdapter(replay.turns) : liveAdapter,
+    appDir: vegaDir,
+    focusDir: appDir,
+    outDir: out,
+    evidenceMode: replay ? "replay" : "live",
+    packagePath: replay?.packagePath,
+    appId: replay?.appId,
+  });
+  const state = platformResult.blockers.length === 0 ? "complete" : "failed";
+  json({ event: "run_complete", runId, state, platformResult });
+  if (state === "failed") process.exitCode = 2;
 }
 
 function flag(name: string): string | undefined { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; }

@@ -11,7 +11,7 @@ Skip this lesson if Bee is not configured or participants have not consented to 
 1. Search for relevant conversations:
 
 ```sh
-cd packages/workshop-harness
+cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
 npx tsx src/index.ts context bee search \
   "Pocket Cinema product decisions" --json
 ```

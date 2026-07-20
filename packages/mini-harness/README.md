@@ -1,6 +1,10 @@
 # Mini Harness
 
-This package builds the same small website four times. Each step adds one part of a coding harness. Run all commands from `packages/mini-harness`.
+This package builds the same small website four times. Each step adds one part of a coding harness. Start from any directory inside the repository:
+
+```sh
+cd "$(git rev-parse --show-toplevel)/packages/mini-harness"
+```
 
 ## Install
 
@@ -39,10 +43,20 @@ This step adds phase config, checkpoints, cost tracking, reports, and one Git co
 ```sh
 npx tsx steps/03-phases/index.ts run \
   steps/03-phases/fixtures/phases.json \
-  --replay steps/03-phases/fixtures/demo-recording.json
+  --replay steps/03-phases/fixtures/demo-recording.json \
+  --stop-after content
 ```
 
-Run it again with `--resume` to inspect the resume path.
+Inspect `out/checkpoint.json`, then resume without deleting `out/`:
+
+```sh
+npx tsx steps/03-phases/index.ts run \
+  steps/03-phases/fixtures/phases.json \
+  --replay steps/03-phases/fixtures/demo-recording.json \
+  --resume
+```
+
+Done when the second command runs `polish` instead of repeating `scaffold` or `content`.
 
 ## Step 4: skills and executors
 

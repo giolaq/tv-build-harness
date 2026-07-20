@@ -9,7 +9,7 @@ Run the smallest possible agent program, then identify what its output does not 
 1. Run Step 1 with the committed recording:
 
 ```sh
-cd packages/mini-harness
+cd "$(git rev-parse --show-toplevel)/packages/mini-harness"
 npx tsx steps/01-single-agent/index.ts run \
   steps/01-single-agent/fixtures/phases.json \
   --replay steps/01-single-agent/fixtures/demo-recording.json

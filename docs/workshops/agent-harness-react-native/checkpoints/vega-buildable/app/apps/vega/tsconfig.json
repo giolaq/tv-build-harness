@@ -1,0 +1,7 @@
+{
+  "extends": "@tsconfig/react-native/tsconfig.json",
+  "compilerOptions": {
+    "types": ["@amazon-devices/react-native-kepler"]
+  },
+  "include": ["../../src/**/*.ts", "../../src/**/*.tsx"]
+}

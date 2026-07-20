@@ -9,7 +9,7 @@ Separate domain instructions, system capabilities, and model access.
 1. Run Step 4 with replay:
 
 ```sh
-cd packages/mini-harness
+cd "$(git rev-parse --show-toplevel)/packages/mini-harness"
 npx tsx steps/04-skills/index.ts run \
   steps/04-skills/fixtures/phases.json \
   --replay steps/04-skills/fixtures/demo-recording.json
