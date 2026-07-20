@@ -46,6 +46,11 @@ h1 { margin: 0; max-width: 820px; color: var(--navy); font-size: 42px; font-weig
 h2 { margin: 40px 0 14px; color: var(--navy); font-size: 25px; font-weight: 600; }
 h3 { margin: 0 0 8px; color: var(--navy); font-size: 18px; }
 .lead { max-width: 840px; margin: 22px 0 28px; color: #3d4b58; font-size: 18px; line-height: 1.55; }
+.lesson-brief { display: grid; grid-template-columns: 1fr 1fr; margin: 0 0 34px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fff; }
+.lesson-brief div { padding: 18px 20px; }
+.lesson-brief div + div { border-left: 1px solid var(--line); }
+.lesson-brief span, .eyebrow { display: block; margin: 0 0 6px; color: var(--blue); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.lesson-brief p { margin: 0; color: #354351; }
 .complete { flex: none; display: flex; gap: 8px; padding: 9px 13px; border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 14px; }
 .complete input, .checklist input { width: 18px; height: 18px; accent-color: var(--orange); }
 .flow, .diagram { display: flex; align-items: stretch; gap: 8px; margin: 30px 0; overflow-x: auto; }
@@ -67,6 +72,22 @@ pre { margin: 0; padding: 18px; overflow-x: auto; color: #e6edf2; font-size: 13p
 .note { margin: 24px 0; padding: 18px 20px; border-left: 5px solid var(--blue); background: var(--blue-soft); }
 .note.warning { border-color: var(--orange); background: #fff1e7; }
 .note.success { border-color: var(--green); background: #eaf6ef; }
+.concept { margin: 30px 0; padding: 4px 0 4px 20px; border-left: 4px solid var(--navy); }
+.concept h2 { margin: 0 0 8px; font-size: 22px; }
+.concept p:last-child { max-width: 820px; margin: 0; color: #3d4b58; }
+.predict { margin: 28px 0; padding: 18px 20px; border: 1px solid #e6ad82; border-left: 5px solid var(--orange); background: #fff8f2; }
+.predict strong { color: var(--navy); font-size: 18px; }
+.predict p:last-child { margin: 7px 0 0; color: #495866; }
+.knowledge { margin: 32px 0; padding-top: 18px; border-top: 1px solid var(--line); }
+.knowledge details { border: 1px solid var(--line); background: #fff; }
+.knowledge summary { padding: 16px 48px 16px 18px; color: var(--navy); font-weight: 700; cursor: pointer; }
+.knowledge summary:hover { background: var(--blue-soft); }
+.knowledge details p { margin: 0; padding: 0 18px 18px; color: #3d4b58; }
+.lesson-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
+.lesson-nav button { min-height: 64px; padding: 12px 16px; border: 1px solid var(--line); background: #fff; color: var(--navy); text-align: left; cursor: pointer; }
+.lesson-nav button:hover { border-color: var(--blue); background: var(--blue-soft); }
+.lesson-nav button.next { text-align: right; }
+.lesson-nav button span { display: block; margin-bottom: 3px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .tasks { display: grid; gap: 12px; padding-left: 28px; }
 .tasks li { padding-left: 4px; }
 table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; font-size: 14px; }
@@ -74,6 +95,7 @@ th, td { padding: 13px 14px; border: 1px solid var(--line); text-align: left; ve
 th { background: var(--navy-2); color: #fff; }
 .expected { margin: 22px 0; border: 1px solid var(--line); background: #fff; }
 .expected strong { display: block; padding: 11px 14px; background: var(--blue-soft); color: var(--navy); font-size: 13px; }
+.expected pre { background: #0e151c; }
 .remote { width: 240px; display: grid; grid-template-columns: repeat(3, 64px); grid-template-areas: ". up ." "left ok right" ". down ."; gap: 8px; margin: 28px auto; }
 .remote button { width: 64px; height: 52px; border: 1px solid #7890a2; background: var(--navy-2); color: #fff; font-size: 20px; border-radius: 4px; }
 .remote button:nth-child(1) { grid-area: up; }
@@ -109,8 +131,18 @@ th { background: var(--navy-2); color: #fff; }
   .complete { grid-row: 1; width: max-content; }
   h1 { font-size: 34px; }
   .lead { font-size: 17px; }
+  .lesson-brief { grid-template-columns: 1fr; }
+  .lesson-brief div + div { border-top: 1px solid var(--line); border-left: 0; }
+  .lesson-nav { grid-template-columns: 1fr; }
+  .lesson-nav > span { display: none; }
+  .lesson-nav button.next { text-align: left; }
   .grid { grid-template-columns: 1fr; }
   .flow { align-items: center; }
+}
+@media (max-width: 520px) {
+  .topbar { min-height: 82px; }
+  .brand span { display: none; }
+  .sidebar { top: 82px; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
