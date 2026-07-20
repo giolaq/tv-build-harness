@@ -47,6 +47,16 @@ npx tsx steps/04-skills/index.ts run \
 
 A skill explains what matters. A tool performs a narrow action. An executor hides provider-specific model access. Keeping them separate makes the pipeline easier to test and change.
 
+The full workshop port applies the same rule with Strands Agents SDK:
+
+- `packages/workshop-harness/src/port-tools.ts` defines three Zod-typed tools: list, read, and search.
+- The tools are scoped to the guarded app. They reject `.env`, `.git`, `node_modules`, absolute paths, and paths outside the app.
+- `packages/workshop-harness/src/port-contract.ts` defines the patch schema. Strands validates the model output before the harness sees it.
+- `packages/workshop-harness/src/port-executor.ts` limits each phase to eight turns, 40,000 total tokens, and ten minutes.
+- The agent has no write or shell tool. `port-pipeline.ts` validates paths, writes files, runs checks, retries once, and commits passing work.
+
+This is the main tool-design rule: give an agent the smallest capability needed for its current concern. Keep irreversible actions in deterministic harness code.
+
 ## You are done when
 
 You can show where to change domain knowledge without changing the pipeline, and where to change model providers without changing verification.

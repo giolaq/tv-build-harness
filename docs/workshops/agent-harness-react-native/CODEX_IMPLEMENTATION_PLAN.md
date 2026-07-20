@@ -392,13 +392,13 @@ source_discovery
 - Record SDK, ADBT, VDA image, commands, durations, outputs, and evidence.
 - Add per-command timeouts and process-group cleanup.
 - Implement workshop-package doctor checks for Node, production `tv-build`, ADBT status, Vega SDK 0.22, Kepler CLI, VDA/device, model/replay mode, ports, and disk.
-- Separate static `check-status` from the in-agent MCP tools/skills verification.
+- Use the same native Strands `McpClient` path in doctor and the port. Discover tools, require `list_documents` and `read_document`, and disconnect after capture.
 
-Pre-workshop setup must run in a system terminal:
+The harness owns the MCP connection. Pre-workshop setup checks it without changing agent configuration:
 
 ```sh
-npx -y @amazon-devices/amazon-devices-buildertools-mcp@<pinned-version> init-context --agent claude-code-cli --force
-npx -y @amazon-devices/amazon-devices-buildertools-mcp@<pinned-version> check-status --agent claude-code-cli
+cd packages/workshop-harness
+npx tsx src/index.ts doctor --replay --adbt-live --json
 ```
 
 **Acceptance:** fake CLIs exercise every capability and timeout; no shell-concatenated command; doctor classifies ready/repairable/replay-only; prompt/tool names match the pinned ADBT version.

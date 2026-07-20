@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { auditSource, summarize } from "./portability-audit.js";
-import { ADBT_PORT_WORKFLOWS, AdbtCliContextProvider, AdbtContextError, AdbtReplayContextProvider } from "./context-providers/adbt.js";
+import { ADBT_PORT_WORKFLOWS, AdbtMcpContextProvider, AdbtContextError, AdbtReplayContextProvider } from "./context-providers/adbt.js";
 import { BeeContextProvider } from "./context-providers/bee.js";
 import { CliFailure, failure, json } from "./output.js";
 import { applyProposal, loadMemory, loadSnapshot, propose } from "./project-memory.js";
@@ -106,10 +106,10 @@ async function executeRun(sourcePath: string, runId: string): Promise<void> {
     const replayPath = flag("--replay");
     const executor = createPortExecutor({ appDir, outDir: out, replayPath, config: plan.executor });
     const adbtReplay = args.includes("--adbt-live") ? undefined : flag("--adbt-replay") ?? (replayPath ? join(dirname(resolve(replayPath)), "adbt-port-context.json") : undefined);
-    const adbt = adbtReplay ? new AdbtReplayContextProvider(resolve(adbtReplay)) : new AdbtCliContextProvider({ cwd: appDir });
+    const adbt = adbtReplay ? new AdbtReplayContextProvider(resolve(adbtReplay)) : new AdbtMcpContextProvider({ cwd: appDir });
     const port = await runPortPipeline({ appDir, outDir: out, findings: plan.findings, projectContext: plan.phaseContext, seed: plan.seed, maxCostUsd: plan.maxCostUsd, executor, adbt, onPhase: (currentPhase) => writeFileSync(statusPath, JSON.stringify({ schemaVersion: 1, runId, state: "running", currentPhase, phasesComplete: ["source_discovery", "vega_portability_audit"] }, null, 2)) });
     writeFileSync(join(out, "port-result.json"), JSON.stringify({ schemaVersion: 1, ...port }, null, 2));
-    const executionMode = plan.executor.kind === "strands" ? `Strands (${plan.executor.model.provider}:${plan.executor.model.modelId})` : `Claude Code (${plan.executor.model})`;
+    const executionMode = replayPath ? "Replay (recorded model turns)" : plan.executor.kind === "strands" ? `Strands (${plan.executor.model.provider}:${plan.executor.model.modelId})` : `Claude Code (${plan.executor.model})`;
     const report = `# Workshop Run ${runId}\n\n- Target: Vega SDK ${VEGA_SDK_VERSION}\n- ADBT package: ${ADBT_PACKAGE}\n- ADBT port context: ${port.adbt?.mode ?? "missing"} (${port.adbt?.documents.join(", ") ?? "none"})\n- ADBT evidence: ${port.adbt?.evidence ?? "none"}\n- Executor: ${executionMode}\n- Seed: ${plan.seed}\n- Cost cap: $${plan.maxCostUsd}\n- Port cost: $${port.costUsd.toFixed(4)}\n- Source copied: yes\n- Port phases: ${port.phases.map((phase) => `${phase.name} (${phase.attempts} attempt${phase.attempts === 1 ? "" : "s"})`).join(", ")}\n- Next: inspect the generated app, then run vega-run for build and device evidence.\n`;
     writeFileSync(join(out, "report.md"), report);
     const phasesComplete = ["source_discovery", "vega_portability_audit", ...port.phases.map((phase) => phase.name)];
@@ -150,7 +150,7 @@ function memoryCommand(): void {
 async function contextCommand(): Promise<void> {
   if (args[1] === "adbt" && args[2] === "port") {
     const replay = flag("--adbt-replay");
-    const provider = replay ? new AdbtReplayContextProvider(resolve(replay)) : new AdbtCliContextProvider({ cwd: root });
+    const provider = replay ? new AdbtReplayContextProvider(resolve(replay)) : new AdbtMcpContextProvider({ cwd: root });
     return json({ command: "context_adbt_port", context: await provider.load() });
   }
   if (args[1] !== "bee") failure("unknown_provider", "Use the ADBT port context or optional Bee provider.", "Use context adbt port, context bee search, or context bee snapshot.");

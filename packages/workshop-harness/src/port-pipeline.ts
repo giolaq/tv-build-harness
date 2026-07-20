@@ -2,13 +2,12 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { z } from "zod";
 import { renderAdbtPrompt, type AdbtContextProvider, type AdbtPortContext } from "./context-providers/adbt.js";
 import type { AuditFinding } from "./contracts.js";
+import { PortOutputSchema } from "./port-contract.js";
 import type { PortExecutor } from "./port-executor.js";
 import { verifyPort, type PortCheck } from "./port-verification.js";
 
-const Output = z.object({ summary: z.string(), files: z.record(z.string(), z.string()) });
 const tsxLoader = pathToFileURL(resolve(dirname(fileURLToPath(import.meta.url)), "../node_modules/tsx/dist/loader.mjs")).href;
 export type PortPhase = { name: string; goal: string; skill: string; checks: PortCheck[] };
 export type PortResult = {
@@ -75,7 +74,7 @@ function prompt(phase: PortPhase, options: Parameters<typeof runPortPipeline>[0]
   return `You are porting the CURRENT guarded React Native app to Vega SDK 0.22.5875. Read existing files before proposing edits. Preserve unrelated work.\n\nPhase: ${phase.name}\nGoal: ${phase.goal}\nSkill: ${phase.skill}\nCreative seed: ${options.seed}\n\nApproved context:\n${options.projectContext}\n\nPortability findings:\n${JSON.stringify(options.findings, null, 2)}${adbtGuidance}\n\nRequired checks:\n${checks}\n${failures.length ? `\nPrevious attempt failed:\n${failures.map((f) => `- ${f}`).join("\n")}\nFix these exact failures.` : ""}\n\nReturn ONLY JSON: {"summary":"short commit summary","files":{"relative/path":"complete file contents"}}. Paths are relative to the app root. Do not include .git, node_modules, .env, absolute paths, or files outside the app.`;
 }
 
-function parseOutput(text: string) { return Output.parse(JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "{}")); }
+function parseOutput(text: string) { return PortOutputSchema.parse(JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "{}")); }
 function ensureAdbtNextSteps(appDir: string, context: AdbtPortContext) {
   const path = join(appDir, "NextSteps.md");
   const current = existsSync(path) ? readFileSync(path, "utf8").trimEnd() : "# Next Steps";

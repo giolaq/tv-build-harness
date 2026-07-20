@@ -34,9 +34,9 @@ npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \
 8. Inspect `out/<runId>/app` and its Git log.
 9. Check that `apps/workshop-pocket-cinema` is still clean and unchanged.
 
-## Optional: call ADBT live without a model account
+## Optional: call ADBT MCP live without a model account
 
-Check the direct runtime interface, then run the same port with `--adbt-live`. The model output still comes from the recording, but the harness calls pinned ADBT `1.0.5` before `vega_port`:
+Check the native MCP connection, then run the same port with `--adbt-live`. The model output still comes from the recording, but the harness starts pinned ADBT `1.0.5` over stdio before `vega_port`:
 
 ```sh
 npx tsx src/index.ts doctor --replay --adbt-live --json
@@ -51,9 +51,20 @@ npx tsx src/index.ts run ../../apps/workshop-pocket-cinema \
 
 Open that run's `adbt-port-context.json`. Its `mode` is `live`. A fully live Claude Code or Strands run uses the same ADBT provider automatically.
 
+Trace the MCP lifecycle in `src/context-providers/adbt.ts`:
+
+1. Create Strands `McpClient` with a stdio transport.
+2. Discover the server tools.
+3. Require `list_documents` and `read_document` by name.
+4. List Vega `WORKFLOW` documents before reading anything.
+5. Read only the two approved port workflows.
+6. Save names, excerpts, and hashes, then disconnect in `finally`.
+
+ADBT is not handed to the model as an unrestricted tool box. The harness chooses the documents and injects their recorded context only into `vega_port`. This gives replay a stable input and keeps crash or performance tools out of a migration phase that does not need them.
+
 ## Why this matters
 
-The harness reads first, asks ADBT for current Vega migration workflows, injects only that platform context into `vega_port`, and edits a copy. The model executor can change without losing the platform guidance.
+The harness reads first, asks ADBT MCP for current Vega migration workflows, injects only that platform context into `vega_port`, and edits a copy. The model executor can change without losing the platform guidance.
 
 ## You are done when
 

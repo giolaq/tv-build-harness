@@ -1,4 +1,5 @@
 import { runProcess } from "./process.js";
+import { AdbtMcpContextProvider } from "./context-providers/adbt.js";
 import { ADBT_PACKAGE, VEGA_SDK_VERSION } from "./platform/vega.js";
 
 export type DoctorCheck = { name: string; status: "pass" | "repair" | "optional"; detail: string; hint?: string };
@@ -6,13 +7,12 @@ export type DoctorCheck = { name: string; status: "pass" | "repair" | "optional"
 export async function workshopDoctor(): Promise<DoctorCheck[]> {
   const replay = process.argv.includes("--replay");
   const liveAdbt = !replay || process.argv.includes("--adbt-live");
-  const checks: DoctorCheck[] = [{ name: "node", status: Number(process.versions.node.split(".")[0]) >= 18 ? "pass" : "repair", detail: process.version, hint: "Install Node 18 or newer." }];
+  const checks: DoctorCheck[] = [{ name: "node", status: Number(process.versions.node.split(".")[0]) >= 20 ? "pass" : "repair", detail: process.version, hint: "Install Node 20 or newer." }];
   checks.push(await executorCheck());
   if (!liveAdbt) {
     checks.push({ name: "adbt", status: "optional", detail: `${ADBT_PACKAGE} is not needed for replay` });
   } else {
-    const input = JSON.stringify({ documentType: "WORKFLOW", target_platform: { device_os: ["vega_os"] } });
-    checks.push(await commandCheck("adbt", "npx", ["-y", process.env.ADBT_PACKAGE ?? ADBT_PACKAGE, "exec", "list_documents", "--args", input], "Use the recorded ADBT context or repair the pinned package.", false, 15_000, "runtime workflow catalog available"));
+    checks.push(await adbtCheck());
   }
   if (replay) {
     checks.push({ name: "vega", status: "optional", detail: `SDK ${VEGA_SDK_VERSION} is not needed for replay` });
@@ -21,6 +21,15 @@ export async function workshopDoctor(): Promise<DoctorCheck[]> {
   }
   checks.push(await commandCheck("bee", process.env.BEE_BIN ?? "bee", ["--version"], "Optional: install/configure Bee or use the file fixture.", true));
   return checks;
+}
+
+async function adbtCheck(): Promise<DoctorCheck> {
+  try {
+    const context = await new AdbtMcpContextProvider({ commandArgs: ["-y", process.env.ADBT_PACKAGE ?? ADBT_PACKAGE], timeoutMs: 15_000 }).load();
+    return { name: "adbt", status: "pass", detail: `native MCP: ${context.documents.length} Vega port workflows available` };
+  } catch (error) {
+    return { name: "adbt", status: "repair", detail: error instanceof Error ? error.message.slice(0, 500) : "MCP unavailable", hint: "Use the recorded ADBT context or repair the pinned package." };
+  }
 }
 
 async function executorCheck(): Promise<DoctorCheck> {

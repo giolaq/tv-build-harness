@@ -4,6 +4,22 @@ In this workshop, you build a small coding harness and use it to adapt one React
 
 Use the [workshop web app](index.html) during the session. It gives you the commands, shows what to inspect, and tracks your progress. The Markdown lessons use the same numbering and exercises. If the hosted copy is unavailable, open `index.html` from your clone.
 
+## Strands Agents SDK in this workshop
+
+[Strands Agents SDK](https://github.com/strands-agents/harness-sdk) is the TypeScript agent runtime used by the live remote executor. The workshop pins TypeScript SDK `1.10.0`. It provides the model loop, model providers, Zod-typed tools, structured output, MCP connections, execution limits, and usage metrics.
+
+The workshop harness stays in control around that runtime:
+
+```text
+ADBT MCP -> approved Vega context --+
+                                      +-> Strands agent -> validated patch
+guarded app -> read-only tools -------+                         |
+                                                                v
+                     harness writes -> checks -> retry -> commit -> report
+```
+
+The Strands agent can list, read, and search the guarded app. It cannot write files or run shell commands. ADBT is called by the harness through Strands `McpClient`; only the two Vega port workflows enter the `vega_port` prompt. The harness validates the patch, writes it, runs checks, enforces cost, and commits only passing work.
+
 ## What you will do
 
 1. Run one model call and identify what it cannot prove.
@@ -26,7 +42,7 @@ Follow lessons 1–8, skip optional lesson 9, and finish with lesson 10. The sch
 
 - **Replay:** no account, API key, model, or device required. Use this path during the workshop if setup fails.
 - **Claude Code:** run a local model session with `--executor claude-cli`.
-- **Strands:** use Bedrock, OpenAI, or OpenRouter with `--executor strands`.
+- **Strands:** use the in-process Strands Agents SDK with Bedrock, OpenAI, or OpenRouter via `--executor strands`.
 
 Start with [Before You Arrive](00-before-you-arrive.md). Keep [Troubleshooting](troubleshooting.md) open during the session.
 

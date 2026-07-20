@@ -5,7 +5,7 @@ Date: 20 July 2026
 ## Passed
 
 - Vega SDK `0.22.5875` was available.
-- ADBT `1.0.5` exposed its direct runtime `exec` interface. The harness can list Vega workflows and read the React Native port workflow without changing agent configuration. `init-context` is needed only for extra model-owned MCP calls.
+- ADBT `1.0.5` ran as a stdio MCP server through Strands `McpClient`. The harness discovered `list_documents` and `read_document`, loaded the two React Native port workflows, saved their hashes, and disconnected without changing agent configuration.
 - The SDK-generated application structure was used as the reference.
 - `npm run build:debug` completed with `react-native build-vega`.
 - The manifest passed validation.

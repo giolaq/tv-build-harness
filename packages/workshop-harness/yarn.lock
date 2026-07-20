@@ -2,7 +2,7 @@
 # yarn lockfile v1
 
 
-"@aws-sdk/client-bedrock-runtime@^3.1069.0":
+"@aws-sdk/client-bedrock-runtime@^3.1078.0":
   version "3.1090.0"
   resolved "https://registry.yarnpkg.com/@aws-sdk/client-bedrock-runtime/-/client-bedrock-runtime-3.1090.0.tgz#819447a019251e104141629914c7b9289adba6b7"
   integrity sha512-uFo62YTKik92NxlnExaTU2rH2WQCseW8XvZnBiSab+YWU9pl1URhVsnxY8whUe4EVOuxdAAlgCuChTJo6gZIfQ==
@@ -458,12 +458,12 @@
   dependencies:
     tslib "^2.6.2"
 
-"@strands-agents/sdk@1.7.0":
-  version "1.7.0"
-  resolved "https://registry.yarnpkg.com/@strands-agents/sdk/-/sdk-1.7.0.tgz#d4a16778c37b5ae2015644c8dbfbd395501db871"
-  integrity sha512-/ds9Su6KBbBykfN456I958h4Kw5lJ29jniCzRmJFDPrxWDNShx50Mxng+tmuvyBHDCjWO8W7pvebYeFUkVkdQA==
+"@strands-agents/sdk@1.10.0":
+  version "1.10.0"
+  resolved "https://registry.yarnpkg.com/@strands-agents/sdk/-/sdk-1.10.0.tgz#41523c8393b729ec9e75aac2334aed8f5ed2ab12"
+  integrity sha512-7KIGM+6cCgN/RbIcXFRTtLkLkdtXB57zprUvy2bZL+BO8WkhHh4Fv8DpRwTAZXZQUq37KqwmQ/DyX70Y2xTvog==
   dependencies:
-    "@aws-sdk/client-bedrock-runtime" "^3.1069.0"
+    "@aws-sdk/client-bedrock-runtime" "^3.1078.0"
     "@types/json-schema" "^7.0.15"
     uuid "^14.0.1"
     yaml "^2.8.3"

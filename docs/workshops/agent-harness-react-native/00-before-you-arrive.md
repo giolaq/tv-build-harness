@@ -2,9 +2,24 @@
 
 Allow about 20 minutes. Stop troubleshooting after 10 minutes and use replay. Live setup must not block the workshop.
 
+## What runs the agent
+
+[Strands Agents SDK](https://github.com/strands-agents/harness-sdk) is the in-process TypeScript runtime for the workshop's remote model path. The workshop pins TypeScript SDK `1.10.0`. We use it for:
+
+- one bounded agent per phase;
+- Bedrock, OpenAI, or OpenRouter model access;
+- three Zod-typed, read-only project tools;
+- schema-validated patch output;
+- the native MCP connection to ADBT;
+- token usage, turn limits, and cancellation.
+
+The harness still owns the plan, approval, writes, checks, retry, Git commits, cost cap, and report. The model does not get a shell or a write tool.
+
+Replay uses the same phase and evidence contracts without contacting a model or MCP server.
+
 ## 1. Check the basics
 
-Install Node.js 18 or newer, Yarn 1.22, and Git. Clone the repository and open a terminal at its root.
+Install Node.js 20 or newer, Yarn 1.22, and Git. Clone the repository and open a terminal at its root.
 
 If you bring your own React Native app, check that it:
 
@@ -65,11 +80,11 @@ npx tsx src/index.ts doctor --executor strands --provider bedrock --json
 
 ## 5. Optional Vega setup
 
-Install Vega SDK `0.22.5875` and create a Vega Virtual Device. The harness calls ADBT at runtime during a live `vega_port` phase. Replay uses a committed ADBT context snapshot instead. ADBT's `init-context` command is needed only when you also want the model to call ADBT tools directly; it updates the repository's `CLAUDE.md` and your Claude configuration, so review those changes after running it.
+Install Vega SDK `0.22.5875` and create a Vega Virtual Device. The harness starts pinned ADBT `1.0.5` as an MCP server during a live `vega_port` phase. It discovers the MCP tools, calls `list_documents`, reads the two approved port workflows, and disconnects. You do not need to run `init-context` because the harness owns this connection. Replay uses a committed ADBT context snapshot.
 
 ```sh
-npx -y @amazon-devices/amazon-devices-buildertools-mcp@1.0.5 init-context --agent claude-code-cli --force
-npx -y @amazon-devices/amazon-devices-buildertools-mcp@1.0.5 check-status --agent claude-code-cli
+cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+npx tsx src/index.ts doctor --replay --adbt-live --json
 vega --version
 vega virtual-device start --gui
 ```

@@ -4,7 +4,7 @@
 
 Use ADBT for Vega guidance, then save build and device evidence in the run report.
 
-ADBT already supplied the migration context during lesson 6's `vega_port` phase. The generated package uses the SDK template shape and React Native's `build-vega` command. Vega CLI installs and launches the package. VDA supplies device status, logs, and screenshots. The harness runs those steps in order and stops when a gate fails.
+ADBT already supplied the migration context through Strands `McpClient` during lesson 6's `vega_port` phase. The generated package uses the SDK template shape and React Native's `build-vega` command. Vega CLI installs and launches the package. VDA supplies device status, logs, and screenshots. The harness runs those steps in order and stops when a gate fails.
 
 ## Do this
 
@@ -35,10 +35,11 @@ npx tsx src/index.ts vega-run <runId> \
 
 ## Optional live device run
 
-The harness can call ADBT without changing your agent configuration. Run `init-context` only if you want Claude Code itself to make extra ADBT tool calls; it changes `CLAUDE.md` and your Claude configuration. Check the pinned setup:
+The harness owns the ADBT MCP connection, so it does not change Claude Code configuration. Check ADBT through the same runtime path used in lesson 6, then check Vega SDK:
 
 ```sh
-npx -y @amazon-devices/amazon-devices-buildertools-mcp@1.0.5 check-status --agent claude-code-cli
+cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+npx tsx src/index.ts doctor --replay --adbt-live --json
 vega --version
 ```
 
@@ -72,7 +73,7 @@ The lifecycle stops at the first failed gate. An empty `devices -l` result is a 
 
 ## Why this matters
 
-Platform commands should live behind a small adapter. The agent can use ADBT knowledge when needed, while the harness keeps build, install, launch, and test results consistent.
+Platform commands should live behind a small adapter. ADBT provides versioned knowledge over MCP. Strands provides the client and agent loop. The harness keeps build, install, launch, and test results consistent.
 
 ## You are done when
 

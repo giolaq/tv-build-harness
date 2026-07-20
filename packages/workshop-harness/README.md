@@ -4,6 +4,14 @@ This package is used in the **Past the Vibes** workshop. It inspects a React Nat
 
 It never edits the source app. Generated work goes to `out/<runId>/app`. Run the commands below from any directory inside the repository.
 
+## How Strands is used
+
+[Strands Agents SDK](https://github.com/strands-agents/harness-sdk) is the in-process agent runtime for `--executor strands`. This package pins TypeScript SDK `1.10.0`. It supplies model providers, the agent loop, Zod-typed tools, structured output, MCP, limits, cancellation, and metrics.
+
+The port agent receives three tools from `src/port-tools.ts`: list project files, read one project file, and search project text. All three are read-only and limited to the guarded app. `src/port-contract.ts` defines the validated patch result. The agent is limited to eight turns, 40,000 total tokens, and ten minutes per phase.
+
+The harness owns writes, checks, retries, Git commits, the cost cap, replay, and reports. The model never receives a shell or file-write tool.
+
 ## Install and test
 
 ```sh
@@ -42,15 +50,19 @@ Copy the returned `runId`. Inspect:
 
 ## ADBT during the port
 
-ADBT is runtime context for the harness, not only setup for the final device command. Before `vega_port`, a live run calls the pinned package in this order:
+ADBT is runtime context for the harness, not only setup for the final device command. Before `vega_port`, a live run starts the pinned package as a stdio MCP server through Strands `McpClient`:
 
 ```text
-list_documents(WORKFLOW, vega_os)
+connect -> discover tools
+  -> list_documents(WORKFLOW, vega_os)
   -> read_document(port_tv_app_to_vega.md)
   -> read_document(port_tv_app_to_vega_fos_rn_app.md)
   -> inject context into vega_port
   -> save names, excerpts, and hashes
+  -> disconnect
 ```
+
+The provider requires those two tool names and always disconnects in `finally`. It does not run `init-context` or change Claude configuration.
 
 The normal replay command automatically loads `fixtures/adbt-port-context.json`. To call ADBT for real while keeping the model response key-free, add `--adbt-live`:
 
@@ -78,7 +90,7 @@ npx tsx src/index.ts run <app> \
   --executor claude-cli --model sonnet --yes --json
 ```
 
-Use a remote model through Strands:
+Use a remote model through Strands Agents SDK:
 
 ```sh
 npx tsx src/index.ts run <app> \

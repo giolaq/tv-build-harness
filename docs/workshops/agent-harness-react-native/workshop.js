@@ -1,7 +1,14 @@
 const commands = {
-  doctor: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+  installWorkshop: `cd "$(git rev-parse --show-toplevel)/packages/mini-harness"
 yarn install --frozen-lockfile
+cd ../workshop-harness
+yarn install --frozen-lockfile`,
+  doctor: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
 npx tsx src/index.ts doctor --replay --json`,
+  claudeDoctor: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+npx tsx src/index.ts doctor --executor claude-cli --json`,
+  strandsDoctor: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+npx tsx src/index.ts doctor --executor strands --provider bedrock --json`,
   adbtDoctor: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
 npx tsx src/index.ts doctor --replay --adbt-live --json`,
   step1: `cd "$(git rev-parse --show-toplevel)/packages/mini-harness"
@@ -67,8 +74,12 @@ focusCheck: `REPO="$(git rev-parse --show-toplevel)"
 cd "$REPO/packages/workshop-harness/out/<runId>/app"
 node --import tsx tests/verify-tv-focus.ts
 cat tv-focus-result.json`,
-  adbt: `npx -y @amazon-devices/amazon-devices-buildertools-mcp@1.0.5 \\
-  check-status --agent claude-code-cli`,
+  adbt: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+npx tsx src/index.ts doctor --replay --adbt-live --json`,
+  vegaSetup: `cd "$(git rev-parse --show-toplevel)/packages/workshop-harness"
+npx tsx src/index.ts doctor --replay --adbt-live --json
+vega --version
+vega virtual-device start --gui`,
   vdaStart: `# Run this in a system terminal and leave it open.
 vega virtual-device start --gui`,
   vdaCheck: `# Run this in a second system terminal.
@@ -96,12 +107,46 @@ npx tsx src/index.ts context bee snapshot <conversationId> \\
 
 const modules = [
   {
-    id: "welcome", number: "00", nav: "Start here", time: "10 minutes", title: "Choose your workshop path",
-    lead: "You will build a small coding harness, use it on one React Native flow, and inspect a Vega handoff. Replay is the default and needs no model account or device.",
-    body: `${flow([["Plan","State the work"],["Run","Change one concern"],["Check","Collect evidence"],["Retry","Use the failure"]])}
-      <h2>Choose an app</h2><div class="grid"><article><h3>Pocket Cinema</h3><p>Recommended. Every exercise and replay supports this app.</p><code>apps/workshop-pocket-cinema</code></article><article><h3>Your app</h3><p>Use one working screen flow with no secrets. Switch to Pocket Cinema if discovery takes more than 10 minutes.</p><code>launch → screen → action → back</code></article></div>
-      <h2>Before you continue</h2><div class="checklist">${["Node 18+, Yarn 1.22, and Git are installed","Both workshop packages are installed","I chose Pocket Cinema or a clean working app","I will use replay, Claude Code, or Strands","I know Vega device work is optional"].map(item => `<label><input type="checkbox">${item}</label>`).join("")}</div>
-      ${command("Run the setup check","doctor")}${done("The command reports success, or you have chosen replay.")}${fallback("Use replay and the committed checkpoints. Do not spend the workshop fixing accounts or devices.")}`
+    id: "welcome", number: "00", nav: "Start here", time: "20 minutes", title: "Set up the workshop and understand the runtime",
+    lead: "Complete this page before lesson 1. Stop troubleshooting after 10 minutes and use replay. A live model or Vega device must never block the workshop.",
+    body: `${flow([["ADBT MCP","Approved Vega context"],["Strands","Read and propose"],["Harness","Write and check"],["Git","Commit evidence"]])}
+      ${note("What is Strands Agents SDK?","It is the TypeScript agent runtime used by the live remote path. This workshop pins version 1.10.0. It provides the model loop, Bedrock/OpenAI/OpenRouter adapters, Zod-typed tools, structured output, MCP connections, limits, cancellation, and usage metrics.")}
+      ${table(["Strands supplies","The harness owns"],[["Agent loop and model providers","Phase order and approval"],["Read-only typed tools","Protected file writes"],["Validated patch output","Checks, retry, and Git commits"],["MCP client and metrics","Cost cap, replay, and report"]])}
+      <p>The port agent can only list, read, and search the guarded app. The harness calls ADBT MCP itself, selects two migration workflows, and injects that context only into <code>vega_port</code>. The model gets no shell or write tool. Replay uses the same phase and evidence contracts without contacting a model or MCP server.</p>
+
+      <h2>1. Check the basics</h2>
+      ${steps(["Install Node.js 20 or newer, Yarn 1.22, and Git.","Clone this repository and open a terminal anywhere inside it.","Choose Pocket Cinema unless your own React Native app already runs."])}
+      <div class="grid"><article><h3>Pocket Cinema</h3><p>Recommended. Every exercise, recording, and checkpoint supports this app.</p><code>apps/workshop-pocket-cinema</code></article><article><h3>Your app</h3><p>Use one working flow: launch → screen → action → back. Switch to Pocket Cinema if discovery takes more than 10 minutes.</p><code>launch → screen → action → back</code></article></div>
+      <h3>Bring-your-own-app safety check</h3>
+      <div class="checklist">${["The app runs before the workshop","Git status is clean","It contains no production secrets or private data","It contains no protected media","It can be shared with the chosen model provider"].map(item => `<label><input type="checkbox">${item}</label>`).join("")}</div>
+
+      <h2>2. Install both workshop packages</h2>
+      ${command("Install the mini-harness and workshop harness","installWorkshop")}
+
+      <h2>3. Run the setup check</h2>
+      ${command("Check the key-free replay path","doctor")}
+      <p>You are ready when the command reports <code>state: ready</code>. Model and Vega checks are optional in replay mode.</p>
+      ${command("Optional: check live ADBT with everything else replayed","adbtDoctor")}
+
+      <h2>4. Choose one execution path</h2>
+      ${table(["Path","Use it when","Needs"],[["Replay","Recommended for the workshop and every fallback","Nothing beyond the installed packages"],["Claude Code","You want a local live coding-agent run","Claude Code installed and authenticated"],["Strands + Bedrock","You want the in-process remote executor","AWS credentials and Bedrock model access"]])}
+      ${command("Replay: run one model recording","step1")}
+      ${command("Claude Code: check the local executor","claudeDoctor")}
+      ${command("Strands: check Bedrock credentials","strandsDoctor")}
+      ${note("Choose one path","You do not need all three. If a live path fails, save the error, choose replay, and continue.")}
+
+      <h2>5. Optional Vega and VDA setup</h2>
+      <p>Skip this section when you plan to use lifecycle replay. For the live path, install Vega SDK <code>0.22.5875</code> and create a Vega Virtual Device.</p>
+      <p>The harness starts pinned ADBT <code>1.0.5</code> as a stdio MCP server. It discovers the tools, calls <code>list_documents</code>, reads two approved port workflows, and disconnects. You do not run <code>init-context</code>.</p>
+      ${command("Check ADBT and start VDA in a system terminal","vegaSetup")}
+      <p>Keep that terminal open. In a second system terminal, run:</p>
+      ${command("Confirm the SDK and attached device","vdaCheck")}
+      ${note("Live Vega is ready only when","The SDK prints 0.22.5875, virtual-device status reports running: true, and devices -l lists an attached device.","success")}
+      ${fallback("Try one repair for no more than 10 minutes. Then use replay. Do not spend workshop time repairing a model account or device.")}
+
+      <h2>Setup complete</h2>
+      <div class="checklist">${["Node 20+, Yarn 1.22, and Git are installed","Both workshop packages are installed","One replay run completed","I chose replay, Claude Code, or Strands","I chose Pocket Cinema or checked my own app","I understand that Vega device work is optional","I can explain what Strands supplies and what the harness owns"].map(item => `<label><input type="checkbox">${item}</label>`).join("")}</div>
+      ${done("Both packages are installed, one replay succeeds, one execution path is chosen, and you know which app you will use.")}`
   },
   {
     id: "single-agent", number: "01", nav: "One model call", time: "15 minutes", title: "Start with one model call",
@@ -121,7 +166,7 @@ const modules = [
   {
     id: "skills", number: "04", nav: "Skills and executors", time: "20 minutes", title: "Separate knowledge from model access",
     lead: "A skill supplies domain instructions. An executor calls the model. The pipeline should not depend on one provider.",
-    body: `${command("Run Step 4 with replay","step4")}<h2>Do this</h2>${steps(["Open <code>skills.ts</code>, <code>phase-context.ts</code>, <code>executor.ts</code>, and <code>recorder.ts</code>.","Find where the skill text enters the prompt.","Find the common interface used by replay, Claude Code, and Strands.","Compare the teaching modules with <code>packages/mini-harness/ISOMORPHISM.md</code>."])}<h2>Optional live commands</h2>${command("Use local Claude Code","step4Local")}${command("Use Strands with Bedrock","step4Remote")}${done("You can change model providers without changing the phase loop or its checks.")}${fallback("Replay shows the same module boundaries without credentials.")}`
+    body: `${command("Run Step 4 with replay","step4")}<h2>Do this</h2>${steps(["Open <code>skills.ts</code>, <code>phase-context.ts</code>, <code>executor.ts</code>, and <code>recorder.ts</code>.","Find where the skill text enters the prompt.","Find the common interface used by replay, Claude Code, and Strands.","Compare the teaching modules with <code>packages/mini-harness/ISOMORPHISM.md</code>."])}<h2>See the production Strands boundary</h2>${steps(["Open <code>packages/workshop-harness/src/port-tools.ts</code> and find the three Zod-typed read tools.","Open <code>port-contract.ts</code> and find the validated patch schema.","Open <code>port-executor.ts</code> and find the turn, token, and time limits.","Confirm the agent has no write or shell tool. The pipeline owns those actions."])}<h2>Optional live commands</h2>${command("Use local Claude Code","step4Local")}${command("Use Strands with Bedrock","step4Remote")}${done("You can change model providers without changing checks, and explain why the agent has read-only tools.")}${fallback("Replay shows the same module boundaries without credentials.")}`
   },
   {
     id: "memory", number: "05", nav: "Project memory", time: "15 minutes", title: "Review facts before saving them",
@@ -131,7 +176,7 @@ const modules = [
   {
     id: "plan", number: "06", nav: "Plan and port", time: "35 minutes", title: "Inspect first, then change a guarded copy",
     lead: "Review scope, checks, ADBT context, seed, and cost before approving a port. The source app stays untouched.",
-    body: `${flow([["ADBT","Load Vega workflows"],["Context","Inject into vega_port"],["Model","Edit guarded copy"],["Checks","Commit or retry"]])}${command("Plan the Pocket Cinema port","plan")}<h2>Approve only after this review</h2>${steps(["Confirm the source app and target flow.","Read the portability findings.","Check that ADBT is assigned to <code>vega_port</code>.","Check the six-stage plan, fixed seed, and $3 cap.","Notice that the sixth stage is the separate Vega lifecycle in lesson 8."])}${command("Run with recorded model and ADBT context","port")}<h2>Inspect the runtime context</h2>${steps(["Copy the <code>runId</code> from the output.","Open <code>out/&lt;runId&gt;/adbt-port-context.json</code> and find the two workflow names and hashes.","Open <code>port-result.json</code> and confirm <code>adbt.mode: replay</code>.","Open <code>app/NextSteps.md</code> and find the ADBT sources and unsupported-mappings section.","Inspect the guarded app and its Git log.","Confirm <code>apps/workshop-pocket-cinema</code> is unchanged."])}<h2>Optional: call ADBT live, keep the model replayed</h2>${command("Check the runtime ADBT interface","adbtDoctor")}${command("Run the port with runtime ADBT","portAdbtLive")}${note("What changes","The harness calls pinned ADBT <code>list_documents</code> and <code>read_document</code> before <code>vega_port</code>. The model response remains recorded, so this exercise needs no model account.")}${done("You can trace ADBT workflow lookup to the vega_port context, NextSteps evidence, verified commit, and report.")}${fallback("Use the recorded ADBT context. A live port stops with exit 3 when ADBT is unavailable; it never continues with unsupported assumptions.")}`
+    body: `${flow([["ADBT MCP","Load approved workflows"],["Context","Inject into vega_port"],["Model","Propose a typed patch"],["Checks","Write, commit, or retry"]])}${command("Plan the Pocket Cinema port","plan")}<h2>Approve only after this review</h2>${steps(["Confirm the source app and target flow.","Read the portability findings.","Check that ADBT is assigned to <code>vega_port</code>.","Check the six-stage plan, fixed seed, and $3 cap.","Notice that the sixth stage is the separate Vega lifecycle in lesson 8."])}${command("Run with recorded model and ADBT context","port")}<h2>Inspect the runtime context</h2>${steps(["Copy the <code>runId</code> from the output.","Open <code>out/&lt;runId&gt;/adbt-port-context.json</code> and find the two workflow names and hashes.","Open <code>port-result.json</code> and confirm <code>adbt.mode: replay</code>.","Open <code>app/NextSteps.md</code> and find the ADBT sources and unsupported-mappings section.","Inspect the guarded app and its Git log.","Confirm <code>apps/workshop-pocket-cinema</code> is unchanged."])}<h2>Optional: call ADBT MCP live, keep the model replayed</h2>${command("Check the native MCP path","adbtDoctor")}${command("Run the port with runtime ADBT","portAdbtLive")}${note("What changes","Strands <code>McpClient</code> starts pinned ADBT over stdio, discovers its tools, calls <code>list_documents</code> before <code>read_document</code>, captures two approved workflows, and disconnects. The model remains replayed.")}${done("You can trace the MCP connection to approved workflow context, NextSteps evidence, a verified commit, and the report.")}${fallback("Use the recorded ADBT context. A live port stops with exit 3 when ADBT is unavailable; it never continues with unsupported assumptions.")}`
   },
   {
     id: "tv", number: "07", nav: "Test remote behavior", time: "20 minutes", title: "Test the flow, not one screenshot",
@@ -141,7 +186,7 @@ const modules = [
   {
     id: "vega", number: "08", nav: "Run the Vega lifecycle", time: "25 minutes", title: "Hand the guarded app to Vega tools",
     lead: "The key-free replay teaches the complete lifecycle. A live Vega SDK and VDA run is optional device evidence.",
-    body: `${note("Current rehearsal status","SDK 0.22.5875 builds and validates the app. Live install, launch, logs, and screenshots still require a VDA target that remains attached.","warning")}<div class="links"><a href="live-rehearsal.md">Read the rehearsal record</a></div>${command("Show the Vega plan","vegaPlan")}${command("Run the key-free lifecycle replay","vegaRun")}<h2>Inspect all eight gates</h2>${steps(["Replace <code>&lt;runId&gt;</code> with the id from lesson 6.","Confirm SDK version and device status were checked before build.","Find build, install, launch, logs, capture, and pull results.","Check <code>checks[0].passed</code> and <code>evidenceMode: replay</code>.","Do not present replay evidence as device certification."])}<h2>Optional live device run</h2>${command("Check the pinned ADBT setup","adbt")}${note("ADBT changes local configuration","Run <code>init-context</code> before the workshop only when you need live agent guidance. Review its changes to <code>CLAUDE.md</code> and your Claude configuration.")}${command("Start VDA and keep this terminal open","vdaStart")}${command("Confirm the SDK and attached device","vdaCheck")}${command("Run with Vega SDK and VDA","vegaLive")}<h2>Claim live evidence only when</h2>${steps(["The SDK reports <code>0.22.5875</code>.","VDA status reports <code>running: true</code> and the device list is not empty.","Build, install, launch, logs, capture, and pull all pass.","The result says <code>evidenceMode: live</code> and the screenshot is from the device."])}${done("Replay is complete when all eight recorded gates pass. Live device testing is complete only when the live evidence checklist also passes.")}${fallback("An empty device list is a failure even with exit 0. Try one repair, then use replay or <code>checkpoints/complete/</code>.")}`
+    body: `${note("Current rehearsal status","SDK 0.22.5875 builds and validates the app. Live install, launch, logs, and screenshots still require a VDA target that remains attached.","warning")}<div class="links"><a href="live-rehearsal.md">Read the rehearsal record</a></div>${command("Show the Vega plan","vegaPlan")}${command("Run the key-free lifecycle replay","vegaRun")}<h2>Inspect all eight gates</h2>${steps(["Replace <code>&lt;runId&gt;</code> with the id from lesson 6.","Confirm SDK version and device status were checked before build.","Find build, install, launch, logs, capture, and pull results.","Check <code>checks[0].passed</code> and <code>evidenceMode: replay</code>.","Do not present replay evidence as device certification."])}<h2>Optional live device run</h2>${command("Check the native ADBT MCP path","adbt")}${note("No agent configuration change","The harness owns the pinned ADBT MCP connection. It does not run <code>init-context</code> or edit Claude configuration.")}${command("Start VDA and keep this terminal open","vdaStart")}${command("Confirm the SDK and attached device","vdaCheck")}${command("Run with Vega SDK and VDA","vegaLive")}<h2>Claim live evidence only when</h2>${steps(["The SDK reports <code>0.22.5875</code>.","VDA status reports <code>running: true</code> and the device list is not empty.","Build, install, launch, logs, capture, and pull all pass.","The result says <code>evidenceMode: live</code> and the screenshot is from the device."])}${done("Replay is complete when all eight recorded gates pass. Live device testing is complete only when the live evidence checklist also passes.")}${fallback("An empty device list is a failure even with exit 0. Try one repair, then use replay or <code>checkpoints/complete/</code>.")}`
   },
   {
     id: "bee", number: "09", nav: "Optional Bee context", time: "15 minutes", title: "Import selected context, not a transcript",

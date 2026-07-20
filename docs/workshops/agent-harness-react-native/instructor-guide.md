@@ -10,6 +10,8 @@
 6. Start VDA in a separate system terminal, keep it open, and confirm `vega virtual-device status` plus `vega exec vda devices -l` before attendees arrive.
 7. Keep the completed TV app hidden until the TV exercise ends.
 
+Open with this boundary: Strands supplies the model loop, typed tools, structured output, MCP client, limits, and metrics. The harness supplies the phases, approval, writes, checks, retry, commits, budget, and evidence. Show `port-tools.ts`, `port-contract.ts`, and `context-providers/adbt.ts` before any live model demo.
+
 ## Four-hour schedule
 
 | Time | Attendees do | If blocked |
@@ -30,7 +32,7 @@
 
 Lesson 9, Bee context, is optional. Run it only during the final recovery block and only if setup, consent, and time allow.
 
-For lesson 6, show the four boundaries on screen: ADBT workflow lookup, `vega_port` prompt context, `NextSteps.md`, and the verified phase commit. Use `--adbt-live` with the recorded model response to demonstrate the real ADBT call without spending model budget.
+For lesson 6, show the five boundaries on screen: native ADBT MCP connection, approved workflow lookup, `vega_port` prompt context, `NextSteps.md`, and the verified phase commit. Use `--adbt-live` with the recorded model response to demonstrate the real MCP call without spending model budget.
 
 The core path takes 200 minutes. Two breaks and a 20-minute recovery block bring the session to four hours.
 

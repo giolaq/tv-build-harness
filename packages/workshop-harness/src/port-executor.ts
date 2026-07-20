@@ -1,8 +1,10 @@
-import { Agent } from "@strands-agents/sdk";
+import { Agent, StructuredOutputError } from "@strands-agents/sdk";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { createModel, defaultModel, type ModelConfig, type RemoteProvider } from "./model-factory.js";
+import { PortOutputSchema } from "./port-contract.js";
 import { PortRecorder, PortReplay } from "./port-recorder.js";
+import { createProjectReadTools } from "./port-tools.js";
 
 export type PortModelResult = { text: string; costUsd: number };
 export interface PortExecutor { call(phase: string, prompt: string): Promise<PortModelResult>; }
@@ -20,7 +22,7 @@ export function resolveExecutorConfig(input: { executor?: string; provider?: str
 export function createPortExecutor(options: { appDir: string; outDir: string; replayPath?: string; config?: ExecutorConfig }): PortExecutor {
   if (PortReplay.exists(options.replayPath)) return new ReplayPortExecutor(options.replayPath);
   const config = options.config ?? resolveExecutorConfig();
-  return config.kind === "strands" ? new StrandsPortExecutor(options.outDir, config.model) : new ClaudeCodePortExecutor(options.appDir, options.outDir, config);
+  return config.kind === "strands" ? new StrandsPortExecutor(options.appDir, options.outDir, config.model) : new ClaudeCodePortExecutor(options.appDir, options.outDir, config);
 }
 
 class ReplayPortExecutor implements PortExecutor {
@@ -34,11 +36,23 @@ class ReplayPortExecutor implements PortExecutor {
 
 class StrandsPortExecutor implements PortExecutor {
   private recorder: PortRecorder;
-  constructor(outDir: string, private config: ModelConfig) { this.recorder = new PortRecorder(join(outDir, "port-recording.json")); }
+  constructor(private appDir: string, outDir: string, private config: ModelConfig) { this.recorder = new PortRecorder(join(outDir, "port-recording.json")); }
   async call(phase: string, prompt: string): Promise<PortModelResult> {
-    const agent = new Agent({ model: createModel(this.config), tools: [], systemPrompt: "Return only the requested workshop Vega port JSON.", printer: false });
-    const result = await agent.invoke(prompt, { limits: { turns: 1 } });
-    const text = result.lastMessage.content.flatMap((block) => "text" in block && typeof block.text === "string" ? [block.text] : []).join("\n");
+    const agent = new Agent({
+      name: `workshop-${phase}`,
+      description: "Inspects a guarded React Native app and proposes a bounded Vega port patch.",
+      model: createModel(this.config),
+      tools: createProjectReadTools(this.appDir),
+      structuredOutputSchema: PortOutputSchema,
+      systemPrompt: "Inspect the guarded app with the read-only tools. Return a complete patch through the required schema. Never claim a file or API exists without reading evidence.",
+      printer: false,
+    });
+    const result = await agent.invoke(prompt, {
+      cancelSignal: AbortSignal.timeout(10 * 60_000),
+      limits: { turns: 8, totalTokens: 40_000 },
+    });
+    if (!result.structuredOutput) throw new StructuredOutputError("Strands returned no port output");
+    const text = JSON.stringify(PortOutputSchema.parse(result.structuredOutput));
     const raw = result.metrics?.accumulatedUsage;
     const usage = { input_tokens: raw?.inputTokens ?? 0, output_tokens: raw?.outputTokens ?? 0 };
     const costUsd = estimateCost(usage);
@@ -71,7 +85,7 @@ function estimateCost(usage: { input_tokens: number; output_tokens: number }): n
 
 function invokeClaude(command: string, cwd: string, prompt: string, model: string): Promise<{ text: string; costUsd: number; usage: { input_tokens: number; output_tokens: number } }> {
   return new Promise((resolve, reject) => {
-    const tools = ["Read", "Glob", "Grep", "mcp__amazon-devices-buildertools-mcp__list_documents", "mcp__amazon-devices-buildertools-mcp__read_document", "mcp__amazon-devices-buildertools-mcp__search_documentation"].join(",");
+    const tools = ["Read", "Glob", "Grep"].join(",");
     const child = spawn(command, ["-p", "-", "--allowedTools", tools, "--output-format", "stream-json", "--verbose", "--model", model], { cwd, shell: false, stdio: ["pipe", "pipe", "pipe"] });
     let buffer = "", stderr = "", text = "", costUsd = 0, usage = { input_tokens: 0, output_tokens: 0 };
     child.stdout.on("data", (chunk) => { buffer += chunk.toString(); const lines = buffer.split("\n"); buffer = lines.pop() ?? ""; lines.forEach(consume); });

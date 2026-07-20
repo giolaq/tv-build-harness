@@ -1,25 +1,45 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AdbtCliContextProvider, AdbtReplayContextProvider, renderAdbtPrompt } from "../src/context-providers/adbt.js";
+import { AdbtMcpContextProvider, AdbtReplayContextProvider, renderAdbtPrompt, type AdbtToolClient } from "../src/context-providers/adbt.js";
 
-test("calls ADBT workflow catalog before reading port documents", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "adbt-context-"));
-  const script = join(dir, "fake-adbt.mjs");
-  const log = join(dir, "calls.log");
-  writeFileSync(script, fakeAdbtScript());
-  const provider = new AdbtCliContextProvider({ command: process.execPath, commandArgs: [script, log], timeoutMs: 2_000 });
+test("discovers ADBT MCP tools before calling the workflow catalog", async () => {
+  const fixture = fakeAdbtClient();
+  const context = await new AdbtMcpContextProvider({ clientFactory: () => fixture.client, timeoutMs: 2_000 }).load();
 
-  const context = await provider.load();
-  const calls = readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line));
-
-  assert.equal(calls[0].tool, "list_documents");
-  assert.deepEqual(calls[0].args, { documentType: "WORKFLOW", target_platform: { device_os: ["vega_os"] } });
-  assert.deepEqual(new Set(calls.slice(1).map((call) => call.args.document_uri)), new Set(["port_tv_app_to_vega.md", "port_tv_app_to_vega_fos_rn_app.md"]));
+  assert.deepEqual(fixture.calls[0], { name: "listTools" });
+  assert.deepEqual(fixture.calls[1], {
+    name: "list_documents",
+    args: { documentType: "WORKFLOW", target_platform: { device_os: ["vega_os"] } },
+  });
+  assert.deepEqual(new Set(fixture.calls.slice(2, -1).map((call) => (call.args as { document_uri?: string })?.document_uri)), new Set(["port_tv_app_to_vega.md", "port_tv_app_to_vega_fos_rn_app.md"]));
+  assert.deepEqual(fixture.calls.at(-1), { name: "disconnect" });
   assert.equal(context.mode, "live");
   assert.equal(context.documents.length, 2);
+});
+
+test("disconnects the ADBT MCP client when a required tool is missing", async () => {
+  const calls: string[] = [];
+  const client: AdbtToolClient = {
+    async listTools() { return ["list_documents"]; },
+    async callTool() { throw new Error("must not run"); },
+    async disconnect() { calls.push("disconnect"); },
+  };
+  await assert.rejects(() => new AdbtMcpContextProvider({ clientFactory: () => client }).load(), /read_document/);
+  assert.deepEqual(calls, ["disconnect"]);
+});
+
+test("bounds ADBT MCP discovery and still disconnects", async () => {
+  let disconnected = false;
+  const client: AdbtToolClient = {
+    async listTools() { return new Promise(() => {}); },
+    async callTool() { return {}; },
+    async disconnect() { disconnected = true; },
+  };
+  await assert.rejects(() => new AdbtMcpContextProvider({ clientFactory: () => client, timeoutMs: 10 }).load(), /timed out/);
+  assert.equal(disconnected, true);
 });
 
 test("renders ADBT source names, hashes, and relevant guidance", async () => {
@@ -44,25 +64,26 @@ test("replay provider validates the recorded ADBT context", async () => {
 });
 
 async function liveFixture() {
-  const dir = mkdtempSync(join(tmpdir(), "adbt-live-"));
-  const script = join(dir, "fake-adbt.mjs");
-  writeFileSync(script, fakeAdbtScript());
-  return new AdbtCliContextProvider({ command: process.execPath, commandArgs: [script, join(dir, "calls.log")], timeoutMs: 2_000 }).load();
+  const fixture = fakeAdbtClient();
+  return new AdbtMcpContextProvider({ clientFactory: () => fixture.client, timeoutMs: 2_000 }).load();
 }
 
-function fakeAdbtScript(): string {
-  return `import { appendFileSync } from "node:fs";
-const [log, verb, tool, marker, raw] = process.argv.slice(2);
-const args = JSON.parse(raw);
-appendFileSync(log, JSON.stringify({ verb, tool, args }) + "\\n");
-if (tool === "list_documents") {
-  process.stdout.write(JSON.stringify([
-    { name: "port_tv_app_to_vega.md" },
-    { name: "port_tv_app_to_vega_fos_rn_app.md" }
-  ]));
-} else if (args.document_uri === "port_tv_app_to_vega.md") {
-  process.stdout.write("## Purpose\\nRoute the app.\\n## AI Agent Instructions\\nMANDATORY EXECUTION RULES: do not invent APIs.\\n## UNRELATED SECTION\\nignore");
-} else {
-  process.stdout.write("## Purpose\\nPreserve portable JS.\\n## Phase 2: PLAN\\nMap dependencies.\\n## Phase 3: EXECUTE\\nUse the template.");
-}`;
+function fakeAdbtClient(): { client: AdbtToolClient; calls: Array<{ name: string; args?: unknown }> } {
+  const calls: Array<{ name: string; args?: unknown }> = [];
+  const client: AdbtToolClient = {
+    async listTools() { calls.push({ name: "listTools" }); return ["list_documents", "read_document", "diagnose_crash"]; },
+    async callTool(name, args) {
+      calls.push({ name, args });
+      if (name === "list_documents") return textResult(JSON.stringify([
+        { name: "port_tv_app_to_vega.md" },
+        { name: "port_tv_app_to_vega_fos_rn_app.md" },
+      ]));
+      if (args.document_uri === "port_tv_app_to_vega.md") return textResult("## Purpose\nRoute the app.\n## AI Agent Instructions\nMANDATORY EXECUTION RULES: do not invent APIs.\n## UNRELATED SECTION\nignore");
+      return textResult("## Purpose\nPreserve portable JS.\n## Phase 2: PLAN\nMap dependencies.\n## Phase 3: EXECUTE\nUse the template.");
+    },
+    async disconnect() { calls.push({ name: "disconnect" }); },
+  };
+  return { client, calls };
 }
+
+function textResult(text: string) { return { content: [{ type: "text", text }] }; }
