@@ -20,6 +20,8 @@ guarded app -> read-only tools -------+                         |
 
 The Strands agent can list, read, and search the guarded app. It cannot write files or run shell commands. ADBT is called by the harness through Strands `McpClient`; only the two Vega port workflows enter the `vega_port` prompt. The harness validates the patch, writes it, runs checks, enforces cost, and commits only passing work.
 
+Read [Strands Constructs Used in This Workshop](strands-constructs.md) for a code-level explanation of every Strands API used here and the boundaries that remain outside the SDK.
+
 ## What you will do
 
 1. Run one model call and identify what it cannot prove.

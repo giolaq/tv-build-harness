@@ -12,6 +12,8 @@
 
 Open with this boundary: Strands supplies the model loop, typed tools, structured output, MCP client, limits, and metrics. The harness supplies the phases, approval, writes, checks, retry, commits, budget, and evidence. Show `port-tools.ts`, `port-contract.ts`, and `context-providers/adbt.ts` before any live model demo.
 
+During lesson 4, build the Strands call in this order: provider `Model`, `Agent`, `systemPrompt`, `tool()` plus Zod `inputSchema` and `callback`, `structuredOutputSchema`, `invoke()` limits and cancellation, then `AgentResult` metrics. Next show what the full harness adds: `AnthropicModel`, `AgentSkills`, `Skill`, `plugins`, `stream()`, and `AgentStreamEvent`. During lesson 6, add `McpClient`, `listTools()`, `callTool()`, and `disconnect()`. State that Zod, native `AbortSignal`, and `StdioClientTransport` are adjacent dependencies, not Strands APIs. Keep [the construct reference](strands-constructs.md) open for questions.
+
 ## Four-hour schedule
 
 | Time | Attendees do | If blocked |

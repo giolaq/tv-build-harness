@@ -92,6 +92,7 @@ pre { margin: 0; padding: 18px; overflow-x: auto; color: #e6edf2; font-size: 13p
 .tasks li { padding-left: 4px; }
 table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; font-size: 14px; }
 th, td { padding: 13px 14px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+td { overflow-wrap: anywhere; }
 th { background: var(--navy-2); color: #fff; }
 .expected { margin: 22px 0; border: 1px solid var(--line); background: #fff; }
 .expected strong { display: block; padding: 11px 14px; background: var(--blue-soft); color: var(--navy); font-size: 13px; }
@@ -138,6 +139,8 @@ th { background: var(--navy-2); color: #fff; }
   .lesson-nav button.next { text-align: left; }
   .grid { grid-template-columns: 1fr; }
   .flow { align-items: center; }
+  table { display: block; overflow-x: auto; }
+  th, td { min-width: 155px; overflow-wrap: normal; }
 }
 @media (max-width: 520px) {
   .topbar { min-height: 82px; }

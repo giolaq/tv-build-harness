@@ -53,14 +53,20 @@ Open that run's `adbt-port-context.json`. Its `mode` is `live`. A fully live Cla
 
 Trace the MCP lifecycle in `src/context-providers/adbt.ts`:
 
-1. Create Strands `McpClient` with a stdio transport.
-2. Discover the server tools.
-3. Require `list_documents` and `read_document` by name.
-4. List Vega `WORKFLOW` documents before reading anything.
-5. Read only the two approved port workflows.
-6. Save names, excerpts, and hashes, then disconnect in `finally`.
+1. Create Strands `McpClient` with `applicationName`, `applicationVersion`, and a transport.
+2. Use `StdioClientTransport` from the MCP SDK to start pinned ADBT. The transport is not part of Strands.
+3. Call `listTools()`. It connects lazily and returns executable MCP tool objects.
+4. Require `list_documents` and `read_document` by name.
+5. Call `callTool(tool, args, { signal })` with JSON-compatible arguments and a timeout signal.
+6. List Vega `WORKFLOW` documents before reading anything.
+7. Read only the two approved port workflows.
+8. Save names, excerpts, and hashes, then call `disconnect()` in `finally`.
+
+`JSONValue` is the Strands type used to keep MCP arguments and results JSON-compatible. The native `AbortSignal` and MCP SDK stdio transport are passed into Strands; they are not Strands constructs themselves.
 
 ADBT is not handed to the model as an unrestricted tool box. The harness chooses the documents and injects their recorded context only into `vega_port`. This gives replay a stable input and keeps crash or performance tools out of a migration phase that does not need them.
+
+See [Strands Constructs Used in This Workshop](strands-constructs.md) for the complete agent, tool, structured-output, invocation, metrics, and MCP reference.
 
 ## Why this matters
 

@@ -43,6 +43,28 @@ npx tsx steps/04-skills/index.ts run \
   --region us-west-2
 ```
 
+## Read the Strands call from top to bottom
+
+Open `packages/workshop-harness/src/port-executor.ts` and trace this sequence:
+
+1. `new Agent()` creates the model-and-tool loop for one phase.
+2. `model` receives a `BedrockModel` or `OpenAIModel` from `model-factory.ts`.
+3. `systemPrompt` sets the rules that remain true for the whole invocation.
+4. `tools` registers only list, read, and literal search from `port-tools.ts`.
+5. Each `tool()` has a name, a model-facing description, a Zod `inputSchema`, and a deterministic `callback`.
+6. `structuredOutputSchema` requires the result to match `PortOutputSchema`.
+7. `printer: false` keeps Strands' console renderer off so CLI stdout remains valid JSON.
+8. `agent.invoke()` starts the run with an external cancellation signal and per-invocation turn and token limits.
+9. `AgentResult.structuredOutput` provides the validated patch.
+10. `metrics.accumulatedUsage` provides token counts for recording and cost calculation.
+11. `StructuredOutputError` turns a missing structured result into an explicit executor failure.
+
+The mini-harness uses the same `Agent`, model providers, `invoke()`, turn limit, messages, and usage metrics. It reads `AgentResult.lastMessage` because the teaching step still expects raw JSON text.
+
+The full harness adds `AnthropicModel`, `AgentSkills`, `Skill`, the `plugins` field, `agent.stream()`, and typed `AgentStreamEvent` values. Open `packages/harness/src/strands-phase-executor.ts` after the small example. Follow `modelMessageEvent`, `contentBlockEvent`, and `toolResultEvent` into logs, token updates, and the final `AgentResult`.
+
+Read [the full Strands construct reference](strands-constructs.md) for the MCP path and the exact boundary between SDK, Zod, MCP transport, and harness code.
+
 ## Why this matters
 
 A skill explains what matters. A tool performs a narrow action. An executor hides provider-specific model access. Keeping them separate makes the pipeline easier to test and change.
