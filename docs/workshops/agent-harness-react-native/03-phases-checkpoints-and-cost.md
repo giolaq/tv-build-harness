@@ -35,7 +35,7 @@ Phases limit the size of each change. Checkpoints save run progress. Commits pre
 
 ## You are done when
 
-The first command stops after `content`; the second starts at `polish`; completed phases are not repeated.
+The first command stops after `content`; the second starts at `focus`; completed phases are not repeated.
 
 ## If blocked
 

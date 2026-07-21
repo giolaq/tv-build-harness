@@ -4,7 +4,7 @@ Allow about 20 minutes. Stop troubleshooting after 10 minutes and use replay. Li
 
 ## What runs the agent
 
-[Strands Agents SDK](https://github.com/strands-agents/harness-sdk) is the in-process TypeScript runtime for the workshop's remote model path. The workshop pins TypeScript SDK `1.10.0`. We use it for:
+[Strands Agents SDK](https://github.com/strands-agents/harness-sdk) is the in-process TypeScript runtime for the workshop's remote model path. The production workshop harness pins `1.10.0`; the staged mini-harness and general TV Build harness currently pin `1.7.0`. We use it for:
 
 - one bounded agent per phase;
 - Bedrock, OpenAI, or OpenRouter model access;

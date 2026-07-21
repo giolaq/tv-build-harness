@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { z } from "zod";
 import { callLiveModel } from "../../model-runtime.js";
@@ -19,7 +19,7 @@ const turns: RecordedTurn[] = replayPath ? JSON.parse(readFileSync(resolve(repla
 async function main() {
   const config = Config.parse(JSON.parse(readFileSync(resolve(phasesPath), "utf-8")));
   rmSync(outDir, { recursive: true, force: true });
-  mkdirSync(outDir, { recursive: true });
+  cpSync(resolve("fixtures/react-native-app"), outDir, { recursive: true });
   for (const phase of config.phases) {
     const text = await call(phase.name, `Phase: ${phase.name}\n\n${phase.prompt}`);
     const output = Output.parse(JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? text));

@@ -1,6 +1,6 @@
 # Mini Harness
 
-This package builds the same small website four times. Each step adds one part of a coding harness. Start from any directory inside the repository:
+This package improves the same small React Native TV app four times. Every step starts from the reduced Pocket Cinema app in `fixtures/react-native-app/`; each lesson adds one part of a coding harness around it. Start from any directory inside the repository:
 
 ```sh
 cd "$(git rev-parse --show-toplevel)/packages/mini-harness"
@@ -22,7 +22,7 @@ npx tsx steps/01-single-agent/index.ts run \
   --replay steps/01-single-agent/fixtures/demo-recording.json
 ```
 
-Done when `out/` contains the generated site and you can name three claims that still need checks.
+Done when `out/` contains a React Native catalog screen and you can name three claims that still need checks.
 
 ## Step 2: check and retry
 
@@ -56,7 +56,7 @@ npx tsx steps/03-phases/index.ts run \
   --resume
 ```
 
-Done when the second command runs `polish` instead of repeating `scaffold` or `content`.
+Done when the second command runs `focus` instead of repeating `screen` or `content`.
 
 ## Step 4: skills and executors
 
@@ -94,6 +94,6 @@ Strands also supports `openai` and `openrouter`. A phase with Strands skills all
 
 ## Inputs and output
 
-Each `phases.json` lists a phase name, prompt, and check. Step 4 can also list skills. Every step writes the website to `out/`; later steps add checkpoints, reports, commits, and recordings.
+Each `phases.json` lists a phase name, prompt, and check. Step 4 can also list skills. Every step copies the starter React Native app to `out/` and modifies that working copy; later steps add checkpoints, reports, commits, and recordings.
 
 Read `ISOMORPHISM.md` to see how the Step 4 files map to the production harness.

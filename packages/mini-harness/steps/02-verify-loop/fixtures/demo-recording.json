@@ -1,38 +1,23 @@
 [
   {
     "timestamp": "2026-07-03T12:00:00.000Z",
-    "phase": "scaffold",
+    "phase": "screen",
     "request": { "model": "fixture", "system": "mini-harness", "messages": [] },
-    "response": [
-      {
-        "type": "result",
-        "result": "{\"summary\":\"Created the base three-page Tiny TV site.\",\"files\":{\"out/index.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Tiny TV</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Tiny TV</h1><p>A compact streaming guide.</p></main></body></html>\",\"out/shows.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Shows</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Shows</h1><p>Coming soon.</p></main></body></html>\",\"out/about.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>About</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>About Tiny TV</h1><p>Built by a mini harness.</p></main></body></html>\",\"out/styles.css\":\"body{font-family:system-ui;margin:2rem;background:#101820;color:#f7f7f2}a{color:#7bdff2;margin-right:1rem}main{max-width:720px}\"}}"
-      }
-    ],
+    "response": "{\"summary\":\"Replaced the placeholder with a React Native catalog screen.\",\"files\":{\"out/src/App.tsx\":\"import React from \\\"react\\\";\\nimport { SafeAreaView, ScrollView, StyleSheet, Text } from \\\"react-native\\\";\\nimport { shows } from \\\"./catalog.js\\\";\\nimport { ShowCard } from \\\"./components/ShowCard.js\\\";\\n\\nexport default function App() {\\n  return <SafeAreaView style={styles.page}><Text style={styles.brand}>POCKET CINEMA</Text><Text style={styles.title}>Tonight's picks</Text><ScrollView horizontal>{shows.map((show) => <ShowCard key={show.id} show={show} />)}</ScrollView></SafeAreaView>;\\n}\\n\\nconst styles = StyleSheet.create({ page: { flex: 1, backgroundColor: \\\"#101214\\\", padding: 24 }, brand: { color: \\\"#F6C453\\\", fontWeight: \\\"800\\\" }, title: { color: \\\"#FFFFFF\\\", fontSize: 32, marginVertical: 24 } });\\n\",\"out/src/components/ShowCard.tsx\":\"import React from \\\"react\\\";\\nimport { Pressable, StyleSheet, Text, View } from \\\"react-native\\\";\\nimport type { Show } from \\\"../catalog.js\\\";\\n\\nexport function ShowCard({ show }: { show: Show }) {\\n  return <Pressable style={styles.card}><View style={[styles.art, { backgroundColor: show.color }]} /><Text style={styles.title}>{show.title}</Text><Text style={styles.copy}>{show.description}</Text></Pressable>;\\n}\\n\\nconst styles = StyleSheet.create({ card: { width: 220, marginRight: 18, padding: 8 }, art: { height: 130, borderRadius: 6 }, title: { color: \\\"#FFFFFF\\\", fontSize: 18, fontWeight: \\\"700\\\", marginTop: 10 }, copy: { color: \\\"#A8B0B7\\\", marginTop: 4 } });\\n\"}}",
     "usage": { "input_tokens": 100, "output_tokens": 200 }
   },
   {
     "timestamp": "2026-07-03T12:00:01.000Z",
     "phase": "content",
     "request": { "model": "fixture", "system": "mini-harness", "messages": [] },
-    "response": [
-      {
-        "type": "result",
-        "result": "{\"summary\":\"Added concrete show and release content.\",\"files\":{\"out/index.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Tiny TV</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Tiny TV</h1><p>Version 1.0 brings three curated channels to the sofa.</p></main></body></html>\",\"out/shows.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Shows</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Shows</h1><ul><li>Kitchen Stories</li><li>Late Night Rails</li><li>Focus Mode</li></ul></main></body></html>\"}}"
-      }
-    ],
+    "response": "{\"summary\":\"Added three synthetic shows to the catalog.\",\"files\":{\"out/src/catalog.ts\":\"export type Show = { id: string; title: string; description: string; color: string };\\n\\nexport const shows: Show[] = [\\n  { id: \\\"kitchen\\\", title: \\\"Kitchen Stories\\\", description: \\\"Cooks trade family recipes after closing time.\\\", color: \\\"#B85C38\\\" },\\n  { id: \\\"rails\\\", title: \\\"Late Night Rails\\\", description: \\\"A quiet journey across sleeping cities.\\\", color: \\\"#176B87\\\" },\\n  { id: \\\"signal\\\", title: \\\"Signal Coast\\\", description: \\\"A radio host follows a distant transmission.\\\", color: \\\"#5B4B8A\\\" }\\n];\\n\"}}",
     "usage": { "input_tokens": 80, "output_tokens": 160 }
   },
   {
     "timestamp": "2026-07-03T12:00:02.000Z",
-    "phase": "polish",
+    "phase": "focus",
     "request": { "model": "fixture", "system": "mini-harness", "messages": [] },
-    "response": [
-      {
-        "type": "result",
-        "result": "{\"summary\":\"Added keyboard-visible focus styling.\",\"files\":{\"out/styles.css\":\"body{font-family:system-ui;margin:2rem;background:#101820;color:#f7f7f2}a{color:#7bdff2;margin-right:1rem}main{max-width:720px}.focus-ring,a:focus-visible{outline:3px solid #f2c14e;outline-offset:4px}\"}}"
-      }
-    ],
+    "response": "{\"summary\":\"Added visible remote-focus feedback to ShowCard.\",\"files\":{\"out/src/components/ShowCard.tsx\":\"import React, { useState } from \\\"react\\\";\\nimport { Pressable, StyleSheet, Text, View } from \\\"react-native\\\";\\nimport type { Show } from \\\"../catalog.js\\\";\\n\\nexport function ShowCard({ show }: { show: Show }) {\\n  const [focused, setFocused] = useState(false);\\n  return <Pressable onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={[styles.card, focused && styles.focused]}><View style={[styles.art, { backgroundColor: show.color }]} /><Text style={styles.title}>{show.title}</Text><Text style={styles.copy}>{show.description}</Text></Pressable>;\\n}\\n\\nconst styles = StyleSheet.create({ card: { width: 220, marginRight: 18, padding: 8, borderWidth: 3, borderColor: \\\"transparent\\\" }, focused: { borderColor: \\\"#F6C453\\\", transform: [{ scale: 1.04 }] }, art: { height: 130, borderRadius: 6 }, title: { color: \\\"#FFFFFF\\\", fontSize: 18, fontWeight: \\\"700\\\", marginTop: 10 }, copy: { color: \\\"#A8B0B7\\\", marginTop: 4 } });\\n\"}}",
     "usage": { "input_tokens": 60, "output_tokens": 120 }
   }
 ]

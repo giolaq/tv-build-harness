@@ -1,19 +1,19 @@
 {
   "phases": [
     {
-      "name": "scaffold",
-      "prompt": "Create the initial HTML and CSS for a simple streaming guide called Tiny TV.",
-      "verify": { "type": "file_exists", "path": "out/index.html" }
+      "name": "screen",
+      "prompt": "Read the existing Pocket Cinema React Native app. Replace the placeholder with a horizontal catalog screen and a reusable ShowCard component.",
+      "verify": { "type": "file_exists", "path": "out/src/components/ShowCard.tsx" }
     },
     {
       "name": "content",
-      "prompt": "Add release notes and featured shows. The shows page must mention Kitchen Stories.",
-      "verify": { "type": "grep", "path": "out/shows.html", "pattern": "Kitchen Stories" }
+      "prompt": "Add three synthetic shows to the catalog. One title must be Kitchen Stories.",
+      "verify": { "type": "grep", "path": "out/src/catalog.ts", "pattern": "Kitchen Stories" }
     },
     {
-      "name": "polish",
-      "prompt": "Improve accessibility and focus styling. The CSS must include focus-ring.",
-      "verify": { "type": "grep", "path": "out/styles.css", "pattern": "focus-ring" }
+      "name": "focus",
+      "prompt": "Add visible TV focus feedback to ShowCard without changing its public props. The component must handle onFocus.",
+      "verify": { "type": "grep", "path": "out/src/components/ShowCard.tsx", "pattern": "onFocus" }
     }
   ]
 }

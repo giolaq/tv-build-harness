@@ -1,6 +1,6 @@
 # Strands Constructs Used in This Workshop
 
-This is a code-reading guide, not a list of everything Strands Agents SDK can do. The workshop pins `@strands-agents/sdk` `1.10.0` and uses one bounded agent to inspect a guarded React Native app and propose a Vega patch.
+This is a code-reading guide, not a list of everything Strands Agents SDK can do. The production workshop harness pins `@strands-agents/sdk` `1.10.0`; the staged mini-harness and general TV Build harness currently pin `1.7.0`. Both use bounded agents around React Native work, while the production workshop agent inspects a guarded app and proposes a Vega patch.
 
 Use these files while reading this guide:
 

@@ -6,7 +6,7 @@ export function buildPhasePrompt(phase: Phase, ctx: RunContext, failure = ""): s
     `Phase: ${phase.name}`,
     `Prior summary: ${ctx.summaries.at(-1) ?? "No prior phase has run."}`,
     failure && `Previous verification failed: ${failure}`,
-    "Generate or update a three-page static site in ./out.",
+    "Read and modify the existing React Native TV app in ./out. Preserve unrelated work.",
     "Output only JSON with summary and files.",
     phase.prompt,
   ].filter(Boolean).join("\n\n");

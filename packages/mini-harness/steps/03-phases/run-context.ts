@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 export type RunContext = { outDir: string; summaries: string[]; costUsd: number; reset: boolean };
@@ -7,7 +7,8 @@ export type RunContext = { outDir: string; summaries: string[]; costUsd: number;
 export function createRunContext(resume: boolean): RunContext {
   const outDir = resolve("out");
   if (!resume) rmSync(outDir, { recursive: true, force: true });
-  mkdirSync(outDir, { recursive: true });
+  if (!resume) cpSync(resolve("fixtures/react-native-app"), outDir, { recursive: true });
+  else mkdirSync(outDir, { recursive: true });
   if (!resume) initGit(outDir);
   return { outDir, summaries: [], costUsd: 0, reset: !resume };
 }

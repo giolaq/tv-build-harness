@@ -6,7 +6,9 @@ Use the [workshop web app](index.html) during the session. It gives you the comm
 
 ## Strands Agents SDK in this workshop
 
-[Strands Agents SDK](https://github.com/strands-agents/harness-sdk) is the TypeScript agent runtime used by the live remote executor. The workshop pins TypeScript SDK `1.10.0`. It provides the model loop, model providers, Zod-typed tools, structured output, MCP connections, execution limits, and usage metrics.
+[Strands Agents SDK](https://github.com/strands-agents/harness-sdk) is the TypeScript agent runtime used by the live remote executor. The production workshop harness pins `1.10.0`; the staged mini-harness and general TV Build harness currently pin `1.7.0`. It provides the model loop, model providers, Zod-typed tools, structured output, execution limits, and usage metrics.
+
+The workshop starts with React Native, not a website. Every mini-harness step modifies a reduced Pocket Cinema app, so the target stays familiar while the harness grows from one model call into phases, checks, skills, and executors.
 
 The workshop harness stays in control around that runtime:
 

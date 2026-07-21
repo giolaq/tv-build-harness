@@ -1,50 +1,30 @@
 [
   {
     "timestamp": "2026-07-03T12:00:00.000Z",
-    "phase": "scaffold",
-    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: scaffold" }] },
-    "response": [
-      {
-        "type": "result",
-        "result": "{\"summary\":\"Created the base three-page Tiny TV site.\",\"files\":{\"out/index.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Tiny TV</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Tiny TV</h1><p>A compact streaming guide.</p></main></body></html>\",\"out/shows.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Shows</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Shows</h1><p>Coming soon.</p></main></body></html>\",\"out/about.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>About</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>About Tiny TV</h1><p>Built by a mini harness.</p></main></body></html>\",\"out/styles.css\":\"body{font-family:system-ui;margin:2rem;background:#101820;color:#f7f7f2}a{color:#7bdff2;margin-right:1rem}main{max-width:720px}\"}}"
-      }
-    ],
+    "phase": "screen",
+    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: screen" }] },
+    "response": "{\"summary\":\"Replaced the placeholder with a React Native catalog screen.\",\"files\":{\"out/src/App.tsx\":\"import React from \\\"react\\\";\\nimport { SafeAreaView, ScrollView, StyleSheet, Text } from \\\"react-native\\\";\\nimport { shows } from \\\"./catalog.js\\\";\\nimport { ShowCard } from \\\"./components/ShowCard.js\\\";\\nexport default function App() { return <SafeAreaView style={styles.page}><Text style={styles.title}>Pocket Cinema</Text><ScrollView horizontal>{shows.map((show) => <ShowCard key={show.id} show={show} />)}</ScrollView></SafeAreaView>; }\\nconst styles = StyleSheet.create({ page: { flex: 1, backgroundColor: \\\"#101214\\\", padding: 24 }, title: { color: \\\"#FFFFFF\\\", fontSize: 32 } });\\n\",\"out/src/components/ShowCard.tsx\":\"import React from \\\"react\\\";\\nimport { Pressable, Text } from \\\"react-native\\\";\\nimport type { Show } from \\\"../catalog.js\\\";\\nexport function ShowCard({ show }: { show: Show }) { return <Pressable><Text>{show.title}</Text></Pressable>; }\\n\"}}",
     "usage": { "input_tokens": 100, "output_tokens": 200 }
   },
   {
     "timestamp": "2026-07-03T12:00:01.000Z",
     "phase": "content",
     "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: content" }] },
-    "response": [
-      {
-        "type": "result",
-        "result": "{\"summary\":\"Added a shows page but missed the required show title.\",\"files\":{\"out/shows.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Shows</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Shows</h1><ul><li>Late Night Rails</li><li>Focus Mode</li></ul></main></body></html>\"}}"
-      }
-    ],
+    "response": "{\"summary\":\"Added catalog data but missed the required title.\",\"files\":{\"out/src/catalog.ts\":\"export type Show = { id: string; title: string; description: string; color: string };\\nexport const shows: Show[] = [{ id: \\\"rails\\\", title: \\\"Late Night Rails\\\", description: \\\"A quiet journey.\\\", color: \\\"#176B87\\\" }];\\n\"}}",
     "usage": { "input_tokens": 80, "output_tokens": 120 }
   },
   {
     "timestamp": "2026-07-03T12:00:02.000Z",
     "phase": "content",
-    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: content\n\nPrevious verification failed: Pattern \"Kitchen Stories\" not found in out/shows.html" }] },
-    "response": [
-      {
-        "type": "result",
-        "result": "{\"summary\":\"Fixed the missing required show title after verification feedback.\",\"files\":{\"out/shows.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Shows</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Shows</h1><ul><li>Kitchen Stories</li><li>Late Night Rails</li><li>Focus Mode</li></ul></main></body></html>\",\"out/index.html\":\"<!doctype html><html><head><meta charset=\\\"utf-8\\\"><title>Tiny TV</title><link rel=\\\"stylesheet\\\" href=\\\"styles.css\\\"></head><body><nav><a href=\\\"index.html\\\">Home</a><a href=\\\"shows.html\\\">Shows</a><a href=\\\"about.html\\\">About</a></nav><main><h1>Tiny TV</h1><p>Version 1.0 brings three curated channels to the sofa.</p></main></body></html>\"}}"
-      }
-    ],
+    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: content\n\nPrevious verification failed: Pattern \"Kitchen Stories\" not found in out/src/catalog.ts" }] },
+    "response": "{\"summary\":\"Repaired the catalog using the verification failure.\",\"files\":{\"out/src/catalog.ts\":\"export type Show = { id: string; title: string; description: string; color: string };\\nexport const shows: Show[] = [\\n  { id: \\\"kitchen\\\", title: \\\"Kitchen Stories\\\", description: \\\"Cooks trade family recipes.\\\", color: \\\"#B85C38\\\" },\\n  { id: \\\"rails\\\", title: \\\"Late Night Rails\\\", description: \\\"A quiet journey.\\\", color: \\\"#176B87\\\" }\\n];\\n\"}}",
     "usage": { "input_tokens": 95, "output_tokens": 160 }
   },
   {
     "timestamp": "2026-07-03T12:00:03.000Z",
-    "phase": "polish",
-    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: polish" }] },
-    "response": [
-      {
-        "type": "result",
-        "result": "{\"summary\":\"Added keyboard-visible focus styling.\",\"files\":{\"out/styles.css\":\"body{font-family:system-ui;margin:2rem;background:#101820;color:#f7f7f2}a{color:#7bdff2;margin-right:1rem}main{max-width:720px}.focus-ring,a:focus-visible{outline:3px solid #f2c14e;outline-offset:4px}\"}}"
-      }
-    ],
+    "phase": "focus",
+    "request": { "model": "fixture", "system": "mini-harness", "messages": [{ "role": "user", "content": "Phase: focus" }] },
+    "response": "{\"summary\":\"Added visible remote-focus feedback.\",\"files\":{\"out/src/components/ShowCard.tsx\":\"import React, { useState } from \\\"react\\\";\\nimport { Pressable, StyleSheet, Text } from \\\"react-native\\\";\\nimport type { Show } from \\\"../catalog.js\\\";\\nexport function ShowCard({ show }: { show: Show }) { const [focused, setFocused] = useState(false); return <Pressable onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={[styles.card, focused && styles.focused]}><Text>{show.title}</Text></Pressable>; }\\nconst styles = StyleSheet.create({ card: { borderWidth: 3, borderColor: \\\"transparent\\\", padding: 8 }, focused: { borderColor: \\\"#F6C453\\\" } });\\n\"}}",
     "usage": { "input_tokens": 60, "output_tokens": 120 }
   }
 ]

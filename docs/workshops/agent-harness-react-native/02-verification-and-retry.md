@@ -18,11 +18,12 @@ npx tsx steps/02-verify-loop/index.ts run \
 2. Find this failed check in the output:
 
 ```text
-Pattern "Kitchen Stories" not found
+Pattern "Kitchen Stories" not found in out/src/catalog.ts
 ```
 
 3. Open `steps/02-verify-loop/verify.ts` and find the `file_exists` and `grep` checks.
-4. Find the same failure text in the retry request.
+4. Open `out/src/catalog.ts` and confirm the retry added the missing title.
+5. Find the same failure text in the retry request.
 
 ## Why this matters
 
