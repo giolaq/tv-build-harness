@@ -178,7 +178,7 @@ const modules = [
     lead: "A skill supplies domain instructions. An executor calls the model. The pipeline should not depend on one provider.",
     objective: "Separate domain knowledge, model execution, tools, and deterministic pipeline control.",
     evidence: "You can point to the file that owns each responsibility in both the mini and production harnesses.",
-    body: `${concept("Four responsibilities","Skills teach domain knowledge. Phase context assembles the task. An executor talks to a model. Tools expose narrow capabilities. The pipeline decides when side effects are allowed.")}${predict("Where should a D-pad focus rule live: the executor, a skill, a read tool, or a verification check?")}${command("Run Step 4 with replay","step4")}<h2>Map the teaching harness</h2>${steps(["Open <code>skills.ts</code>, <code>phase-context.ts</code>, <code>executor.ts</code>, and <code>recorder.ts</code>.","Find where skill text enters the prompt.","Find the common interface used by replay, Claude Code, and Strands.","Compare every module with <code>packages/mini-harness/ISOMORPHISM.md</code>."])}${strandsConstructs()}${fullHarnessStrandsConstructs()}<h2>Inspect the production Strands boundary</h2>${steps(["Open <code>packages/workshop-harness/src/port-tools.ts</code> and match each <code>tool()</code> field to the first table.","Open <code>port-contract.ts</code> and find the Zod schema passed as <code>structuredOutputSchema</code>.","Open <code>port-executor.ts</code> and trace <code>new Agent()</code> → <code>invoke()</code> → <code>AgentResult</code>.","Open <code>packages/harness/src/strands-phase-executor.ts</code> and trace <code>stream()</code> events into logs and usage.","Confirm the workshop port agent has no write or shell tool. Its pipeline owns both."])}${knowledgeCheck("Why keep file writes outside the workshop port agent?","The harness can validate a typed proposal before applying it, protect paths, produce a clean diff, run checks, and roll back safely. The model still reasons; deterministic code controls the irreversible action.")}<h2>Optional live comparison</h2>${command("Use local Claude Code","step4Local")}${command("Use Strands with Bedrock","step4Remote")}<div class="links"><a href="strands-constructs.md">Open the Strands reference</a></div>${done("You can explain every Strands construct used by the workshop and full harness, then separate it from controls owned by pipeline code.")}${fallback("Replay shows the same module boundaries without credentials.")}`
+    body: `${concept("Four responsibilities","Skills teach domain knowledge. Phase context assembles the task. An executor talks to a model. Tools expose narrow capabilities. The pipeline decides when side effects are allowed.")}${predict("Where should a D-pad focus rule live: the executor, a skill, a read tool, or a verification check?")}${command("Run Step 4 with replay","step4")}<h2>Map the teaching harness</h2>${steps(["Open <code>phases.json</code> and find the skills selected for each phase.","Follow them through <code>skills.ts</code>, <code>pipeline-engine.ts</code>, and <code>executor.ts</code>.","In <code>model-runtime.ts</code>, compare <code>injectSkillText()</code> with <code>createSkillsPlugin()</code>.","Compare every module with <code>packages/mini-harness/ISOMORPHISM.md</code>."])}${skillDelivery()}${strandsConstructs()}${fullHarnessStrandsConstructs()}<h2>Inspect the production Strands boundary</h2>${steps(["Open <code>packages/workshop-harness/src/port-tools.ts</code> and match each <code>tool()</code> field to the first table.","Open <code>port-contract.ts</code> and find the Zod schema passed as <code>structuredOutputSchema</code>.","Open <code>port-executor.ts</code> and trace <code>new Agent()</code> → <code>invoke()</code> → <code>AgentResult</code>.","Open <code>packages/harness/src/strands-phase-executor.ts</code> and trace <code>stream()</code> events into logs and usage.","Confirm the workshop port agent has no write or shell tool. Its pipeline owns both."])}${knowledgeCheck("Why use AgentSkills with Strands but prompt injection with Claude CLI?","Strands can expose skill metadata and let the agent progressively activate instructions through a plugin. The CLI subprocess has no shared in-process plugin, so the executor sends the selected instructions directly in its prompt.")}<h2>Optional live comparison</h2>${command("Use local Claude Code","step4Local")}${command("Use Strands with Bedrock","step4Remote")}<div class="links"><a href="strands-constructs.md">Open the Strands reference</a></div>${done("You can trace one phase skill through Claude prompt injection or Strands AgentSkills, then separate both from pipeline controls.")}${fallback("Replay shows the same module boundaries without credentials.")}`
   },
   {
     id: "memory", number: "05", nav: "Project memory", time: "15 minutes", title: "Review facts before saving them",
@@ -310,6 +310,15 @@ function fallback(text) { return note("If blocked", text, "warning"); }
 function expected(text) { return `<div class="expected"><strong>Find this evidence</strong><pre><code>${escape(text)}</code></pre></div>`; }
 function flow(items) { return `<div class="flow">${items.map((item, index) => `${index ? "<i>→</i>" : ""}<div><b>${item[0]}</b><span>${item[1]}</span></div>`).join("")}</div>`; }
 function table(headers, rows) { return `<table><thead><tr>${headers.map(header => `<th>${header}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`; }
+function skillDelivery() {
+  return `<h2>One skill, two delivery paths</h2>
+    ${table(["Executor","How the selected skill arrives"],[
+      ["Claude CLI","<code>injectSkillText()</code> appends the complete skill body to the subprocess prompt."],
+      ["Strands","<code>Skill</code> objects enter an <code>AgentSkills</code> plugin. Metadata appears first; the agent activates instructions with the <code>skills</code> tool."],
+      ["Replay","No model runs. A recorded response replaces the live executor while the same phase plan remains visible."],
+    ])}
+    ${note("Why Strands gets three turns","With a selected skill, the mini agent needs room to discover the skill, activate it, and return JSON. Without skills it keeps the one-turn limit.")}`;
+}
 function strandsConstructs() {
   return `<h2>Strands constructs used here</h2>
     <p>Read this table from setup to result. These are the Strands APIs the workshop actually uses.</p>
@@ -320,10 +329,13 @@ function strandsConstructs() {
       ["<code>tool()</code>","Turns a named callback into a model-callable capability. The description tells the model when to use it.","<code>port-tools.ts</code>"],
       ["<code>inputSchema</code>","Uses Zod to validate tool arguments and type the callback input before project code runs.","<code>port-tools.ts</code>"],
       ["<code>tools</code>","Registers only list, read, and literal search. No write or shell capability enters the agent loop.","<code>port-executor.ts</code>"],
+      ["<code>Skill</code>","Represents one selected mini-harness instruction with a name, description, and full body.","<code>model-runtime.ts</code>"],
+      ["<code>AgentSkills</code>","Adds progressive skill disclosure and the model-callable <code>skills</code> activation tool.","<code>model-runtime.ts</code>"],
+      ["<code>plugins</code>","Registers <code>AgentSkills</code> on the Strands agent. Claude CLI does not use this field.","<code>model-runtime.ts</code>"],
       ["<code>structuredOutputSchema</code>","Requires the final answer to match <code>{ summary, files }</code>. Strands validates it and can feed schema failures back to the model.","<code>port-contract.ts</code>"],
       ["<code>printer: false</code>","Disables Strands' automatic console renderer so the CLI keeps stdout reserved for versioned JSON events.","<code>port-executor.ts</code>"],
       ["<code>agent.invoke()</code>","Starts one bounded run with the assembled phase prompt.","<code>port-executor.ts</code>"],
-      ["<code>limits.turns</code> / <code>limits.totalTokens</code>","Stop the agent loop after 8 turns or 40,000 tokens. The mini-harness uses one turn.","<code>port-executor.ts</code>, <code>model-runtime.ts</code>"],
+      ["<code>limits.turns</code> / <code>limits.totalTokens</code>","Bound the loop. The mini-harness allows three turns with skills and one without; the port allows 8 turns and 40,000 tokens.","<code>port-executor.ts</code>, <code>model-runtime.ts</code>"],
       ["<code>cancelSignal</code>","Lets a native ten-minute <code>AbortSignal</code> cancel the invocation at Strands cancellation points.","<code>port-executor.ts</code>"],
       ["<code>AgentResult</code>","Carries validated <code>structuredOutput</code>, messages, stop state, and metrics after invocation.","returned by <code>invoke()</code>"],
       ["<code>StructuredOutputError</code>","Makes a missing structured patch an explicit executor failure.","<code>port-executor.ts</code>"],
@@ -333,12 +345,9 @@ function strandsConstructs() {
 }
 function fullHarnessStrandsConstructs() {
   return `<h2>What the full TV Build harness adds</h2>
-    <p>The production executor uses the same boundary, plus streaming and SDK-managed skill loading.</p>
+    <p>The mini-harness already uses AgentSkills. The production executor adds another provider and streaming.</p>
     ${table(["Construct","What it adds"],[
       ["<code>AnthropicModel</code>","Adds the direct Anthropic provider behind the common <code>Model</code> interface."],
-      ["<code>AgentSkills</code>","Creates a Strands plugin that exposes phase skills progressively through a model-callable <code>skills</code> tool."],
-      ["<code>Skill</code>","Loads approved skill instructions with <code>fromFile()</code> or <code>fromContent()</code>."],
-      ["<code>plugins</code>","Registers <code>AgentSkills</code> when the production <code>Agent</code> is created."],
       ["<code>agent.stream()</code>","Returns progress events during a long phase, followed by its final <code>AgentResult</code>."],
       ["<code>AgentStreamEvent</code>","Types <code>modelMessageEvent</code>, <code>contentBlockEvent</code>, and <code>toolResultEvent</code> as they become logs, token updates, and UI messages."],
     ])}

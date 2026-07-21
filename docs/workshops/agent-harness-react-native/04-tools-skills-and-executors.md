@@ -17,12 +17,14 @@ npx tsx steps/04-skills/index.ts run \
 
 2. Open these files:
 
-- `skills.ts`: loads reusable instructions for a phase.
+- `skills.ts`: loads the reusable instructions selected by a phase.
 - `phase-context.ts`: builds the prompt for that phase.
-- `executor.ts`: calls replay, Claude Code, or Strands.
+- `executor.ts`: passes the phase prompt and selected skills to replay, Claude Code, or Strands.
 - `recorder.ts`: records model requests and responses.
 
-3. Find where a skill enters the phase prompt.
+3. Open `model-runtime.ts` and trace both delivery paths:
+   - Claude CLI calls `injectSkillText()` and receives the full instructions in the prompt.
+   - Strands wraps the instructions in `Skill`, registers `AgentSkills` through `plugins`, and lets the agent activate them with the `skills` tool.
 4. Compare the teaching modules with the production modules in `packages/mini-harness/ISOMORPHISM.md`.
 
 Optional live run with Claude Code:
@@ -59,15 +61,15 @@ Open `packages/workshop-harness/src/port-executor.ts` and trace this sequence:
 10. `metrics.accumulatedUsage` provides token counts for recording and cost calculation.
 11. `StructuredOutputError` turns a missing structured result into an explicit executor failure.
 
-The mini-harness uses the same `Agent`, model providers, `invoke()`, turn limit, messages, and usage metrics. It reads `AgentResult.lastMessage` because the teaching step still expects raw JSON text.
+The mini-harness uses the same `Agent`, model providers, `AgentSkills`, `Skill`, `plugins`, `invoke()`, messages, and usage metrics. It reads `AgentResult.lastMessage` because the teaching step still expects raw JSON text. A Strands phase with a selected skill gets three turns so it can activate the skill before returning JSON; a phase without skills stays at one turn.
 
-The full harness adds `AnthropicModel`, `AgentSkills`, `Skill`, the `plugins` field, `agent.stream()`, and typed `AgentStreamEvent` values. Open `packages/harness/src/strands-phase-executor.ts` after the small example. Follow `modelMessageEvent`, `contentBlockEvent`, and `toolResultEvent` into logs, token updates, and the final `AgentResult`.
+The full harness adds `AnthropicModel`, `agent.stream()`, and typed `AgentStreamEvent` values. Open `packages/harness/src/strands-phase-executor.ts` after the small example. Follow `modelMessageEvent`, `contentBlockEvent`, and `toolResultEvent` into logs, token updates, and the final `AgentResult`.
 
 Read [the full Strands construct reference](strands-constructs.md) for the MCP path and the exact boundary between SDK, Zod, MCP transport, and harness code.
 
 ## Why this matters
 
-A skill explains what matters. A tool performs a narrow action. An executor hides provider-specific model access. Keeping them separate makes the pipeline easier to test and change.
+A skill explains what matters. A tool performs a narrow action. An executor hides provider-specific model access and chooses the provider's native skill mechanism when one exists. Keeping them separate makes the pipeline easier to test and change.
 
 The full workshop port applies the same rule with Strands Agents SDK:
 

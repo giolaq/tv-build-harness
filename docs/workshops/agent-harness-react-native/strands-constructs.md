@@ -105,7 +105,7 @@ agent.invoke(prompt, {
 | Construct | Use |
 | --- | --- |
 | `agent.invoke()` | Starts one agent run and resolves to an `AgentResult`. |
-| `limits.turns` | Caps model-and-tool loop iterations. One turn is a model call followed by any requested tools. |
+| `limits.turns` | Caps model-and-tool loop iterations. The mini-harness allows three turns when a phase has a skill and one otherwise. |
 | `limits.totalTokens` | Caps total token use for that invocation. |
 | `cancelSignal` | Lets an external abort signal stop the invocation at cancellation points. The workshop supplies a ten-minute native `AbortSignal.timeout()`. |
 | `AgentResult` | Carries structured output, messages, stop information, and metrics. |
@@ -114,16 +114,25 @@ agent.invoke(prompt, {
 
 Strands reports usage. The harness applies configured token prices, enforces the run budget, and records the result. Cost policy is not delegated to the model.
 
+## Skill delivery in the mini-harness
+
+Step 4 loads the same phase skill before choosing an executor:
+
+| Executor | Delivery |
+| --- | --- |
+| Claude CLI | `injectSkillText()` appends the complete skill instructions to the subprocess prompt. Claude CLI has no in-process Strands plugin. |
+| Strands | Each loaded instruction becomes a Strands `Skill`. `AgentSkills` is registered through `plugins`, injects skill metadata, and provides the `skills` activation tool for progressive disclosure. |
+| Replay | No model runs. The recorded response replaces either live delivery path. |
+
+The base phase prompt contains no skill body, so a Strands invocation does not receive duplicate instructions. See `packages/mini-harness/model-runtime.ts` and `packages/mini-harness/tests/skill-delivery.test.ts`.
+
 ## Constructs added by the full harness
 
-The workshop port keeps one model call small enough to inspect. TV Build's full Strands executor adds streaming and SDK-managed skill loading without changing the pipeline boundary.
+The mini-harness already demonstrates SDK-managed skills. TV Build's full Strands executor adds another model provider and streaming without changing the pipeline boundary.
 
 | Construct | Use in the full harness |
 | --- | --- |
 | `AnthropicModel` | Adds direct Anthropic API access behind the same `Model` interface used for Bedrock and OpenAI-compatible providers. |
-| `AgentSkills` | Creates the Strands skills plugin passed to an agent. It gives the model a `skills` tool and progressive access to phase-specific domain instructions. |
-| `Skill` | Represents one SDK skill. `Skill.fromFile()` loads a `SKILL.md` directory and `Skill.fromContent()` loads approved in-memory Markdown. |
-| `plugins` | Registers the `AgentSkills` instance when constructing `Agent`. The executor does not paste every skill body into every prompt. |
 | `agent.stream()` | Starts the same agent loop as `invoke()`, but returns events while the phase is running and an `AgentResult` when it ends. |
 | `AgentStreamEvent` | The event union consumed by the executor. `modelMessageEvent` marks model turns, `contentBlockEvent` exposes streamed text or tool requests, and `toolResultEvent` carries tool output. |
 

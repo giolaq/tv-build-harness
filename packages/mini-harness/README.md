@@ -60,7 +60,7 @@ Done when the second command runs `polish` instead of repeating `scaffold` or `c
 
 ## Step 4: skills and executors
 
-This step adds skills, prompt assembly, a model interface, and recording/replay.
+This step adds phase-scoped skills, prompt assembly, a model interface, and recording/replay. Claude CLI receives the full selected skill text in its prompt. Strands receives the same skills through the `AgentSkills` plugin and activates them through its `skills` tool.
 
 ```sh
 npx tsx steps/04-skills/index.ts run \
@@ -68,7 +68,7 @@ npx tsx steps/04-skills/index.ts run \
   --replay steps/04-skills/fixtures/demo-recording.json
 ```
 
-Done when you can trace a skill into the prompt and show where replay or a live model is selected.
+Done when you can trace a skill from `phases.json` to both delivery paths and show where replay or a live model is selected.
 
 ## Optional live model
 
@@ -90,7 +90,7 @@ npx tsx steps/04-skills/index.ts run \
   --region us-west-2
 ```
 
-Strands also supports `openai` and `openrouter`. Live Step 4 runs write `out/recording.json`; scrub recordings before committing them.
+Strands also supports `openai` and `openrouter`. A phase with Strands skills allows three turns: discover the available skill, activate it, then return the result. Live Step 4 runs write `out/recording.json`; scrub recordings before committing them.
 
 ## Inputs and output
 
