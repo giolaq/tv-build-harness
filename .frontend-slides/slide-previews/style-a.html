@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV App Harness - Style A Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* === VIEWPORT BASE (MANDATORY) === */
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg, #000); }
+        .deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+        .deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff); }
+        .slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: var(--slide-bg, #fff); }
+        .slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+        img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+        @media print { html, body { width: 1920px; height: auto; overflow: visible; background: #fff; } .deck-viewport { position: static; overflow: visible; background: #fff; } .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; } .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; } }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+        /* === CUSTOM STYLES: TERMINAL GREEN === */
+        :root {
+            --stage-bg: #0d1117;
+            --slide-bg: #0d1117;
+            --green: #39d353;
+            --green-dim: #1a7f2e;
+            --green-glow: rgba(57, 211, 83, 0.15);
+            --text-primary: #e6edf3;
+            --text-dim: #7d8590;
+            --border: #30363d;
+        }
+
+        .slide {
+            background: var(--slide-bg);
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-primary);
+            padding: 80px;
+            box-sizing: border-box;
+        }
+
+        .scanlines {
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.03) 2px,
+                rgba(0, 0, 0, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 60px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .prompt {
+            font-size: 14px;
+            color: var(--green);
+            opacity: 0;
+            animation: typeIn 0.8s ease forwards 0.3s;
+        }
+
+        .prompt::before {
+            content: '$ ';
+            color: var(--text-dim);
+        }
+
+        .version-badge {
+            font-size: 12px;
+            padding: 4px 12px;
+            border: 1px solid var(--green-dim);
+            border-radius: 12px;
+            color: var(--green);
+            opacity: 0;
+            animation: fadeIn 0.5s ease forwards 1s;
+        }
+
+        .title-block {
+            margin-top: 80px;
+        }
+
+        .title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 96px;
+            font-weight: 700;
+            line-height: 1.05;
+            color: var(--text-primary);
+            margin: 0;
+            opacity: 0;
+            animation: slideUp 0.7s ease forwards 0.5s;
+        }
+
+        .title span {
+            color: var(--green);
+            text-shadow: 0 0 30px var(--green-glow);
+        }
+
+        .subtitle {
+            font-size: 22px;
+            color: var(--text-dim);
+            margin-top: 32px;
+            line-height: 1.6;
+            max-width: 900px;
+            opacity: 0;
+            animation: slideUp 0.7s ease forwards 0.8s;
+        }
+
+        .architecture-hint {
+            position: absolute;
+            bottom: 80px;
+            left: 80px;
+            right: 80px;
+            display: flex;
+            gap: 40px;
+            opacity: 0;
+            animation: fadeIn 0.8s ease forwards 1.2s;
+        }
+
+        .arch-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .arch-item::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green-glow);
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 22px;
+            background: var(--green);
+            margin-left: 4px;
+            animation: blink 1s step-end infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        @keyframes typeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="deck-viewport">
+        <div class="deck-stage">
+            <div class="slide active">
+                <div class="scanlines"></div>
+                <div class="header">
+                    <div class="prompt">tv-harness run --platforms androidtv,appletv<span class="cursor"></span></div>
+                    <div class="version-badge">v0.1.0</div>
+                </div>
+                <div class="title-block">
+                    <h1 class="title">TV App <span>Harness</span></h1>
+                    <p class="subtitle">Auto-generated TV applications from a single prompt + content manifest. Powered by Claude Agent SDK with typed tools, markdown skills, and a build/verify loop.</p>
+                </div>
+                <div class="architecture-hint">
+                    <div class="arch-item">Prompt → AppSpec planner</div>
+                    <div class="arch-item">12 skill files loaded lazily</div>
+                    <div class="arch-item">5 target platforms</div>
+                    <div class="arch-item">80/20 template-vs-LLM generation</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function scaleStage() {
+            const stage = document.querySelector('.deck-stage');
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const scale = Math.min(vw / 1920, vh / 1080);
+            const x = (vw - 1920 * scale) / 2;
+            const y = (vh - 1080 * scale) / 2;
+            stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+        }
+        scaleStage();
+        window.addEventListener('resize', scaleStage);
+    </script>
+</body>
+</html>

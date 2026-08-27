@@ -1,0 +1,112 @@
+{
+  "title": "Indie Kitchen",
+  "description": "Independent cooking shows from creators around the world",
+  "categories": [
+    { "id": "quick-meals", "name": "Quick Meals", "items": ["v1", "v2", "v3"] },
+    { "id": "baking", "name": "Baking & Pastry", "items": ["v4", "v5", "v6"] },
+    { "id": "world-cuisine", "name": "World Cuisine", "items": ["v7", "v8", "v9", "v10"] }
+  ],
+  "videos": [
+    {
+      "id": "v1",
+      "title": "15-Minute Pad Thai",
+      "description": "A fast weeknight pad thai with rice noodles, shrimp, and tamarind sauce",
+      "duration_sec": 912,
+      "thumbnail_url": "https://picsum.photos/seed/padthai/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["thai", "quick", "noodles"]
+    },
+    {
+      "id": "v2",
+      "title": "One-Pan Shakshuka",
+      "description": "Eggs poached in spiced tomato sauce with crusty bread",
+      "duration_sec": 720,
+      "thumbnail_url": "https://picsum.photos/seed/shakshuka/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["middle-eastern", "breakfast", "eggs"]
+    },
+    {
+      "id": "v3",
+      "title": "5-Ingredient Ramen",
+      "description": "Rich tonkotsu-style ramen with instant noodles elevated",
+      "duration_sec": 600,
+      "thumbnail_url": "https://picsum.photos/seed/ramen/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["japanese", "quick", "soup"]
+    },
+    {
+      "id": "v4",
+      "title": "Sourdough from Scratch",
+      "description": "A beginner's guide to maintaining a starter and baking your first loaf",
+      "duration_sec": 2400,
+      "thumbnail_url": "https://picsum.photos/seed/sourdough/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["bread", "fermentation", "beginner"]
+    },
+    {
+      "id": "v5",
+      "title": "French Croissants",
+      "description": "Three-day laminated dough for flaky, buttery croissants",
+      "duration_sec": 1800,
+      "thumbnail_url": "https://picsum.photos/seed/croissant/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["french", "pastry", "advanced"]
+    },
+    {
+      "id": "v6",
+      "title": "Chocolate Lava Cake",
+      "description": "Molten center chocolate cakes that impress every time",
+      "duration_sec": 540,
+      "thumbnail_url": "https://picsum.photos/seed/lavacake/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["chocolate", "dessert", "quick"]
+    },
+    {
+      "id": "v7",
+      "title": "Ethiopian Injera & Wot",
+      "description": "Spongy flatbread with spiced lentil and chicken stews",
+      "duration_sec": 1500,
+      "thumbnail_url": "https://picsum.photos/seed/injera/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["ethiopian", "fermentation", "stew"]
+    },
+    {
+      "id": "v8",
+      "title": "Japanese Gyoza",
+      "description": "Pan-fried dumplings with crispy bottoms and juicy pork filling",
+      "duration_sec": 1200,
+      "thumbnail_url": "https://picsum.photos/seed/gyoza/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["japanese", "dumplings", "appetizer"]
+    },
+    {
+      "id": "v9",
+      "title": "Mexican Street Tacos",
+      "description": "Authentic al pastor tacos with homemade salsa verde",
+      "duration_sec": 900,
+      "thumbnail_url": "https://picsum.photos/seed/tacos/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["mexican", "street-food", "pork"]
+    },
+    {
+      "id": "v10",
+      "title": "Indian Butter Chicken",
+      "description": "Creamy tomato-based curry with tender marinated chicken",
+      "duration_sec": 1320,
+      "thumbnail_url": "https://picsum.photos/seed/butterchicken/640/360",
+      "stream_url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "stream_type": "hls",
+      "tags": ["indian", "curry", "chicken"]
+    }
+  ],
+  "featured": ["v1", "v5", "v9"]
+}

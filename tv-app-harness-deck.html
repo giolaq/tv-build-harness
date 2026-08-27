@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV App Harness — Internal Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ===========================================
+           CSS CUSTOM PROPERTIES (TERMINAL GREEN)
+           =========================================== */
+        :root {
+            --stage-bg: #010409;
+            --slide-bg: #0d1117;
+            --surface: #161b22;
+            --surface-border: #30363d;
+            --green: #39d353;
+            --green-bright: #56d364;
+            --green-dim: #238636;
+            --green-glow: rgba(57, 211, 83, 0.12);
+            --green-glow-strong: rgba(57, 211, 83, 0.25);
+            --orange: #d29922;
+            --blue: #58a6ff;
+            --purple: #bc8cff;
+            --red: #f85149;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-dim: #484f58;
+
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* ===========================================
+           VIEWPORT BASE (MANDATORY - FIXED 16:9 STAGE)
+           =========================================== */
+        html, body {
+            width: 100%; height: 100%; margin: 0;
+            overflow: hidden; background: var(--stage-bg);
+        }
+        .deck-viewport {
+            position: fixed; inset: 0;
+            overflow: hidden; background: var(--stage-bg);
+        }
+        .deck-stage {
+            position: absolute; left: 0; top: 0;
+            width: 1920px; height: 1080px;
+            overflow: hidden; transform-origin: 0 0;
+            background: var(--slide-bg);
+        }
+        .slide {
+            position: absolute; inset: 0;
+            width: 1920px; height: 1080px;
+            overflow: hidden; display: block;
+            visibility: hidden; opacity: 0; pointer-events: none;
+            background: var(--slide-bg);
+        }
+        .slide.active, .slide.visible {
+            visibility: visible; opacity: 1;
+            pointer-events: auto; z-index: 1;
+        }
+        img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+        .deck-controls {
+            position: fixed; left: 50%; bottom: 22px;
+            transform: translateX(-50%); z-index: 1000;
+        }
+        @media print {
+            html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+            .deck-viewport { position: static; overflow: visible; background: #fff; }
+            .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+            .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; page-break-after: always; }
+            .slide:last-child { break-after: auto; page-break-after: auto; }
+            .deck-controls { display: none !important; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.2s !important;
+            }
+        }
+
+        /* ===========================================
+           GLOBAL SLIDE STYLES
+           =========================================== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        .slide {
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+            padding: 80px;
+        }
+
+        /* === SCANLINES OVERLAY === */
+        .scanlines {
+            position: absolute; inset: 0;
+            background: repeating-linear-gradient(
+                0deg, transparent, transparent 2px,
+                rgba(0, 0, 0, 0.02) 2px, rgba(0, 0, 0, 0.02) 4px
+            );
+            pointer-events: none; z-index: 100;
+        }
+
+        /* === GRID BACKGROUND === */
+        .grid-bg {
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(57, 211, 83, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(57, 211, 83, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+
+        /* === ANIMATIONS === */
+        .reveal {
+            opacity: 0; transform: translateY(20px);
+            transition: opacity 0.6s var(--ease-out-expo), transform 0.6s var(--ease-out-expo);
+        }
+        .slide.visible .reveal { opacity: 1; transform: translateY(0); }
+        .slide.visible .reveal:nth-child(1) { transition-delay: 0.1s; }
+        .slide.visible .reveal:nth-child(2) { transition-delay: 0.2s; }
+        .slide.visible .reveal:nth-child(3) { transition-delay: 0.3s; }
+        .slide.visible .reveal:nth-child(4) { transition-delay: 0.4s; }
+        .slide.visible .reveal:nth-child(5) { transition-delay: 0.5s; }
+        .slide.visible .reveal:nth-child(6) { transition-delay: 0.6s; }
+
+        /* === COMMON COMPONENTS === */
+        .slide-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 24px; border-bottom: 1px solid var(--surface-border);
+            margin-bottom: 48px;
+        }
+        .slide-header .section-label {
+            font-size: 13px; color: var(--green);
+            text-transform: uppercase; letter-spacing: 0.08em;
+        }
+        .slide-header .page-num {
+            font-size: 12px; color: var(--text-dim);
+        }
+
+        h2 {
+            font-family: var(--font-display); font-size: 52px; font-weight: 700;
+            color: var(--text-primary); margin-bottom: 32px; line-height: 1.15;
+        }
+        h2 .accent { color: var(--green); }
+
+        h3 {
+            font-family: var(--font-display); font-size: 28px; font-weight: 600;
+            color: var(--text-primary); margin-bottom: 16px;
+        }
+
+        .body-text {
+            font-size: 18px; line-height: 1.7; color: var(--text-secondary); max-width: 900px;
+        }
+
+        .tag {
+            display: inline-block; font-size: 12px; padding: 4px 12px;
+            border: 1px solid var(--surface-border); border-radius: 12px;
+            color: var(--text-secondary); margin-right: 8px; margin-bottom: 8px;
+        }
+        .tag.green { border-color: var(--green-dim); color: var(--green); }
+        .tag.orange { border-color: var(--orange); color: var(--orange); }
+        .tag.blue { border-color: var(--blue); color: var(--blue); }
+
+        .card {
+            background: var(--surface); border: 1px solid var(--surface-border);
+            border-radius: 8px; padding: 24px;
+        }
+
+        .code-block {
+            background: var(--surface); border: 1px solid var(--surface-border);
+            border-radius: 8px; padding: 20px 24px; font-size: 14px;
+            line-height: 1.8; color: var(--text-secondary); overflow: hidden;
+        }
+        .code-block .keyword { color: var(--purple); }
+        .code-block .string { color: var(--green-bright); }
+        .code-block .comment { color: var(--text-dim); font-style: italic; }
+        .code-block .type { color: var(--orange); }
+        .code-block .fn { color: var(--blue); }
+
+        .cursor {
+            display: inline-block; width: 9px; height: 18px;
+            background: var(--green); animation: blink 1s step-end infinite;
+            vertical-align: middle; margin-left: 2px;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+        .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
+
+        .progress-indicator {
+            position: absolute; bottom: 40px; left: 80px; right: 80px;
+            height: 2px; background: var(--surface-border); border-radius: 1px;
+        }
+        .progress-indicator .fill {
+            height: 100%; background: var(--green); border-radius: 1px;
+            transition: width 0.4s var(--ease-out-expo);
+        }
+
+        /* === TITLE SLIDE SPECIFIC === */
+        .title-slide .prompt {
+            font-size: 15px; color: var(--green); margin-bottom: 80px;
+        }
+        .title-slide .prompt::before { content: '$ '; color: var(--text-dim); }
+        .title-slide h1 {
+            font-family: var(--font-display); font-size: 96px; font-weight: 700;
+            line-height: 1.05; color: var(--text-primary); margin-bottom: 32px;
+        }
+        .title-slide h1 .accent { color: var(--green); text-shadow: 0 0 40px var(--green-glow); }
+        .title-slide .subtitle {
+            font-size: 20px; color: var(--text-secondary); line-height: 1.7; max-width: 860px;
+        }
+        .title-slide .meta-row {
+            position: absolute; bottom: 80px; left: 80px; right: 80px;
+            display: flex; gap: 40px; align-items: center;
+        }
+        .title-slide .meta-item {
+            display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-dim);
+        }
+        .title-slide .meta-item .dot {
+            width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+            box-shadow: 0 0 8px var(--green-glow-strong);
+        }
+
+        /* === TABLE STYLES === */
+        table {
+            width: 100%; border-collapse: collapse; font-size: 15px;
+        }
+        th {
+            text-align: left; padding: 12px 16px; font-size: 12px;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            color: var(--text-dim); border-bottom: 1px solid var(--surface-border);
+        }
+        td {
+            padding: 14px 16px; border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            color: var(--text-secondary); vertical-align: top;
+        }
+        td:first-child { color: var(--text-primary); font-weight: 500; }
+
+        /* === LIST STYLES === */
+        ul { list-style: none; padding: 0; }
+        ul li {
+            padding: 10px 0; font-size: 17px; color: var(--text-secondary);
+            display: flex; align-items: flex-start; gap: 12px;
+        }
+        ul li::before {
+            content: ''; width: 6px; height: 6px; border-radius: 50%;
+            background: var(--green); margin-top: 9px; flex-shrink: 0;
+        }
+
+        /* === DIAGRAM STYLES === */
+        .flow-diagram {
+            display: flex; align-items: center; gap: 16px;
+            padding: 24px 0;
+        }
+        .flow-box {
+            background: var(--surface); border: 1px solid var(--surface-border);
+            border-radius: 6px; padding: 16px 20px; font-size: 13px;
+            color: var(--text-primary); text-align: center; white-space: nowrap;
+        }
+        .flow-box.highlight {
+            border-color: var(--green-dim); background: rgba(57, 211, 83, 0.05);
+        }
+        .flow-arrow {
+            color: var(--text-dim); font-size: 18px; flex-shrink: 0;
+        }
+
+        /* === PHASE TIMELINE === */
+        .phase-list {
+            display: grid; grid-template-columns: auto 1fr auto; gap: 8px 20px;
+            align-items: center;
+        }
+        .phase-num {
+            font-size: 12px; color: var(--text-dim); width: 24px; text-align: right;
+        }
+        .phase-name { font-size: 15px; color: var(--text-primary); }
+        .phase-status { font-size: 12px; }
+        .phase-status.pass { color: var(--green); }
+        .phase-status.retry { color: var(--orange); }
+    </style>
+</head>
+<body>
+    <div class="deck-viewport">
+        <main class="deck-stage" id="deckStage">
+
+            <!-- === SLIDE 1: TITLE === -->
+            <section class="slide title-slide active">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="prompt reveal">tv-harness run --platforms androidtv,appletv,firetv,vega,web<span class="cursor"></span></div>
+                <h1 class="reveal">TV App <span class="accent">Harness</span></h1>
+                <p class="subtitle reveal">Auto-generated TV applications from a single prompt + content manifest. Powered by Claude Agent SDK with typed tools, markdown skills, and a 13-phase build/verify loop.</p>
+                <div class="meta-row reveal">
+                    <div class="meta-item"><span class="dot"></span>5 target platforms</div>
+                    <div class="meta-item"><span class="dot"></span>12 skill files</div>
+                    <div class="meta-item"><span class="dot"></span>80% deterministic templates</div>
+                    <div class="meta-item"><span class="dot"></span>Self-improving via auto-skills</div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 2: THE PROBLEM === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Context</span>
+                    <span class="page-num">02 / 15</span>
+                </div>
+                <h2 class="reveal">The <span class="accent">Problem</span></h2>
+                <p class="body-text reveal" style="margin-bottom: 48px;">Building a TV app from a content catalog today requires bespoke work per project. The same patterns repeat across every engagement:</p>
+                <div class="three-col reveal">
+                    <div class="card">
+                        <h3 style="font-size: 20px; margin-bottom: 12px;">Scaffolding</h3>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">Monorepo setup, platform configs, Metro bundler, workspace management — every time from scratch.</p>
+                    </div>
+                    <div class="card">
+                        <h3 style="font-size: 20px; margin-bottom: 12px;">TV-Specific UX</h3>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">D-pad navigation, focus management, 10-foot UI spacing, spatial navigation trees — hard to get right.</p>
+                    </div>
+                    <div class="card">
+                        <h3 style="font-size: 20px; margin-bottom: 12px;">Multi-Platform</h3>
+                        <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">Apple TV, Android TV, Fire TV (FOS + Vega), Web — each has quirks, manifests, and build paths.</p>
+                    </div>
+                </div>
+                <p class="body-text reveal" style="margin-top: 40px; font-size: 16px; color: var(--text-dim);">Video player integration, CI/build setup, asset generation, theming — weeks of work that could be minutes.</p>
+            </section>
+
+            <!-- === SLIDE 3: THE SOLUTION === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Solution</span>
+                    <span class="page-num">03 / 15</span>
+                </div>
+                <h2 class="reveal">A <span class="accent">Harness</span>, Not a Generator</h2>
+                <div class="two-col">
+                    <div class="reveal">
+                        <p class="body-text" style="margin-bottom: 32px;">The LLM provides intelligence — interpreting the brief, designing screens, writing component code.</p>
+                        <p class="body-text" style="margin-bottom: 32px;">The harness provides <strong style="color: var(--text-primary);">control</strong> — typed tools, deterministic scaffolding, a skill library, and a build/verify loop.</p>
+                        <div style="margin-top: 24px;">
+                            <span class="tag green">Thin harness</span>
+                            <span class="tag green">Fat skills</span>
+                            <span class="tag">Deterministic tools</span>
+                        </div>
+                    </div>
+                    <div class="reveal">
+                        <div class="code-block">
+                            <span class="comment">// Design principle</span><br><br>
+                            <span class="keyword">const</span> harness = {<br>
+                            &nbsp;&nbsp;intelligence: <span class="string">"LLM"</span>,<br>
+                            &nbsp;&nbsp;control: <span class="string">"orchestrator"</span>,<br>
+                            &nbsp;&nbsp;knowledge: <span class="string">"markdown skills"</span>,<br>
+                            &nbsp;&nbsp;execution: <span class="string">"typed tools"</span>,<br>
+                            &nbsp;&nbsp;quality: <span class="string">"build/verify loop"</span><br>
+                            };<br><br>
+                            <span class="comment">// 80% template, 20% LLM generation</span><br>
+                            <span class="comment">// = high success rate</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 4: BASE TEMPLATE === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Foundation</span>
+                    <span class="page-num">04 / 15</span>
+                </div>
+                <h2 class="reveal">Base Template: <span class="accent">Multi-TV Sample</span></h2>
+                <p class="body-text reveal" style="margin-bottom: 36px;">The harness doesn't scaffold from blank. It starts from a production-ready monorepo that already covers the hard parts.</p>
+                <div class="two-col reveal">
+                    <div>
+                        <h3 style="font-size: 18px; color: var(--green); margin-bottom: 16px;">Monorepo Structure</h3>
+                        <div class="code-block" style="font-size: 13px; line-height: 2;">
+                            apps/<br>
+                            &nbsp;&nbsp;├── expo-multi-tv/ <span class="comment"># Universal app</span><br>
+                            &nbsp;&nbsp;└── vega/ <span class="comment"># Vega SDK app</span><br>
+                            packages/<br>
+                            &nbsp;&nbsp;└── shared-ui/ <span class="comment"># Components, screens, hooks, theme</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 18px; color: var(--green); margin-bottom: 16px;">Out of the Box</h3>
+                        <ul>
+                            <li>Drawer navigation + content grid</li>
+                            <li>Dynamic hero banner</li>
+                            <li>Video player (react-native-video)</li>
+                            <li>Spatial focus (React TV Space Nav)</li>
+                            <li>Remote-control integration</li>
+                            <li>Platform-specific file extensions</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="reveal" style="margin-top: 32px; display: flex; gap: 12px;">
+                    <span class="tag blue">Expo SDK 51</span>
+                    <span class="tag blue">react-native-tvos</span>
+                    <span class="tag blue">React Navigation</span>
+                    <span class="tag blue">Yarn Workspaces</span>
+                    <span class="tag orange">Vega SDK</span>
+                </div>
+            </section>
+
+            <!-- === SLIDE 5: ARCHITECTURE === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Architecture</span>
+                    <span class="page-num">05 / 15</span>
+                </div>
+                <h2 class="reveal">System <span class="accent">Architecture</span></h2>
+                <div class="reveal" style="margin-top: 20px;">
+                    <div class="flow-diagram" style="justify-content: center; margin-bottom: 40px;">
+                        <div class="flow-box">Prompt + Manifest + Brand</div>
+                        <span class="flow-arrow">→</span>
+                        <div class="flow-box highlight">Planner (AppSpec)</div>
+                        <span class="flow-arrow">→</span>
+                        <div class="flow-box highlight">Orchestrator</div>
+                        <span class="flow-arrow">→</span>
+                        <div class="flow-box">Source + Artifacts + Report</div>
+                    </div>
+                </div>
+                <div class="three-col reveal">
+                    <div class="card" style="text-align: center;">
+                        <h3 style="font-size: 16px; color: var(--blue); margin-bottom: 12px;">Tools (Typed)</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">clone_template, apply_theme, inject_content, add_screen, expo_prebuild, run_simulator, capture_screenshot</p>
+                    </div>
+                    <div class="card" style="text-align: center;">
+                        <h3 style="font-size: 16px; color: var(--green); margin-bottom: 12px;">Skills (Markdown)</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">Loaded lazily per phase. meta.md always present. Agent can request_skill_load on demand.</p>
+                    </div>
+                    <div class="card" style="text-align: center;">
+                        <h3 style="font-size: 16px; color: var(--orange); margin-bottom: 12px;">Build/Verify Loop</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">Phase machine with retry budget. Error → repair → re-run. Best-effort on failure.</p>
+                    </div>
+                </div>
+                <div class="reveal" style="margin-top: 36px;">
+                    <p style="font-size: 14px; color: var(--text-dim);">Inspired by: Hermes Agent (file-based skill memory) + Claude Code (QueryEngine single-state-owner) + Garry Tan's "Thin Harness, Fat Skills"</p>
+                </div>
+            </section>
+
+            <!-- === SLIDE 6: INPUTS === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Inputs</span>
+                    <span class="page-num">06 / 15</span>
+                </div>
+                <h2 class="reveal">What You <span class="accent">Provide</span></h2>
+                <div class="two-col" style="margin-top: 16px;">
+                    <div class="reveal">
+                        <div class="card" style="margin-bottom: 20px;">
+                            <h3 style="font-size: 16px; color: var(--green); margin-bottom: 8px;">1. Prompt (natural language)</h3>
+                            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; font-style: italic;">"A streaming app for indie cooking shows. Dark theme, warm accent colors. Home page should have featured row, then categories. Need a watchlist."</p>
+                        </div>
+                        <div class="card" style="margin-bottom: 20px;">
+                            <h3 style="font-size: 16px; color: var(--green); margin-bottom: 8px;">2. Content Manifest (content.json)</h3>
+                            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">Categories, videos (id, title, thumbnail, stream URL, HLS/DASH/MP4), featured items, metadata.</p>
+                        </div>
+                    </div>
+                    <div class="reveal">
+                        <div class="card" style="margin-bottom: 20px;">
+                            <h3 style="font-size: 16px; color: var(--green); margin-bottom: 8px;">3. Brand Kit (brand.json)</h3>
+                            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">Colors (primary, accent, background), font family, logo path, splash screen.</p>
+                        </div>
+                        <div class="card" style="margin-bottom: 20px;">
+                            <h3 style="font-size: 16px; color: var(--green); margin-bottom: 8px;">4. Run Config (run.json)</h3>
+                            <div class="code-block" style="font-size: 12px; line-height: 1.8; margin-top: 8px;">
+                                {<br>
+                                &nbsp;&nbsp;<span class="string">"platforms"</span>: [<span class="string">"androidtv"</span>, <span class="string">"appletv"</span>, <span class="string">"firetv-vega"</span>],<br>
+                                &nbsp;&nbsp;<span class="string">"max_iterations"</span>: <span class="type">90</span>,<br>
+                                &nbsp;&nbsp;<span class="string">"max_retries_per_phase"</span>: <span class="type">5</span><br>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 7: APPSPEC === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Planner</span>
+                    <span class="page-num">07 / 15</span>
+                </div>
+                <h2 class="reveal">Planner → <span class="accent">AppSpec</span></h2>
+                <p class="body-text reveal" style="margin-bottom: 28px;">Single structured-output LLM call. The planner produces a spec — it does not write code.</p>
+                <div class="two-col reveal">
+                    <div class="code-block" style="font-size: 13px; line-height: 1.9;">
+                        <span class="keyword">type</span> <span class="type">AppSpec</span> = {<br>
+                        &nbsp;&nbsp;app_name: <span class="type">string</span>;<br>
+                        &nbsp;&nbsp;theme: { mode: <span class="string">"dark"</span> | <span class="string">"light"</span>; tokens };<br>
+                        &nbsp;&nbsp;navigation: {<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;type: <span class="string">"drawer"</span> | <span class="string">"tabs"</span> | <span class="string">"single"</span>;<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;routes: <span class="type">Route</span>[];<br>
+                        &nbsp;&nbsp;};<br>
+                        &nbsp;&nbsp;screens: <span class="type">Screen</span>[];<br>
+                        &nbsp;&nbsp;components_to_customize: [];<br>
+                        &nbsp;&nbsp;components_to_add: [];<br>
+                        &nbsp;&nbsp;data_bindings: <span class="type">DataBinding</span>[];<br>
+                        &nbsp;&nbsp;player: { lib: <span class="string">"react-native-video"</span> };<br>
+                        };
+                    </div>
+                    <div>
+                        <div class="card" style="margin-bottom: 20px;">
+                            <h3 style="font-size: 16px; color: var(--orange); margin-bottom: 8px;">Screen Layouts</h3>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                                <span class="tag">hero+rails</span>
+                                <span class="tag">grid</span>
+                                <span class="tag">detail</span>
+                                <span class="tag">player</span>
+                                <span class="tag">settings</span>
+                                <span class="tag">search</span>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <h3 style="font-size: 16px; color: var(--blue); margin-bottom: 8px;">Reuse-First Rule</h3>
+                            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">The orchestrator prefers reusing screens from <code style="color: var(--green);">packages/shared-ui</code> over writing new ones. Free-form generation is reserved for genuinely novel screens.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 8: ORCHESTRATOR === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Core</span>
+                    <span class="page-num">08 / 15</span>
+                </div>
+                <h2 class="reveal">The <span class="accent">Orchestrator</span></h2>
+                <p class="body-text reveal" style="margin-bottom: 28px;">Single class, single owner of session state. Holds the AppSpec, file tree, iteration counter, and budget.</p>
+                <div class="two-col reveal">
+                    <div class="code-block" style="font-size: 13px; line-height: 1.9;">
+                        <span class="keyword">class</span> <span class="type">TVAppHarness</span> {<br>
+                        &nbsp;&nbsp;<span class="fn">constructor</span>(model, spec, workdir, config) {<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">this</span>.model = model;<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">this</span>.tools = <span class="keyword">new</span> <span class="type">ToolRegistry</span>();<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">this</span>.skills = <span class="keyword">new</span> <span class="type">SkillLibrary</span>(<span class="string">"./skills"</span>);<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">this</span>.log = <span class="keyword">new</span> <span class="type">RunLog</span>(workdir);<br>
+                        &nbsp;&nbsp;}<br><br>
+                        &nbsp;&nbsp;<span class="keyword">async</span> <span class="fn">run</span>() {<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">this</span>.skills.<span class="fn">always_load</span>(<span class="string">"meta"</span>);<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">for</span> (<span class="keyword">const</span> phase <span class="keyword">of</span> PHASES) {<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">this</span>.skills.<span class="fn">load_for</span>(phase);<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">await</span> <span class="keyword">this</span>.<span class="fn">execute_phase</span>(phase);<br>
+                        &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                        &nbsp;&nbsp;}<br>
+                        }
+                    </div>
+                    <div>
+                        <h3 style="color: var(--green); font-size: 18px; margin-bottom: 16px;">Responsibilities</h3>
+                        <ul>
+                            <li>Maintain tool registry + permission gate</li>
+                            <li>Load SKILL.md files lazily per phase</li>
+                            <li>Honor request_skill_load from agent</li>
+                            <li>Honor write_auto_skill for new skills</li>
+                            <li>Drive the 13-phase machine</li>
+                            <li>Log every tool call (audit trail)</li>
+                            <li>Recover from failures: error → next turn</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 9: TOOL LAYER === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Tools</span>
+                    <span class="page-num">09 / 15</span>
+                </div>
+                <h2 class="reveal">Tool <span class="accent">Registry</span></h2>
+                <p class="body-text reveal" style="margin-bottom: 24px; font-size: 16px;">Every tool returns <code style="color: var(--green);">{ok: bool, output: any, error?: str}</code>. Three categories:</p>
+                <div class="three-col reveal">
+                    <div>
+                        <h3 style="font-size: 16px; color: var(--blue); margin-bottom: 12px;">Project Tools</h3>
+                        <ul style="font-size: 14px;">
+                            <li style="padding: 6px 0;">clone_template</li>
+                            <li style="padding: 6px 0;">customize_app_metadata</li>
+                            <li style="padding: 6px 0;">apply_theme</li>
+                            <li style="padding: 6px 0;">replace_assets</li>
+                            <li style="padding: 6px 0;">inject_content</li>
+                            <li style="padding: 6px 0;">add_screen / remove_screen</li>
+                            <li style="padding: 6px 0;">read_file / write_file / patch_file</li>
+                            <li style="padding: 6px 0;">install_dep</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 16px; color: var(--orange); margin-bottom: 12px;">Build & Verify</h3>
+                        <ul style="font-size: 14px;">
+                            <li style="padding: 6px 0;">expo_prebuild</li>
+                            <li style="padding: 6px 0;">vega_build</li>
+                            <li style="padding: 6px 0;">eas_build</li>
+                            <li style="padding: 6px 0;">run_simulator</li>
+                            <li style="padding: 6px 0;">capture_screenshot</li>
+                            <li style="padding: 6px 0;">run_focus_check</li>
+                            <li style="padding: 6px 0;">run_smoke_test (Maestro)</li>
+                            <li style="padding: 6px 0;">git_commit</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 16px; color: var(--green); margin-bottom: 12px;">Skill Management</h3>
+                        <ul style="font-size: 14px;">
+                            <li style="padding: 6px 0;">request_skill_load</li>
+                            <li style="padding: 6px 0;">list_skills</li>
+                            <li style="padding: 6px 0;">write_auto_skill</li>
+                        </ul>
+                        <div class="card" style="margin-top: 20px; padding: 16px;">
+                            <p style="font-size: 12px; color: var(--text-dim); line-height: 1.6;">The meta-loop: every run can leave behind a skill that makes the next run faster.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 10: SKILL LIBRARY === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Skills</span>
+                    <span class="page-num">10 / 15</span>
+                </div>
+                <h2 class="reveal">Skill <span class="accent">Library</span></h2>
+                <p class="body-text reveal" style="margin-bottom: 24px; font-size: 16px;">Plain markdown files loaded lazily by phase. <code style="color: var(--green);">meta.md</code> is on every turn.</p>
+                <div class="reveal" style="overflow: hidden;">
+                    <table>
+                        <thead>
+                            <tr><th>Skill</th><th>Loaded for</th><th>Purpose</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="color: var(--green);">meta.md</td><td>Every turn</td><td>Library usage, reuse-first rule, auto-skill creation</td></tr>
+                            <tr><td>template-anatomy.md</td><td>File-touching phases</td><td>Monorepo layout, platform resolution</td></tr>
+                            <tr><td>shared-ui-catalog.md</td><td>Screen customization</td><td>What exists; reuse-before-generate tree</td></tr>
+                            <tr><td>spatial-navigation.md</td><td>New screens, focus failures</td><td>React TV Space Navigation patterns</td></tr>
+                            <tr><td>theming.md</td><td>Brand application</td><td>brand.json → tokens, contrast rules</td></tr>
+                            <tr><td>manifest-wiring.md</td><td>Content injection</td><td>content.json → hooks → screens</td></tr>
+                            <tr><td>vega-sdk.md</td><td>Vega build</td><td>Vega OS / Kepler runtime</td></tr>
+                            <tr><td>expo-tv-config.md</td><td>Prebuild</td><td>EXPO_TV=1, plugin options</td></tr>
+                            <tr><td>video-player.md</td><td>Player customization</td><td>HLS/DASH, DRM upgrade path</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="reveal" style="margin-top: 20px; font-size: 13px; color: var(--text-dim);">+ firetv-leanback.md, eas-build.md, 10ft-ui.md — loaded only when relevant phases trigger</p>
+            </section>
+
+            <!-- === SLIDE 11: PHASE MACHINE === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Execution</span>
+                    <span class="page-num">11 / 15</span>
+                </div>
+                <h2 class="reveal">13-Phase <span class="accent">Build Loop</span></h2>
+                <div class="two-col reveal" style="margin-top: 16px;">
+                    <div class="phase-list">
+                        <span class="phase-num">1</span><span class="phase-name">Plan (→ AppSpec)</span><span class="phase-status pass">schema validate</span>
+                        <span class="phase-num">2</span><span class="phase-name">Clone template</span><span class="phase-status pass">git + yarn</span>
+                        <span class="phase-num">3</span><span class="phase-name">Metadata & branding</span><span class="phase-status pass">theme + assets</span>
+                        <span class="phase-num">4</span><span class="phase-name">Manifest wiring</span><span class="phase-status retry">shape mismatch</span>
+                        <span class="phase-num">5</span><span class="phase-name">Screen customization</span><span class="phase-status retry">typecheck + focus</span>
+                        <span class="phase-num">6</span><span class="phase-name">Navigation update</span><span class="phase-status pass">route table</span>
+                        <span class="phase-num">7</span><span class="phase-name">Prebuild (Expo)</span><span class="phase-status retry">native gen</span>
+                        <span class="phase-num">8</span><span class="phase-name">Static checks</span><span class="phase-status pass">tsc + lint + focus</span>
+                        <span class="phase-num">9</span><span class="phase-name">Simulator build</span><span class="phase-status retry">build error</span>
+                        <span class="phase-num">10</span><span class="phase-name">Vega build</span><span class="phase-status pass">vega toolchain</span>
+                        <span class="phase-num">11</span><span class="phase-name">Visual & smoke test</span><span class="phase-status pass">screenshots + Maestro</span>
+                        <span class="phase-num">12</span><span class="phase-name">EAS build (optional)</span><span class="phase-status pass">.ipa / .apk</span>
+                        <span class="phase-num">13</span><span class="phase-name">Package</span><span class="phase-status pass">zip + report</span>
+                    </div>
+                    <div>
+                        <div class="card" style="margin-bottom: 24px;">
+                            <h3 style="font-size: 16px; color: var(--orange); margin-bottom: 12px;">Repair Pattern</h3>
+                            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.7;">On failure: collect {phase, tool, last_error, last_50_log_lines, relevant_file_excerpts} → next LLM turn with instruction "fix this, re-run." Cap at max_retries_per_phase.</p>
+                        </div>
+                        <div class="card">
+                            <h3 style="font-size: 16px; color: var(--blue); margin-bottom: 12px;">Visual Check (Phase 11)</h3>
+                            <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.7;">Maestro D-pad flow through every screen → PNGs → vision model: "Does this look like a working TV app screen?"</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 12: PLATFORMS === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Platforms</span>
+                    <span class="page-num">12 / 15</span>
+                </div>
+                <h2 class="reveal">5 Targets, <span class="accent">1 Codebase</span></h2>
+                <p class="body-text reveal" style="margin-bottom: 36px;">All targets build from the same monorepo. Platform divergence is handled by file extensions (.android.ts, .ios.ts, .kepler.ts) and build paths.</p>
+                <div class="reveal" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px;">
+                    <div class="card" style="text-align: center; padding: 32px 16px;">
+                        <div style="font-size: 36px; margin-bottom: 12px;">📺</div>
+                        <h3 style="font-size: 15px; margin-bottom: 8px;">Apple TV</h3>
+                        <p style="font-size: 12px; color: var(--text-dim);">tvOS via react-native-tvos</p>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 32px 16px;">
+                        <div style="font-size: 36px; margin-bottom: 12px;">📱</div>
+                        <h3 style="font-size: 15px; margin-bottom: 8px;">Android TV</h3>
+                        <p style="font-size: 12px; color: var(--text-dim);">Expo + Leanback</p>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 32px 16px;">
+                        <div style="font-size: 36px; margin-bottom: 12px;">🔥</div>
+                        <h3 style="font-size: 15px; margin-bottom: 8px;">Fire TV (FOS)</h3>
+                        <p style="font-size: 12px; color: var(--text-dim);">Android variant</p>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 32px 16px; border-color: var(--orange);">
+                        <div style="font-size: 36px; margin-bottom: 12px;">⚡</div>
+                        <h3 style="font-size: 15px; margin-bottom: 8px;">Fire TV (Vega)</h3>
+                        <p style="font-size: 12px; color: var(--text-dim);">Vega SDK / Kepler</p>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 32px 16px;">
+                        <div style="font-size: 36px; margin-bottom: 12px;">🌐</div>
+                        <h3 style="font-size: 15px; margin-bottom: 8px;">Web</h3>
+                        <p style="font-size: 12px; color: var(--text-dim);">React Native Web</p>
+                    </div>
+                </div>
+                <div class="reveal" style="margin-top: 36px; display: flex; gap: 48px;">
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 4px;">BUILD PATH: EXPO</p>
+                        <p style="font-size: 15px; color: var(--text-secondary);">apps/expo-multi-tv → Apple TV, Android TV, Fire TV FOS, Web</p>
+                    </div>
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 4px;">BUILD PATH: VEGA</p>
+                        <p style="font-size: 15px; color: var(--text-secondary);">apps/vega → Fire TV Vega OS</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 13: SUCCESS CRITERIA === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Goals</span>
+                    <span class="page-num">13 / 15</span>
+                </div>
+                <h2 class="reveal">Success <span class="accent">Criteria</span></h2>
+                <div class="reveal" style="margin-top: 24px;">
+                    <table>
+                        <thead>
+                            <tr><th>Goal</th><th>Metric</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Generate runnable TV app from one prompt</td>
+                                <td>First simulator launch success ≥ 80% on retry budget of 5</td>
+                                <td style="color: var(--green);">Target</td>
+                            </tr>
+                            <tr>
+                                <td>Cover Apple TV + Android TV in v1</td>
+                                <td>Both platforms boot from one run</td>
+                                <td style="color: var(--green);">Target</td>
+                            </tr>
+                            <tr>
+                                <td>Reusable knowledge across runs</td>
+                                <td>≥ 1 new auto-skill written per novel task class</td>
+                                <td style="color: var(--green);">Target</td>
+                            </tr>
+                            <tr>
+                                <td>Iteration speed</td>
+                                <td>Prompt → simulator screenshot &lt; 15 min (M-series Mac)</td>
+                                <td style="color: var(--orange);">Stretch</td>
+                            </tr>
+                            <tr>
+                                <td>Auditable output</td>
+                                <td>Every file change traceable to a tool call in run.log</td>
+                                <td style="color: var(--green);">Target</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- === SLIDE 14: TECH STACK === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Stack</span>
+                    <span class="page-num">14 / 15</span>
+                </div>
+                <h2 class="reveal">Tech <span class="accent">Stack</span></h2>
+                <div class="two-col reveal" style="margin-top: 24px;">
+                    <div>
+                        <h3 style="font-size: 18px; color: var(--green); margin-bottom: 20px;">Harness</h3>
+                        <ul>
+                            <li>TypeScript (matches generated app's stack)</li>
+                            <li>Claude Agent SDK (@anthropic-ai/claude-agent-sdk)</li>
+                            <li>Anthropic SDK for model calls</li>
+                            <li>Zod for schema validation</li>
+                            <li>Ink + React for TUI interface</li>
+                            <li>Puppeteer for screenshot capture</li>
+                            <li>Vitest for testing</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 18px; color: var(--blue); margin-bottom: 20px;">Generated App</h3>
+                        <ul>
+                            <li>Expo SDK 51 + react-native-tvos</li>
+                            <li>React Navigation (drawer/tabs)</li>
+                            <li>react-native-video for playback</li>
+                            <li>React TV Space Navigation (focus)</li>
+                            <li>@react-native-tvos/config-tv plugin</li>
+                            <li>Vega SDK (@amazon-devices/*)</li>
+                            <li>Maestro for D-pad smoke tests</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="reveal" style="margin-top: 40px;">
+                    <div class="code-block" style="font-size: 13px;">
+                        <span class="comment">// Model routing</span><br>
+                        <span class="keyword">const</span> planning = <span class="string">"claude-opus-4-7"</span>; <span class="comment">// complex generation</span><br>
+                        <span class="keyword">const</span> edits = <span class="string">"claude-haiku-4-5-20251001"</span>; <span class="comment">// cheap validation</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- === SLIDE 15: WHAT'S NEXT === -->
+            <section class="slide">
+                <div class="scanlines"></div>
+                <div class="grid-bg"></div>
+                <div class="slide-header reveal">
+                    <span class="section-label">Next Steps</span>
+                    <span class="page-num">15 / 15</span>
+                </div>
+                <h2 class="reveal">What's <span class="accent">Next</span></h2>
+                <div class="two-col" style="margin-top: 24px;">
+                    <div class="reveal">
+                        <h3 style="font-size: 18px; color: var(--green); margin-bottom: 20px;">Implemented</h3>
+                        <ul>
+                            <li>Orchestrator + tool registry + run log</li>
+                            <li>Skill library with lazy loading</li>
+                            <li>13-phase machine with parallel phases</li>
+                            <li>Prompt loader + phase prompts in markdown</li>
+                            <li>TUI with Ink (interactive mode)</li>
+                            <li>Visual QA with Puppeteer</li>
+                            <li>4 example app manifests</li>
+                        </ul>
+                    </div>
+                    <div class="reveal">
+                        <h3 style="font-size: 18px; color: var(--orange); margin-bottom: 20px;">Open Questions</h3>
+                        <ul>
+                            <li>DRM: does stream_url need DRM in v1?</li>
+                            <li>Platform priority after v1: Tizen or Fire TV first?</li>
+                            <li>Analytics: bake in SDK or leave stub?</li>
+                            <li>Cost ceiling: hard token cap or soft warning?</li>
+                            <li>Determinism target: 80/20 achievable?</li>
+                        </ul>
+                        <div class="card" style="margin-top: 24px; padding: 16px; border-color: var(--green-dim);">
+                            <p style="font-size: 13px; color: var(--green); line-height: 1.6;">Auto-skill compounding: every run leaves knowledge that makes the next run faster and more reliable.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- === PROGRESS BAR === -->
+    <div class="deck-controls">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-dim); text-align: center;">
+            <span id="slideCounter">1 / 15</span>
+        </div>
+    </div>
+
+    <!-- === EDIT HOTZONE === -->
+    <div class="edit-hotzone" style="position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer;"></div>
+    <button class="edit-toggle" id="editToggle" title="Edit mode (E)" style="position: fixed; top: 20px; left: 20px; background: var(--surface); border: 1px solid var(--surface-border); border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 10001; color: var(--text-primary);">✏️ Edit</button>
+
+    <script>
+        /* ===========================================
+           SLIDE PRESENTATION CONTROLLER
+           =========================================== */
+        class SlidePresentation {
+            constructor() {
+                this.slides = document.querySelectorAll('.slide');
+                this.currentSlide = 0;
+                this.stage = document.getElementById('deckStage');
+                this.counter = document.getElementById('slideCounter');
+                this.totalSlides = this.slides.length;
+                this.setupStageScale();
+                this.setupKeyboardNav();
+                this.setupTouchNav();
+                this.setupWheelNav();
+                this.showSlide(0);
+            }
+
+            setupStageScale() {
+                const scale = () => {
+                    const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+                    const x = (window.innerWidth - 1920 * factor) / 2;
+                    const y = (window.innerHeight - 1080 * factor) / 2;
+                    this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+                };
+                scale();
+                window.addEventListener('resize', scale);
+            }
+
+            setupKeyboardNav() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.target.getAttribute('contenteditable')) return;
+                    switch(e.key) {
+                        case 'ArrowRight': case 'ArrowDown': case ' ': case 'PageDown':
+                            e.preventDefault(); this.next(); break;
+                        case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
+                            e.preventDefault(); this.prev(); break;
+                        case 'Home': this.showSlide(0); break;
+                        case 'End': this.showSlide(this.totalSlides - 1); break;
+                    }
+                });
+            }
+
+            setupTouchNav() {
+                let startX = 0, startY = 0;
+                this.stage.addEventListener('touchstart', (e) => {
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                });
+                this.stage.addEventListener('touchend', (e) => {
+                    const dx = e.changedTouches[0].clientX - startX;
+                    const dy = e.changedTouches[0].clientY - startY;
+                    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+                        dx < 0 ? this.next() : this.prev();
+                    }
+                });
+            }
+
+            setupWheelNav() {
+                let lastWheel = 0;
+                document.addEventListener('wheel', (e) => {
+                    const now = Date.now();
+                    if (now - lastWheel < 600) return;
+                    lastWheel = now;
+                    e.deltaY > 0 ? this.next() : this.prev();
+                });
+            }
+
+            next() { this.showSlide(this.currentSlide + 1); }
+            prev() { this.showSlide(this.currentSlide - 1); }
+
+            showSlide(index) {
+                this.currentSlide = Math.max(0, Math.min(index, this.totalSlides - 1));
+                this.slides.forEach((slide, i) => {
+                    slide.classList.toggle('active', i === this.currentSlide);
+                    slide.classList.toggle('visible', i === this.currentSlide);
+                });
+                this.counter.textContent = `${this.currentSlide + 1} / ${this.totalSlides}`;
+            }
+        }
+
+        /* ===========================================
+           INLINE EDITOR
+           =========================================== */
+        class InlineEditor {
+            constructor() {
+                this.isActive = false;
+                this.toggle = document.getElementById('editToggle');
+            }
+
+            toggleEditMode() {
+                this.isActive = !this.isActive;
+                this.toggle.classList.toggle('active', this.isActive);
+                document.querySelectorAll('.slide h1, .slide h2, .slide h3, .slide p, .slide li, .slide td, .slide span:not(.phase-num):not(.flow-arrow)').forEach(el => {
+                    if (this.isActive) {
+                        el.setAttribute('contenteditable', 'true');
+                        el.style.outline = '1px dashed rgba(57, 211, 83, 0.3)';
+                        el.style.outlineOffset = '4px';
+                    } else {
+                        el.removeAttribute('contenteditable');
+                        el.style.outline = '';
+                        el.style.outlineOffset = '';
+                    }
+                });
+            }
+        }
+
+        const presentation = new SlidePresentation();
+        const editor = new InlineEditor();
+
+        // Edit toggle hover logic
+        const hotzone = document.querySelector('.edit-hotzone');
+        const editToggle = document.getElementById('editToggle');
+        let hideTimeout = null;
+
+        hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.style.opacity = '1'; editToggle.style.pointerEvents = 'auto'; });
+        hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) { editToggle.style.opacity = '0'; editToggle.style.pointerEvents = 'none'; } }, 400); });
+        editToggle.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); });
+        editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) { editToggle.style.opacity = '0'; editToggle.style.pointerEvents = 'none'; } }, 400); });
+        editToggle.addEventListener('click', () => editor.toggleEditMode());
+        hotzone.addEventListener('click', () => editor.toggleEditMode());
+        document.addEventListener('keydown', (e) => { if ((e.key === 'e' || e.key === 'E') && !e.target.getAttribute('contenteditable')) editor.toggleEditMode(); });
+    </script>
+</body>
+</html>

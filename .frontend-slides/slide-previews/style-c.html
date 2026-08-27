@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV App Harness - Style C Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* === VIEWPORT BASE (MANDATORY) === */
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg, #000); }
+        .deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+        .deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff); }
+        .slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: var(--slide-bg, #fff); }
+        .slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+        img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+        @media print { html, body { width: 1920px; height: auto; overflow: visible; background: #fff; } .deck-viewport { position: static; overflow: visible; background: #fff; } .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; } .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; } }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+        /* === CUSTOM STYLES: BLUEPRINT DARK === */
+        :root {
+            --stage-bg: #0c1222;
+            --slide-bg: #0f172a;
+            --surface: #1e293b;
+            --surface-elevated: #273548;
+            --accent: #f97316;
+            --accent-dim: rgba(249, 115, 22, 0.15);
+            --blue: #38bdf8;
+            --blue-dim: rgba(56, 189, 248, 0.08);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-dim: #64748b;
+            --grid-line: rgba(56, 189, 248, 0.06);
+        }
+
+        .slide {
+            background: var(--slide-bg);
+            font-family: 'Instrument Sans', sans-serif;
+            color: var(--text-primary);
+            padding: 80px;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .grid-bg {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            opacity: 0;
+            animation: fadeIn 1.5s ease forwards 0.1s;
+        }
+
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+            opacity: 0;
+            animation: slideDown 0.5s ease forwards 0.3s;
+        }
+
+        .breadcrumb {
+            font-family: 'Azeret Mono', monospace;
+            font-size: 13px;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .breadcrumb .sep {
+            color: var(--text-dim);
+            opacity: 0.5;
+        }
+
+        .breadcrumb .active {
+            color: var(--accent);
+        }
+
+        .status-pill {
+            font-family: 'Azeret Mono', monospace;
+            font-size: 11px;
+            padding: 6px 16px;
+            background: var(--accent-dim);
+            border: 1px solid var(--accent);
+            border-radius: 20px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .main-content {
+            margin-top: 120px;
+            position: relative;
+            z-index: 2;
+            display: flex;
+            gap: 80px;
+        }
+
+        .left-col {
+            flex: 1;
+            opacity: 0;
+            animation: slideUp 0.7s ease forwards 0.5s;
+        }
+
+        .left-col h1 {
+            font-size: 80px;
+            font-weight: 700;
+            line-height: 1.05;
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .left-col h1 .highlight {
+            background: linear-gradient(135deg, var(--accent), #fb923c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .left-col .description {
+            font-size: 18px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            margin-top: 28px;
+            max-width: 580px;
+        }
+
+        .right-col {
+            width: 440px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 20px;
+            opacity: 0;
+            animation: slideUp 0.7s ease forwards 0.7s;
+        }
+
+        .spec-card {
+            background: var(--surface);
+            border: 1px solid var(--surface-elevated);
+            border-radius: 12px;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .spec-card .icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: var(--blue-dim);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .spec-card .text .label {
+            font-family: 'Azeret Mono', monospace;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+
+        .spec-card .text .value {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .bottom-strip {
+            position: absolute;
+            bottom: 80px;
+            left: 80px;
+            right: 80px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 24px;
+            border-top: 1px solid var(--surface-elevated);
+            z-index: 2;
+            opacity: 0;
+            animation: fadeIn 0.8s ease forwards 1s;
+        }
+
+        .phase-dots {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .phase-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--surface-elevated);
+        }
+
+        .phase-dot.active {
+            background: var(--accent);
+            box-shadow: 0 0 12px var(--accent-dim);
+        }
+
+        .phase-label {
+            font-family: 'Azeret Mono', monospace;
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-left: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .date {
+            font-family: 'Azeret Mono', monospace;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div class="deck-viewport">
+        <div class="deck-stage">
+            <div class="slide active">
+                <div class="grid-bg"></div>
+                <div class="top-nav">
+                    <div class="breadcrumb">
+                        <span>projects</span>
+                        <span class="sep">/</span>
+                        <span class="active">tv-app-harness</span>
+                    </div>
+                    <div class="status-pill">Active Development</div>
+                </div>
+                <div class="main-content">
+                    <div class="left-col">
+                        <h1>TV App<br><span class="highlight">Harness</span></h1>
+                        <p class="description">An AI orchestrator that ingests a prompt + content manifest and produces buildable, runnable TV applications for Apple TV, Android TV, Fire TV, and Vega OS.</p>
+                    </div>
+                    <div class="right-col">
+                        <div class="spec-card">
+                            <div class="icon">⚡</div>
+                            <div class="text">
+                                <div class="label">Engine</div>
+                                <div class="value">Claude Agent SDK</div>
+                            </div>
+                        </div>
+                        <div class="spec-card">
+                            <div class="icon">📺</div>
+                            <div class="text">
+                                <div class="label">Platforms</div>
+                                <div class="value">5 targets from 1 codebase</div>
+                            </div>
+                        </div>
+                        <div class="spec-card">
+                            <div class="icon">🧠</div>
+                            <div class="text">
+                                <div class="label">Architecture</div>
+                                <div class="value">Thin harness, fat skills</div>
+                            </div>
+                        </div>
+                        <div class="spec-card">
+                            <div class="icon">🔄</div>
+                            <div class="text">
+                                <div class="label">Build loop</div>
+                                <div class="value">13-phase verify + repair</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bottom-strip">
+                    <div class="phase-dots">
+                        <div class="phase-dot active"></div>
+                        <div class="phase-dot"></div>
+                        <div class="phase-dot"></div>
+                        <div class="phase-dot"></div>
+                        <div class="phase-dot"></div>
+                        <div class="phase-dot"></div>
+                        <span class="phase-label">Plan → Clone → Brand → Wire → Build → Verify</span>
+                    </div>
+                    <div class="date">June 2026</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function scaleStage() {
+            const stage = document.querySelector('.deck-stage');
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const scale = Math.min(vw / 1920, vh / 1080);
+            const x = (vw - 1920 * scale) / 2;
+            const y = (vh - 1080 * scale) / 2;
+            stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+        }
+        scaleStage();
+        window.addEventListener('resize', scaleStage);
+    </script>
+</body>
+</html>
