@@ -168,14 +168,6 @@ export class ClaudePhaseExecutor {
     commitAfterPhase(this.ctx.state.workdir, phase);
   }
 
-  checkSkillPromotions(): void {
-    for (const s of this.ctx.skills.getAutoSkillStats()) {
-      if (s.timesLoaded >= 3 && s.timesRecurred === 0) {
-        this.ctx.events.onLog?.(`★ Skill "${s.name}" has prevented defects across ${s.timesLoaded}+ runs. Consider promoting to a core prompt.`);
-      }
-    }
-  }
-
   writeReport(): void {
     writeHarnessReports({
       state: this.ctx.state,
@@ -319,14 +311,6 @@ export class ClaudePhaseExecutor {
             : JSON.stringify(block.input ?? "", null, 2);
           this.ctx.events.onPhaseMessage(phase, { type: "tool_use", content: input, toolName: block.name });
 
-          if (block.name === "Write" || block.name === "Edit") {
-            const filePath = typeof block.input === "object" ? (block.input?.file_path ?? "") : "";
-            if (filePath.includes("skills/auto/") && filePath.endsWith(".md")) {
-              const skillName = filePath.split("/").pop()?.replace(".md", "") ?? "unknown";
-              this.ctx.events.onPhaseMessage(phase, { type: "text", content: `⚡ Skill created: ${skillName}` });
-              this.ctx.events.onLog?.(`⚡ Auto-skill created: ${skillName} (phase: ${phase})`);
-            }
-          }
         }
       }
     } else if (event.type === "tool_result" || (event.type === "user" && event.message?.content)) {

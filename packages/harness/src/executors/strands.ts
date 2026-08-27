@@ -14,6 +14,7 @@ import {
   budgetStopReason,
 } from "../run-context.js";
 import { StrandsPhaseExecutor } from "../strands-phase-executor.js";
+import { SkillLibrary } from "../skill-library.js";
 
 export interface StrandsRunOptions {
   generateOnly?: boolean;
@@ -27,12 +28,14 @@ export class StrandsOrchestrator {
   private harness: HarnessConfig;
   private modelConfig: ModelProviderConfig;
   private prompts: PromptLoader;
+  private skills: SkillLibrary;
   private executor: StrandsPhaseExecutor;
 
   constructor(input: HarnessInput, events: HarnessEvents = {}) {
     this.input = input;
     this.events = events;
     this.prompts = createPromptLoader(input);
+    this.skills = new SkillLibrary(input.skillsDir);
 
     const ctx = createRunContext(input, { tokenBudget: 0 });
     this.harness = ctx.harness;
@@ -55,6 +58,7 @@ export class StrandsOrchestrator {
       harness: this.harness,
       log: this.log,
       prompts: this.prompts,
+      skills: this.skills,
       modelConfig: this.modelConfig,
     });
   }

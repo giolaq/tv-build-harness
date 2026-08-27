@@ -70,7 +70,7 @@ export const listSkillsHandler: ToolHandler = async (input): Promise<ToolResult>
 
 export const writeAutoSkillDefinition: ToolDefinition = {
   name: "write_auto_skill",
-  description: "Create a new auto-generated skill from a solved problem. Must be ≥500 chars with a Gotchas/Anti-pattern section and code example.",
+  description: "Submit a validated, phase-scoped skill candidate from a solved problem. Must be ≥500 chars with a Gotchas/Anti-pattern section and code example.",
   input_schema: {
     type: "object",
     properties: {
@@ -101,5 +101,5 @@ export const writeAutoSkillHandler: ToolHandler = async (input): Promise<ToolRes
     return { ok: false, output: null, error: result.error };
   }
 
-  return { ok: true, output: `Skill "${name}" created successfully. It will be available for future phases.` };
+  return { ok: true, output: `Skill candidate "${name}" accepted and indexed for matching phases. Review it before promotion.` };
 };

@@ -9,7 +9,12 @@ import { writeRunReport } from "../src/run-report.js";
 import { Recorder } from "../src/recorder.js";
 import { runPipeline, selectActivePhases } from "../src/pipeline-engine.js";
 import { mergeHarnessConfig, type HarnessConfig, type PhaseSpec } from "../src/harness-config.js";
-import type { AppSpec, HarnessInput } from "../src/types.js";
+import {
+  buildClaudeSkillContext,
+  buildSdkSystemPrompt,
+  buildStrandsSkillsPlugin,
+} from "../src/phase-context.js";
+import type { AppSpec, HarnessInput, SessionState } from "../src/types.js";
 
 const TEST_DIR = join(tmpdir(), "tv-build-executors-test");
 
@@ -98,6 +103,60 @@ describe("executor characterization", () => {
     expect(library.listSkills("core").map((s) => s.name)).toEqual(["rn-demo"]);
     expect(library.loadSkills(["missing", "rn-demo"])).toHaveLength(1);
     expect(library.loadSkill("rn-demo")).toContain("Use the demo guidance.");
+  });
+
+  it("selects the same phase-scoped skill bundle for Claude, Agent SDK, and Strands", async () => {
+    const skillsDir = join(TEST_DIR, "skills");
+    const autoDir = join(skillsDir, "auto");
+    mkdirSync(join(skillsDir, "meta"), { recursive: true });
+    mkdirSync(join(skillsDir, "rn-demo"), { recursive: true });
+    mkdirSync(autoDir, { recursive: true });
+
+    writeFileSync(
+      join(skillsDir, "meta", "SKILL.md"),
+      "---\nname: meta\napplies_to: [all]\n---\n\n# Meta\n\nAlways-on guidance."
+    );
+    writeFileSync(
+      join(skillsDir, "rn-demo", "SKILL.md"),
+      "---\nname: rn-demo\napplies_to: [branding]\n---\n\n# Explicit\n\nExplicit phase guidance."
+    );
+    const matchingAuto =
+      "---\nname: auto-branding\napplies_to: [branding]\n---\n\n# Matching Auto\n\nMATCHING_AUTO_CONTENT";
+    writeFileSync(join(autoDir, "auto-branding.md"), matchingAuto);
+    writeFileSync(
+      join(autoDir, "auto-content.md"),
+      "---\nname: auto-content\napplies_to: [content]\n---\n\n# Unrelated Auto\n\nUNRELATED_AUTO_CONTENT"
+    );
+
+    const harnessInput = input();
+    harnessInput.skillsDir = skillsDir;
+    const state = sessionState(harnessInput);
+    const spec = phase("branding", { skills: ["rn-demo"] });
+    const library = new SkillLibrary(skillsDir);
+
+    const claudePrompt = buildClaudeSkillContext({
+      spec,
+      state,
+      harnessInput,
+      skills: library,
+    });
+    const sdkPrompt = buildSdkSystemPrompt({
+      spec,
+      state,
+      harnessInput,
+      skills: library,
+    });
+    const strandsSkills = await buildStrandsSkillsPlugin(library, spec).getAvailableSkills();
+
+    expect(claudePrompt).toContain(matchingAuto);
+    expect(sdkPrompt).toContain(matchingAuto);
+    expect(claudePrompt).not.toContain("UNRELATED_AUTO_CONTENT");
+    expect(sdkPrompt).not.toContain("UNRELATED_AUTO_CONTENT");
+    expect(strandsSkills.map((skill) => skill.name).sort()).toEqual([
+      "auto-branding",
+      "meta",
+      "rn-demo",
+    ]);
   });
 
   it("writes a shared run report with phase status, costs, spec summary, and Vega artifacts", () => {
@@ -335,5 +394,23 @@ function appSpec(): AppSpec {
     components_to_add: [],
     data_bindings: [],
     player: { lib: "react-native-video" },
+  };
+}
+
+function sessionState(harnessInput: HarnessInput): SessionState {
+  return {
+    runId: "test-run",
+    workdir: TEST_DIR,
+    creativeSeed: "test-seed",
+    config: harnessInput.config,
+    spec: appSpec(),
+    currentPhase: "branding",
+    phaseResults: new Map(),
+    iteration: 0,
+    totalIterations: 0,
+    tokenBudget: 500_000,
+    tokensUsed: 0,
+    costSoFar: 0,
+    messages: [],
   };
 }

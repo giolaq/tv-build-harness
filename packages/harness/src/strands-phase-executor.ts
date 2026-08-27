@@ -7,6 +7,7 @@ import { AppSpecSchema } from "./types.js";
 import type { HarnessConfig, PhaseSpec } from "./harness-config.js";
 import type { RunLog } from "./run-log.js";
 import type { PromptLoader } from "./prompt-loader.js";
+import type { SkillLibrary } from "./skill-library.js";
 import { buildDesignContext } from "./phase-prompts.js";
 import { createModel, usageTracker } from "./model-factory.js";
 import type { ModelProviderConfig } from "./model-factory.js";
@@ -33,6 +34,7 @@ export class StrandsPhaseExecutor {
     harness: HarnessConfig;
     log: RunLog;
     prompts: PromptLoader;
+    skills: SkillLibrary;
     modelConfig: ModelProviderConfig;
   }) {}
 
@@ -78,7 +80,7 @@ export class StrandsPhaseExecutor {
       const tools = createStrandsTools({ appDir, workdir: this.ctx.state.workdir });
       const phaseModelConfig = this.ctx.harness.models.phaseModels?.[phase] ?? this.ctx.modelConfig;
       const model = createModel(phaseModelConfig);
-      const skillsPlugin = buildStrandsSkillsPlugin(this.ctx.input.skillsDir, spec);
+      const skillsPlugin = buildStrandsSkillsPlugin(this.ctx.skills, spec);
 
       const agent = new Agent({ model, tools, systemPrompt, plugins: [skillsPlugin], printer: false });
       const maxTurns = this.getMaxTurns(phase);

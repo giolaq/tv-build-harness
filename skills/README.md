@@ -69,4 +69,4 @@ find skills -maxdepth 2 -name SKILL.md | sort
 
 ## Auto-skills
 
-Skills the harness writes itself live in `./auto/`. Triggered after ≥ 5 tool calls on a novel sub-problem: the orchestrator summarizes the resolution into a new `SKILL.md` and saves it. Future runs load it like any other skill.
+Validated skill candidates live in `./auto/`. The `write_auto_skill` tool accepts only safe kebab-case names, valid phase scopes, substantive guidance, a Gotchas or Anti-pattern section, and a code example. Accepted candidates are indexed immediately and load only for matching phases. Review them manually before promoting, merging, or deleting them; the harness does not yet track recurrence or effectiveness.

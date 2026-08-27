@@ -140,14 +140,14 @@ export function createAgentSdkToolServer(input: {
 
   const writeAutoSkillTool = tool(
     "write_auto_skill",
-    "Create a new auto-skill from a solved problem (>=500 chars, needs Gotchas section + code example)",
+    "Submit a validated, phase-scoped skill candidate from a solved problem (>=500 chars, needs Gotchas section + code example)",
     { name: z.string(), applies_to: z.array(z.string()), content: z.string() },
     async ({ name, applies_to, content }) => {
       const result = skills.createAutoSkill(name, { applies_to }, content);
       if (!result.ok) {
         return { content: [{ type: "text" as const, text: result.error! }], isError: true };
       }
-      return { content: [{ type: "text" as const, text: `Skill "${name}" created.` }] };
+      return { content: [{ type: "text" as const, text: `Skill candidate "${name}" accepted and indexed for review.` }] };
     }
   );
 
