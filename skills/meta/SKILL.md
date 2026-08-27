@@ -7,14 +7,14 @@ load_when: every turn
 
 # How to use this skill library
 
-> You have a skill library. **Use it.** This file is loaded on every turn so you remember it exists. The other skills are loaded by phase; you don't have to manage that — the harness does. Your job is to *consult* skills before acting, and to *write* new ones when you solve something that will come up again.
+> You have a skill library. **Use it.** This file is loaded on every turn so you remember it exists. The other skills are loaded by phase; you don't have to manage that — the harness does. Your job is to *consult* skills before acting, and to propose reusable candidates when you solve something that will come up again.
 
 ## The rule that everything else follows
 
 **Before writing code or invoking a non-trivial tool, ask: is there a skill for this?**
 
 If yes → read it, follow its decision tree, then act.
-If no but the problem is recurring → solve it manually 3 to 10 times, then write a skill via `write_auto_skill`.
+If no but the problem is recurring or clearly general → solve it, then propose a candidate via `write_auto_skill` when that tool is available.
 If no and the problem is one-off → just solve it. Don't pre-codify.
 
 The harness will surface relevant skills in your context automatically based on the current phase. If you find yourself reasoning about a problem and no relevant skill is loaded, **don't guess** — call `request_skill_load(name)` to pull one, or `list_skills()` if you're not sure what's available. Both are cheap and safe.
@@ -23,7 +23,7 @@ The harness will surface relevant skills in your context automatically based on 
 
 - **`request_skill_load(name)`** — pull a skill not auto-loaded for this phase. Use when you hit a problem that feels like it should have established guidance. If the name is wrong, the tool returns suggestions.
 - **`list_skills(scope?)`** — see what's available. `scope` is `core | auto | all`. Call this when an error message contains a domain word you haven't seen before (e.g. "Vega," "leanback," "manifest schema") — there's probably a skill for it.
-- **`write_auto_skill(name, frontmatter, content)`** — codify a learned pattern after solving it manually 3+ times. The harness validates frontmatter shape and quality before accepting. Rejections come with reasons; fix and retry.
+- **`write_auto_skill(name, applies_to, content)`** — submit a reusable candidate. The harness validates its kebab-case name, phase scope, length, gotchas or anti-patterns, and code example before accepting it. If this tool is unavailable, report the candidate for human review instead of writing into `skills/auto/` directly.
 
 ## When to consult a skill (not just notice it's loaded)
 
@@ -52,22 +52,23 @@ If you act without consulting and you were wrong, that's the failure mode this l
 - `eas-build.md` — TV build profiles, when to use EAS vs local
 - `10ft-ui.md` — type scale, contrast, safe areas — only for new screens
 
-## Writing new skills (auto-skill creation)
+## Proposing auto-skill candidates
 
-After 5+ tool calls solving a novel sub-problem, call `write_auto_skill(name, frontmatter, content)` before moving on. The skill is stored at `./skills/auto/<name>.md`. Include:
+After solving a novel, reusable sub-problem, call `write_auto_skill(name, applies_to, content)` if the validated tool is available. Otherwise, include the proposed name, phase scope, and body in your response for human review. Never write directly into the skills directory. Include:
 
-1. **Frontmatter** with `applies_to` (which phase loads it) and `load_when` (human description).
+1. **A phase scope** in `applies_to` that identifies which phase should load it.
 2. **The decision** you made and why. Not the code — the judgment.
 3. **The anti-pattern** you almost fell into. This is often the most valuable part.
 4. **A concrete example** from this run as illustration.
 
-Future runs load it automatically. The harness will probably never reach for that exact same novel problem twice; the value is in the *class* of problem the skill describes.
+Accepted candidates are indexed immediately and load only for matching phases. They remain candidates until a human reviews their accuracy, scope, and overlap with core skills.
 
-The orchestrator validates and may reject:
-- Frontmatter missing `applies_to` or `load_when` → reject with reason.
+The validated tool rejects:
+- A name that is not kebab-case, is unsafe, or already exists.
+- Missing or invalid `applies_to` phase scope.
 - Body shorter than ~500 characters → reject as too thin.
-- No "anti-pattern" or "do not" section → reject; the warning is half the value.
-- Duplicate name → reject; pick a more specific name.
+- No Gotchas or Anti-pattern section → reject; the warning is half the value.
+- No code example → reject as insufficiently concrete.
 
 Read the rejection reason, fix, retry. Don't retry blindly.
 
@@ -89,7 +90,7 @@ Read the rejection reason, fix, retry. Don't retry blindly.
 - **Reading the right skill at the right moment.** Not just having it in context.
 - **Reusing template components and screens.** This is the highest-leverage habit.
 - **Flagging when you need a skill that doesn't exist.** Don't fake it.
-- **Writing new skills after you've solved something novel multiple times.**
+- **Proposing a candidate after you've solved something novel and reusable.**
 
 ## The reuse rule, restated
 
@@ -101,6 +102,6 @@ When you find yourself wanting to write from scratch, the question is always: **
 
 - **Skill loaded, not consulted.** A skill is not a flag; it's a process. Open it, follow it.
 - **Generating instead of reusing.** Always the wrong default for this codebase.
-- **Writing a skill from a single occurrence.** That's a one-off, not a pattern. Wait for the third.
+- **Presenting a one-off as recurring.** Require evidence of recurrence or a clearly general invariant before proposing a candidate.
 - **Vague skills.** "Be careful with X" is not a skill. Specific decision trees and anti-patterns are.
 - **Treating skills as documentation to read once.** They're programs to execute every relevant turn.

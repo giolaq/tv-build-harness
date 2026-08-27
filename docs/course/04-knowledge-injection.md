@@ -14,9 +14,9 @@ The harness loads always-on meta knowledge plus phase-specific skills in `packag
 
 Strands mode exposes skills through a plugin in `packages/harness/src/phase-context.ts:224`. Claude CLI mode injects skill text directly into the prompt context.
 
-Auto-skill guidance lives in `packages/harness/src/phase-context.ts:54`. The model is told to create reusable notes only when the fix is general enough and not already covered.
+Auto-skill guidance lives in `packages/harness/src/phase-context.ts`. The model is told to propose reusable notes only when the fix is general enough and not already covered. It must use the validated creation tool when available; otherwise it reports a candidate for human review instead of writing directly into the skill library.
 
-The skill creation tool enforces quality expectations in `packages/harness/src/tools/skill-tools.ts:72`.
+The skill creation tool enforces safe names, valid phase scopes, substantive content, gotchas or anti-patterns, and a code example in `packages/harness/src/tools/skill-tools.ts`. Accepted candidates are indexed immediately and auto-load only for matching phases.
 
 ## Exercise
 
@@ -48,6 +48,6 @@ What stops auto-generated skills from becoming noise?
 
 <details><summary>Answer</summary>
 
-The auto-skill guidance and tool contract require generality, duplicate checks, gotchas or anti-patterns, and examples.
+The validated tool requires a safe unique name, explicit phase scope, substantive guidance, gotchas or anti-patterns, and an example. Candidates still require human review because the harness does not yet measure recurrence or effectiveness.
 
 </details>

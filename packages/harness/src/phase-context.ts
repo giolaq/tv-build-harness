@@ -1,4 +1,3 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { AgentSkills, Skill } from "@strands-agents/sdk/vended-plugins/skills";
 import type { HarnessInput, Phase, SessionState } from "./types.js";
@@ -36,8 +35,7 @@ export function buildClaudeSkillContext(input: {
   skills: SkillLibrary;
 }): string {
   const meta = input.skills.alwaysLoad();
-  const phaseSkills = input.skills.loadSkills(input.spec.skills);
-  const skillsDir = input.harnessInput.skillsDir;
+  const phaseSkills = input.skills.loadPhaseSkills(input.spec.name, input.spec.skills);
 
   return [
     "## Context: You are a TV app development agent.",
@@ -52,61 +50,20 @@ export function buildClaudeSkillContext(input: {
     meta,
     ...phaseSkills,
     "",
-    "## Auto-Skillify",
+    "## Auto-Skill Candidates",
     "",
-    "After completing your task, check: did you fix or discover a REUSABLE PATTERN that would prevent the same issue in future TV app generations?",
+    "After completing your task, check whether you found a reusable pattern that would prevent the same issue in future TV app generations.",
     "",
-    "Rate the fix on reusability (1-5):",
-    "1 = only applies to this exact app",
-    "2 = might apply to similar apps",
-    "3 = applies to most TV apps with this nav style",
-    "4 = applies to ANY TV app using react-tv-space-navigation",
-    "5 = universal React Native TV pattern",
+    "Only propose a candidate when the pattern is general, includes a concrete example, and documents a Gotchas or Anti-pattern section.",
+    "Use a kebab-case name and scope applies_to to the current phase or another explicit phase.",
     "",
-    "Only skillify if score >= 4.",
+    "If a validated write_auto_skill tool is available, submit the candidate through that tool.",
+    "If the tool is unavailable, report the candidate in your response for human review.",
+    "Never write directly into the skills directory.",
     "",
-    "Before creating, check for duplicates:",
-    `Run: grep -rl "<main-keyword-of-your-fix>" ${skillsDir}/auto/ ${skillsDir}/ 2>/dev/null | head -5`,
-    "If a similar skill exists, UPDATE it instead of creating a duplicate.",
+    "Do not propose app-specific content, one-off typos, or issues already covered by a loaded skill.",
     "",
-    "If no duplicate and score >= 4, create:",
-    `Run: mkdir -p ${skillsDir}/auto`,
-    `Then write a file at ${skillsDir}/auto/<pattern-name>.md:`,
-    "",
-    "```",
-    "---",
-    "name: <kebab-case-name>",
-    `applies_to: [${input.spec.name}]`,
-    "meta:",
-    `  created_by_run: ${input.state.runId}`,
-    `  created_at: ${new Date().toISOString().slice(0, 10)}`,
-    "  times_loaded: 0",
-    "  times_defect_recurred: 0",
-    "---",
-    "",
-    "# <Pattern Title>",
-    "",
-    "## Problem",
-    "<What goes wrong and why>",
-    "",
-    "## Fix Pattern",
-    "```typescript",
-    "// BEFORE (broken)",
-    "<code>",
-    "",
-    "// AFTER (fixed)",
-    "<code>",
-    "```",
-    "",
-    "## Gotchas",
-    "- <Edge case or look-alike>",
-    "```",
-    "",
-    "Do NOT skillify: app-specific content, one-off typos, issues already in loaded skills.",
-    "",
-    "FILE WRITE RESTRICTIONS: You may ONLY write/edit files in:",
-    "1. The generated app directory (where you are working)",
-    `2. ${skillsDir}/auto/ (for new skills ONLY)`,
+    "FILE WRITE RESTRICTIONS: You may ONLY write/edit files in the generated app directory where you are working.",
     "NEVER modify files in src/, prompts/, or any harness source code.",
     "NEVER modify the harness package.json, tsconfig, or build files.",
     "You are testing and improving the GENERATED APP, not the harness itself.",
@@ -137,7 +94,7 @@ export function buildSdkSystemPrompt(input: {
       "",
       "## Skills (domain knowledge)",
       input.skills.alwaysLoad(),
-      ...input.skills.loadSkills(input.spec.skills)
+      ...input.skills.loadPhaseSkills(input.spec.name, input.spec.skills)
     );
   }
 
@@ -222,25 +179,27 @@ ${routesList}
 IMPORTANT: Only reference screens that ACTUALLY EXIST. First run: ls packages/shared-ui/src/screens/ to check. Do NOT import non-existent screens. After edits, run: npx tsc --noEmit to confirm it compiles.`;
 }
 
-export function buildStrandsSkillsPlugin(skillsDir: string, spec: PhaseSpec): AgentSkills {
-  const skillSources: (string | Skill)[] = [];
+export function buildStrandsSkillsPlugin(skills: SkillLibrary, spec: PhaseSpec): AgentSkills {
+  const contents = [
+    skills.alwaysLoad(),
+    ...skills.loadPhaseSkills(spec.name, spec.skills),
+  ].filter((content) => content.length > 0);
 
-  for (const skillName of ["meta", ...spec.skills]) {
-    const skillDirPath = join(skillsDir, skillName);
-    const skillFlatPath = join(skillsDir, `${skillName}.md`);
-    if (existsSync(join(skillDirPath, "SKILL.md"))) {
-      skillSources.push(Skill.fromFile(skillDirPath, { strict: false }));
-    } else if (existsSync(skillFlatPath)) {
-      skillSources.push(Skill.fromContent(readFileSync(skillFlatPath, "utf-8"), { strict: false }));
-    }
-  }
-
-  const autoDir = join(skillsDir, "auto");
-  if (existsSync(autoDir)) {
-    for (const file of readdirSync(autoDir).filter(f => f.endsWith(".md"))) {
-      skillSources.push(Skill.fromContent(readFileSync(join(autoDir, file), "utf-8"), { strict: false }));
-    }
-  }
+  const skillSources = contents.map((content) =>
+    Skill.fromContent(withStrandsDescription(content), { strict: false })
+  );
 
   return new AgentSkills({ skills: skillSources, strict: false });
+}
+
+function withStrandsDescription(content: string): string {
+  const frontmatter = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!frontmatter || /^description:\s*.+$/m.test(frontmatter[1])) {
+    return content;
+  }
+
+  const name = frontmatter[1].match(/^name:\s*(.+)$/m)?.[1]?.trim() ?? "TV app skill";
+  const title = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  const description = JSON.stringify(title || `TV app guidance for ${name}`);
+  return content.replace(/^---\n/, `---\ndescription: ${description}\n`);
 }

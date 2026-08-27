@@ -201,7 +201,6 @@ export class ClaudeOrchestrator {
     }
 
     this.executor.writeReport();
-    this.executor.checkSkillPromotions();
     return { state: this.state, outDir: this.state.workdir };
   }
 

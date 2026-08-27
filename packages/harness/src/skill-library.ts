@@ -1,7 +1,10 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { join, basename, dirname } from "node:path";
+import { join, basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { Phase, SkillMeta } from "./types.js";
 import { DEFAULT_PHASE_SKILLS } from "./harness-config.js";
+
+const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PHASE_TOKEN_PATTERN = /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$/;
 
 export class SkillLibrary {
   private skillsDir: string;
@@ -14,6 +17,9 @@ export class SkillLibrary {
   }
 
   private buildIndex(): void {
+    this.index.clear();
+    this.loaded.clear();
+
     const scanDir = (dir: string) => {
       if (!existsSync(dir)) return;
       for (const entry of readdirSync(dir)) {
@@ -69,7 +75,42 @@ export class SkillLibrary {
   }
 
   loadForPhase(phase: Phase): string[] {
-    return this.loadSkills(DEFAULT_PHASE_SKILLS[phase] ?? []);
+    return this.loadPhaseSkills(phase, DEFAULT_PHASE_SKILLS[phase] ?? []);
+  }
+
+  getPhaseSkillMetas(phase: Phase, explicitNames: string[]): SkillMeta[] {
+    const selected: SkillMeta[] = [];
+    const seen = new Set<string>();
+
+    const add = (meta: SkillMeta | undefined) => {
+      if (!meta || seen.has(meta.name)) return;
+      selected.push(meta);
+      seen.add(meta.name);
+    };
+
+    for (const name of explicitNames) {
+      add(this.index.get(name));
+    }
+
+    const phaseTokens = new Set([phase, `phase_${phase}`, "all"]);
+    const matchingAutoSkills = [...this.index.values()]
+      .filter((meta) =>
+        this.isAutoSkill(meta) &&
+        meta.applies_to.some((token) => phaseTokens.has(token))
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const meta of matchingAutoSkills) {
+      add(meta);
+    }
+
+    return selected;
+  }
+
+  loadPhaseSkills(phase: Phase, explicitNames: string[]): string[] {
+    return this.getPhaseSkillMetas(phase, explicitNames)
+      .map((meta) => this.loadSkill(meta.name))
+      .filter((content) => content.length > 0);
   }
 
   loadSkills(names: string[]): string[] {
@@ -94,50 +135,7 @@ export class SkillLibrary {
     const content = readFileSync(meta.filePath, "utf-8");
     this.loaded.set(name, content);
 
-    // Track effectiveness: bump times_loaded for auto-skills
-    if (meta.filePath.includes("/auto/") && content.includes("times_loaded:")) {
-      this.incrementMeta(meta.filePath, content, "times_loaded");
-    }
-
     return content;
-  }
-
-  incrementDefectRecurred(skillName: string): void {
-    const meta = this.index.get(skillName);
-    if (!meta || !meta.filePath.includes("/auto/")) return;
-    const content = readFileSync(meta.filePath, "utf-8");
-    if (content.includes("times_defect_recurred:")) {
-      this.incrementMeta(meta.filePath, content, "times_defect_recurred");
-    }
-  }
-
-  private incrementMeta(filePath: string, content: string, field: string): void {
-    try {
-      const updated = content.replace(
-        new RegExp(`(${field}:\\s*)(\\d+)`),
-        (_, prefix, num) => `${prefix}${parseInt(num) + 1}`
-      );
-      if (updated !== content) {
-        writeFileSync(filePath, updated);
-      }
-    } catch {}
-  }
-
-  getAutoSkillStats(): Array<{ name: string; timesLoaded: number; timesRecurred: number; filePath: string }> {
-    const stats: Array<{ name: string; timesLoaded: number; timesRecurred: number; filePath: string }> = [];
-    for (const meta of this.index.values()) {
-      if (!meta.filePath.includes("/auto/")) continue;
-      const content = readFileSync(meta.filePath, "utf-8");
-      const loadedMatch = content.match(/times_loaded:\s*(\d+)/);
-      const recurredMatch = content.match(/times_defect_recurred:\s*(\d+)/);
-      stats.push({
-        name: meta.name,
-        timesLoaded: loadedMatch ? parseInt(loadedMatch[1]) : 0,
-        timesRecurred: recurredMatch ? parseInt(recurredMatch[1]) : 0,
-        filePath: meta.filePath,
-      });
-    }
-    return stats;
   }
 
   loadOnDemand(name: string): { ok: boolean; content?: string; error?: string; suggested?: string[] } {
@@ -159,6 +157,26 @@ export class SkillLibrary {
     frontmatter: { applies_to: string[] },
     content: string
   ): { ok: boolean; error?: string } {
+    if (!SKILL_NAME_PATTERN.test(name) || name.length > 64) {
+      return {
+        ok: false,
+        error: "Skill name must be 1-64 lowercase alphanumeric characters separated by single hyphens",
+      };
+    }
+    if (!Array.isArray(frontmatter.applies_to) || frontmatter.applies_to.length === 0) {
+      return { ok: false, error: "Skill must apply to at least one phase" };
+    }
+
+    const appliesTo = [...new Set(frontmatter.applies_to.map((phase) => phase.trim()))];
+    const invalidPhase = appliesTo.find(
+      (phase) => phase !== "all" && (!PHASE_TOKEN_PATTERN.test(phase) || phase.length > 64)
+    );
+    if (invalidPhase !== undefined) {
+      return {
+        ok: false,
+        error: `Invalid applies_to phase "${invalidPhase}". Use "all" or a lowercase phase name`,
+      };
+    }
     if (content.length < 500) {
       return { ok: false, error: "Skill content must be at least 500 characters" };
     }
@@ -175,17 +193,33 @@ export class SkillLibrary {
     const autoDir = join(this.skillsDir, "auto");
     mkdirSync(autoDir, { recursive: true });
 
+    const resolvedAutoDir = resolve(autoDir);
+    const filePath = resolve(resolvedAutoDir, `${name}.md`);
+    const relativePath = relative(resolvedAutoDir, filePath);
+    if (
+      relativePath === ".." ||
+      relativePath.startsWith(`..${sep}`) ||
+      isAbsolute(relativePath)
+    ) {
+      return { ok: false, error: "Skill path must remain inside the auto-skills directory" };
+    }
+    if (existsSync(filePath)) {
+      return { ok: false, error: `Skill "${name}" already exists` };
+    }
+
+    const title = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
+    const description = title || `Reusable TV app guidance for ${name}`;
     const fullContent = `---
 name: ${name}
-applies_to: [${frontmatter.applies_to.join(", ")}]
+description: ${JSON.stringify(description)}
+applies_to: [${appliesTo.join(", ")}]
 ---
 
 ${content}`;
 
-    const filePath = join(autoDir, `${name}.md`);
-    writeFileSync(filePath, fullContent);
+    writeFileSync(filePath, fullContent, { flag: "wx" });
 
-    this.index.set(name, { name, applies_to: frontmatter.applies_to, filePath });
+    this.buildIndex();
     return { ok: true };
   }
 
@@ -194,12 +228,23 @@ ${content}`;
     for (const meta of this.index.values()) {
       if (scope === "all") {
         results.push(meta);
-      } else if (scope === "auto" && meta.filePath.includes("/auto/")) {
+      } else if (scope === "auto" && this.isAutoSkill(meta)) {
         results.push(meta);
-      } else if (scope === "core" && !meta.filePath.includes("/auto/")) {
+      } else if (scope === "core" && !this.isAutoSkill(meta)) {
         results.push(meta);
       }
     }
     return results;
+  }
+
+  private isAutoSkill(meta: SkillMeta): boolean {
+    const autoDir = resolve(this.skillsDir, "auto");
+    const relativePath = relative(autoDir, resolve(meta.filePath));
+    return (
+      relativePath !== "" &&
+      relativePath !== ".." &&
+      !relativePath.startsWith(`..${sep}`) &&
+      !isAbsolute(relativePath)
+    );
   }
 }
