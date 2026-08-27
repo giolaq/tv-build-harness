@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV App Harness - Style B Preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        /* === VIEWPORT BASE (MANDATORY) === */
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg, #000); }
+        .deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+        .deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff); }
+        .slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: var(--slide-bg, #fff); }
+        .slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+        img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+        @media print { html, body { width: 1920px; height: auto; overflow: visible; background: #fff; } .deck-viewport { position: static; overflow: visible; background: #fff; } .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; } .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; } }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+        /* === CUSTOM STYLES: NEO-GRID BOLD === */
+        :root {
+            --stage-bg: #1A1A1A;
+            --slide-bg: #F5F4EF;
+            --paper: #F5F4EF;
+            --ink: #0A0A0A;
+            --accent-lemon: #E6FF3D;
+            --muted: #8A8A85;
+        }
+
+        .slide {
+            background: var(--paper);
+            font-family: 'Space Grotesk', sans-serif;
+            color: var(--ink);
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 12px;
+            padding: 40px;
+            box-sizing: border-box;
+        }
+
+        .slide.active {
+            display: grid;
+        }
+
+        .title-panel {
+            grid-column: 1 / span 7;
+            grid-row: 1 / span 6;
+            background: var(--ink);
+            padding: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            position: relative;
+            opacity: 0;
+            animation: panelIn 0.6s ease forwards 0.2s;
+        }
+
+        .title-panel h1 {
+            font-size: 72px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: -2px;
+            line-height: 1;
+            color: var(--paper);
+            margin: 0;
+        }
+
+        .title-panel h1 span {
+            color: var(--accent-lemon);
+        }
+
+        .title-panel .subtitle {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-top: 24px;
+            line-height: 1.8;
+            max-width: 500px;
+        }
+
+        .corner-mark {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 24px;
+            height: 24px;
+            border-top: 3px solid var(--accent-lemon);
+            border-left: 3px solid var(--accent-lemon);
+        }
+
+        .accent-panel {
+            grid-column: 8 / span 5;
+            grid-row: 1 / span 3;
+            background: var(--accent-lemon);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            opacity: 0;
+            animation: panelIn 0.6s ease forwards 0.4s;
+        }
+
+        .accent-panel .label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--ink);
+            margin-bottom: 12px;
+        }
+
+        .accent-panel .stat {
+            font-size: 64px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--ink);
+        }
+
+        .info-panel {
+            grid-column: 8 / span 5;
+            grid-row: 4 / span 3;
+            background: var(--paper);
+            border: 2px solid var(--ink);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 16px;
+            opacity: 0;
+            animation: panelIn 0.6s ease forwards 0.6s;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .info-item .key {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            min-width: 100px;
+        }
+
+        .info-item .value {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--ink);
+        }
+
+        .bottom-bar {
+            grid-column: 1 / span 12;
+            grid-row: 7 / span 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            opacity: 0;
+            animation: panelIn 0.6s ease forwards 0.8s;
+        }
+
+        .bottom-bar .page-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+        }
+
+        .bottom-bar .tags {
+            display: flex;
+            gap: 16px;
+        }
+
+        .bottom-bar .tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            padding: 4px 12px;
+            border: 1px solid var(--muted);
+        }
+
+        @keyframes panelIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="deck-viewport">
+        <div class="deck-stage">
+            <div class="slide active">
+                <div class="title-panel">
+                    <div class="corner-mark"></div>
+                    <h1>TV App<br><span>Harness</span></h1>
+                    <div class="subtitle">Auto-generated TV applications from prompt + manifest. Claude Agent SDK orchestration with typed tools and self-improving skills.</div>
+                </div>
+                <div class="accent-panel">
+                    <div class="label">Target platforms</div>
+                    <div class="stat">5</div>
+                </div>
+                <div class="info-panel">
+                    <div class="info-item">
+                        <span class="key">Stack</span>
+                        <span class="value">Expo + React Native TV</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="key">Model</span>
+                        <span class="value">Claude Opus 4.7</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="key">Template</span>
+                        <span class="value">80% deterministic</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="key">Skills</span>
+                        <span class="value">12 core + auto-gen</span>
+                    </div>
+                </div>
+                <div class="bottom-bar">
+                    <div class="page-num">01 / Cover</div>
+                    <div class="tags">
+                        <span class="tag">React Native</span>
+                        <span class="tag">Claude SDK</span>
+                        <span class="tag">Multi-Platform</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function scaleStage() {
+            const stage = document.querySelector('.deck-stage');
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const scale = Math.min(vw / 1920, vh / 1080);
+            const x = (vw - 1920 * scale) / 2;
+            const y = (vh - 1080 * scale) / 2;
+            stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+        }
+        scaleStage();
+        window.addEventListener('resize', scaleStage);
+    </script>
+</body>
+</html>
