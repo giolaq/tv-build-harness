@@ -73,15 +73,15 @@ npx tsx src/index.ts claude-run my-inputs --plan --json
 
 Cost: free.
 
-Show the plan and max-cost setting to the human. Only after confirmation, launch the run:
+Show the plan and state that execution is uncapped. Only after confirmation, launch the run:
 
 ```sh
-npx tsx src/index.ts claude-run my-inputs --detach --yes --json --max-cost 10
+npx tsx src/index.ts claude-run my-inputs --detach --yes --json
 npx tsx src/index.ts status <runId> --json
 npx tsx src/index.ts logs <runId>
 ```
 
-Cost: live model cost, capped by `--max-cost 10`.
+Cost: live model cost, tracked but uncapped.
 
 Read `docs/course/demos/agent-drives-harness/README.md` and compare its transcript with `AGENTS.md`.
 
@@ -91,7 +91,7 @@ Now inspect the refine loop:
 npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --plan --json
 ```
 
-Cost: free for `--plan`; live model cost for execution, capped by `--max-cost 3` by default.
+Cost: free for `--plan`; live model cost for execution is tracked but uncapped.
 
 Read the plan output. Identify the phase concern, inherited seed, verify checks, and the amend-vs-rewind non-goal. The keyed replay fixture for a real refine session is deferred until a full-harness recording is regenerated with a model key.
 

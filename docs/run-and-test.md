@@ -73,9 +73,9 @@ Use these only when `ANTHROPIC_API_KEY` and the Claude CLI are configured:
 ```sh
 cd packages/harness
 npx tsx src/index.ts doctor
-npx tsx src/index.ts claude-run --example cooking-shows --generate-only --no-tui --seed workshop-fixed-seed --max-cost 10
+npx tsx src/index.ts claude-run --example cooking-shows --generate-only --no-tui --seed workshop-fixed-seed
 npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --plan --json
-npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes --json --max-cost 3
+npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes --json
 ```
 
 ## Android CLI Platform Check
@@ -123,7 +123,7 @@ troubleshooting guide.
 Do not run or publish pass-rate numbers until:
 
 - `packages/verification` passes `yarn test` and `yarn build`.
-- `verify.config.json` states `seedPolicy`, `fixedSeed`, `maxBatchCostUsd`, and `perRunMaxCostUsd`.
+- `verify.config.json` states `seedPolicy`, `fixedSeed`, `maxBatchCostUsd`, and `estimatedRunCostUsd`.
 - The batch size is chosen before the run.
 - The report states the seed regime and pinned environment.
 

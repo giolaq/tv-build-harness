@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 
 import { cpSync, readFileSync, existsSync, readdirSync, statSync, mkdirSync, openSync, writeFileSync } from "node:fs";
-import { resolve, join, dirname } from "node:path";
+import { resolve, join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-// Prevent perf_hooks buffer overflow warning from long-running TUI renders
 const { performance: perf } = globalThis;
 if (perf?.clearMeasures) {
   const perfCleaner = setInterval(() => { perf.clearMeasures(); perf.clearMarks(); }, 60_000);
@@ -21,9 +20,10 @@ import { SkillFetcher } from "./skill-fetcher.js";
 import { loadHarnessConfig } from "./harness-config.js";
 import type { HarnessConfig } from "./harness-config.js";
 import { selectActivePhases } from "./pipeline-engine.js";
-import { findResumableRun } from "./checkpoint.js";
+import { findResumableRun, loadCheckpoint } from "./checkpoint.js";
 import { resolveClaude, invokeClaude } from "./claude-cli.js";
-import type { PhaseMessage } from "./executors/claude-cli.js";
+import type { HarnessEvents, PhaseMessage } from "./executors/claude-cli.js";
+import type { TUI } from "./tui.js";
 import { EXIT, isJsonMode, writeError, writeEvent, writeJson } from "./output.js";
 import {
   ContentManifestSchema,
@@ -32,7 +32,7 @@ import {
   DesignTokensSchema,
   ScreenTreeSchema,
 } from "./types.js";
-import type { Phase, PhaseResult } from "./types.js";
+import type { HarnessInput, Phase, PhaseResult, SessionState } from "./types.js";
 import { toJSONSchema } from "zod";
 import type { TypeOf, ZodError, ZodTypeAny } from "zod";
 import { findInputSchema, INPUT_SCHEMAS } from "./input-schemas.js";
@@ -40,6 +40,7 @@ import { abortRun, initRunStatus, outDirForRun, summarizeRun, updateRunStatus } 
 import { validateInputDir } from "./validate.js";
 import { checkTemplates } from "./template-check.js";
 import { buildRefinePlan, executeRefine, RefineInputError } from "./refine.js";
+import type { RefineOptions, RefinePlan, RefineResult } from "./refine.js";
 import { runAndroidCommand } from "./commands/android.js";
 
 loadEnvFile();
@@ -47,6 +48,40 @@ loadEnvFile();
 const args = process.argv.slice(2);
 const command = args[0];
 const jsonMode = isJsonMode(args);
+type CommandHandler = () => void | Promise<void>;
+type LoadedInputs = Omit<HarnessInput, "workdir" | "skillsDir" | "harness"> & {
+  inputDir: string;
+  harness: HarnessConfig;
+};
+type RunnableHarnessInput = HarnessInput & { harness: HarnessConfig };
+type StrandsOrchestratorClass = typeof import("./executors/strands.js").StrandsOrchestrator;
+type TuiClass = typeof import("./tui.js").TUI;
+
+const COMMAND_HANDLERS: Record<string, CommandHandler> = {
+  run: () => runCommand("run"),
+  "claude-run": () => runCommand("claude-run"),
+  doctor: runDoctorCommand,
+  "vega-doctor": runVegaDoctorCommand,
+  replay: runReplay,
+  status: printRunStatus,
+  logs: printRunLogs,
+  abort: abortDetachedRun,
+  refine: refineCommand,
+  schema: printSchema,
+  validate: validateInputsCommand,
+  init: initInputsCommand,
+  templates: templatesCommand,
+  android: () => runAndroidCommand(args.slice(1), jsonMode),
+  "add-screen": addScreen,
+  review: reviewCode,
+  "test-ui": testUI,
+  "visual-qa": runVisualQA,
+  serve: startServe,
+  "install-skills": installSkills,
+  "update-skills": updateSkills,
+  "prune-skills": pruneSkills,
+  "consolidate-skills": consolidateSkills,
+};
 
 function loadEnvFile(): void {
   const candidates = [
@@ -68,14 +103,12 @@ function loadEnvFile(): void {
       const key = trimmed.slice(0, eqIndex).trim();
       let value = trimmed.slice(eqIndex + 1).trim();
 
-      // Strip surrounding quotes
       if ((value.startsWith('"') && value.endsWith('"')) ||
           (value.startsWith("'") && value.endsWith("'"))) {
         value = value.slice(1, -1);
       }
 
-      // Don't override existing env vars
-      if (!process.env[key]) {
+      if (process.env[key] === undefined) {
         process.env[key] = value;
       }
     }
@@ -84,100 +117,19 @@ function loadEnvFile(): void {
 }
 
 async function main() {
-  switch (command) {
-    case "run":
-      if (args.includes("--plan")) {
-        printResolvedPlan();
-        break;
-      }
-      if (args.includes("--detach")) {
-        startDetachedRun("run");
-        break;
-      }
-      await runHarness();
-      break;
-    case "claude-run":
-      if (args.includes("--plan")) {
-        printResolvedPlan();
-        break;
-      }
-      if (args.includes("--detach")) {
-        startDetachedRun("claude-run");
-        break;
-      }
-      await runWithClaude();
-      break;
-    case "doctor":
-      await runDoctorCommand();
-      break;
-    case "vega-doctor":
-      await runVegaDoctorCommand();
-      break;
-    case "replay":
-      await runReplay();
-      break;
-    case "status":
-      printRunStatus();
-      break;
-    case "logs":
-      await printRunLogs();
-      break;
-    case "abort":
-      abortDetachedRun();
-      break;
-    case "refine":
-      if (args.includes("--detach")) {
-        startDetachedRefine();
-        break;
-      }
-      await runRefineCommand();
-      break;
-    case "schema":
-      printSchema();
-      break;
-    case "validate":
-      validateInputsCommand();
-      break;
-    case "init":
-      initInputsCommand();
-      break;
-    case "templates":
-      templatesCommand();
-      break;
-    case "android":
-      await runAndroidCommand(args.slice(1), jsonMode);
-      break;
-    case "add-screen":
-      await addScreen();
-      break;
-    case "review":
-      await reviewCode();
-      break;
-    case "test-ui":
-      await testUI();
-      break;
-    case "visual-qa":
-      await runVisualQA();
-      break;
-    case "serve":
-      await startServe();
-      break;
-    case "install-skills":
-      await installSkills();
-      break;
-    case "update-skills":
-      await updateSkills();
-      break;
-    case "prune-skills":
-      await pruneSkills();
-      break;
-    case "consolidate-skills":
-      await consolidateSkills();
-      break;
-    default:
-      printUsage();
-      break;
-  }
+  rejectRemovedMaxCostFlag();
+  const handler = command ? COMMAND_HANDLERS[command] : undefined;
+  await (handler ?? printUsage)();
+}
+
+function runCommand(mode: "run" | "claude-run"): void | Promise<void> {
+  if (args.includes("--plan")) return printResolvedPlan();
+  if (args.includes("--detach")) return startDetachedRun(mode);
+  return mode === "run" ? runHarness() : runWithClaude();
+}
+
+function refineCommand(): void | Promise<void> {
+  return args.includes("--detach") ? startDetachedRefine() : runRefineCommand();
 }
 
 function templatesCommand(): void {
@@ -242,9 +194,7 @@ function humanLog(message = ""): void {
   else console.log(message);
 }
 
-// Flags that consume the next argument as their value.
 const VALUE_FLAGS = new Set(["--example", "--config", "--from-phase", "--type", "--speed", "--seed", "--max-cost", "--run-id", "--from-example", "--phase"]);
-// --resume takes an optional value (a runId, never starting with --).
 const OPTIONAL_VALUE_FLAGS = new Set(["--resume"]);
 
 function positionalArgs(): string[] {
@@ -262,41 +212,33 @@ function positionalArgs(): string[] {
 }
 
 function loadInputs() {
-  const exampleFlag = args.indexOf("--example");
-  const resumeFlag = args.indexOf("--resume");
-  let inputDir: string;
+  return loadResumeInputs() ?? loadInputsFromDirectory(resolveInputDir());
+}
 
-  // When resuming without an explicit input source, load from the run's saved input.json
-  if (resumeFlag >= 0 && exampleFlag < 0 && positionalArgs().length === 0) {
-    const runId = (args[resumeFlag + 1] && !args[resumeFlag + 1].startsWith("--"))
-      ? args[resumeFlag + 1] : undefined;
-    const resumeDir = findResumableRun(resolve("."), runId);
-    if (resumeDir) {
-      const savedInputPath = join(resumeDir, "input.json");
-      if (existsSync(savedInputPath)) {
-        return loadInputsFromSaved(savedInputPath);
-      }
-    }
-  }
+function loadResumeInputs(): LoadedInputs | undefined {
+  const resuming = args.some((arg) => arg === "--resume" || arg.startsWith("--resume="));
+  if (!resuming || valueFlag("--example") || positionalArgs().length > 0) return undefined;
+  const resumeDir = findResumableRun(resolve("."), resumeRunId());
+  const savedInputPath = resumeDir ? join(resumeDir, "input.json") : "";
+  return savedInputPath && existsSync(savedInputPath)
+    ? loadInputsFromSaved(savedInputPath)
+    : undefined;
+}
 
-  if (exampleFlag >= 0 && args[exampleFlag + 1]) {
-    const exampleName = args[exampleFlag + 1];
-    inputDir = resolve("examples", exampleName);
-    if (!existsSync(inputDir)) {
-      inputDir = resolve("..", "..", "examples", exampleName);
-    }
-    if (!existsSync(inputDir)) {
-      fail(
-        "example_not_found",
-        `Example "${exampleName}" not found. Bundled examples: ${listExamples().join(", ")}`,
-        "Run tv-build --help or pass an input directory path.",
-        EXIT.input
-      );
-    }
-  } else {
-    inputDir = resolve(positionalArgs()[0] ?? ".");
-  }
+function resolveInputDir(): string {
+  const exampleName = valueFlag("--example");
+  if (!exampleName) return resolve(positionalArgs()[0] ?? ".");
+  const inputDir = resolveExampleDir(exampleName);
+  if (inputDir) return inputDir;
+  fail(
+    "example_not_found",
+    `Example "${exampleName}" not found. Bundled examples: ${listExamples().join(", ")}`,
+    "Run tv-build --help or pass an input directory path.",
+    EXIT.input
+  );
+}
 
+function loadInputsFromDirectory(inputDir: string): LoadedInputs {
   const contentPath = join(inputDir, "content.json");
   const brandPath = join(inputDir, "brand.json");
   const runConfigPath = join(inputDir, "run.json");
@@ -339,12 +281,11 @@ function loadInputs() {
 
   const runId = runIdFlag();
   const creativeSeed = seedFlag();
-  const maxCostUsd = maxCostFlag(harness.maxCostUsd, exampleFlag >= 0);
 
-  return { inputDir, content, brand, config, design, screenTree, prompt, harness, runId, creativeSeed, maxCostUsd };
+  return { inputDir, content, brand, config, design, screenTree, prompt, harness, runId, creativeSeed };
 }
 
-function loadInputsFromSaved(savedInputPath: string) {
+function loadInputsFromSaved(savedInputPath: string): LoadedInputs {
   const raw = JSON.parse(readFileSync(savedInputPath, "utf-8"));
   const content = ContentManifestSchema.parse(raw.content);
   const brand = raw.brand ? BrandKitSchema.parse(raw.brand) : BrandKitSchema.parse({
@@ -357,106 +298,87 @@ function loadInputsFromSaved(savedInputPath: string) {
   const harness = raw.harness ? raw.harness as HarnessConfig : loadHarness(".");
   const runId = runIdFlag() ?? raw.runId;
   const creativeSeed = seedFlag() ?? raw.creativeSeed;
-  const maxCostUsd = maxCostFlag(harness.maxCostUsd, false);
-  return { inputDir: ".", content, brand, config, design, screenTree, prompt, harness, runId, creativeSeed, maxCostUsd };
+  return { inputDir: ".", content, brand, config, design, screenTree, prompt, harness, runId, creativeSeed };
 }
 
 function runIdFlag(): string | undefined {
-  const flag = args.indexOf("--run-id");
-  const value = flag >= 0 ? args[flag + 1] : undefined;
-  return value?.trim() || undefined;
+  return valueFlag("--run-id");
 }
 
 function seedFlag(): string | undefined {
-  const equals = args.find((arg) => arg.startsWith("--seed="));
-  const value = equals?.slice("--seed=".length) ?? (args.includes("--seed") ? args[args.indexOf("--seed") + 1] : undefined);
-  return value?.trim() || undefined;
+  return valueFlag("--seed");
 }
 
-function maxCostFlag(configValue: number | undefined, isExample: boolean): number | undefined {
-  const equals = args.find((arg) => arg.startsWith("--max-cost="));
-  const value = equals?.slice("--max-cost=".length) ?? (args.includes("--max-cost") ? args[args.indexOf("--max-cost") + 1] : undefined);
-  if (value !== undefined) {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      fail("invalid_max_cost", `Invalid --max-cost value "${value}".`, "Pass a positive dollar amount, for example --max-cost 5.", EXIT.input);
-    }
-    return parsed;
-  }
-  return configValue ?? (isExample ? undefined : 10);
+function resumeRunId(): string | undefined {
+  const equals = args.find((arg) => arg.startsWith("--resume="));
+  if (equals) return equals.slice("--resume=".length).trim() || undefined;
+  const index = args.indexOf("--resume");
+  const value = index >= 0 ? args[index + 1] : undefined;
+  return value && !value.startsWith("--") ? value : undefined;
 }
 
-function refineMaxCostFlag(): number {
-  const equals = args.find((arg) => arg.startsWith("--max-cost="));
-  const value = equals?.slice("--max-cost=".length) ?? (args.includes("--max-cost") ? args[args.indexOf("--max-cost") + 1] : undefined);
-  if (value !== undefined) {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      fail("invalid_max_cost", `Invalid --max-cost value "${value}".`, "Pass a positive dollar amount, for example --max-cost 3.", EXIT.input);
-    }
-    return parsed;
+function rejectRemovedMaxCostFlag(): void {
+  if (args.some((arg) => arg === "--max-cost" || arg.startsWith("--max-cost="))) {
+    fail(
+      "removed_max_cost",
+      "--max-cost has been removed; runs are uncapped.",
+      "Remove --max-cost. Cost is still tracked and reported.",
+      EXIT.input
+    );
   }
-  return 3;
+}
+
+function resolveRequestedResumeDir(baseDir: string): string | null {
+  if (!args.some((arg) => arg === "--resume" || arg.startsWith("--resume="))) return null;
+  const runId = resumeRunId();
+  const resumeDir = findResumableRun(baseDir, runId);
+  if (!resumeDir) {
+    fail(
+      "resume_not_found",
+      `No resumable run found${runId ? ` for runId "${runId}"` : ""} under ${join(baseDir, "out")}.`,
+      "Run a generation until at least one phase completes, then retry --resume.",
+      EXIT.input
+    );
+  }
+  return resumeDir;
+}
+
+function stripInternalRunId(argv: string[]): string[] {
+  const cleaned: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--run-id") {
+      i++;
+      continue;
+    }
+    if (argv[i].startsWith("--run-id=")) continue;
+    cleaned.push(argv[i]);
+  }
+  return cleaned;
 }
 
 function phaseFlag(): string | undefined {
-  const equals = args.find((arg) => arg.startsWith("--phase="));
-  const value = equals?.slice("--phase=".length) ?? (args.includes("--phase") ? args[args.indexOf("--phase") + 1] : undefined);
-  return value?.trim() || undefined;
+  return valueFlag("--phase");
 }
 
 function startDetachedRun(mode: "run" | "claude-run"): void {
-  if (jsonMode && !args.includes("--yes")) {
-    fail(
-      "confirmation_required",
-      "Detached JSON runs require --yes.",
-      "Show the human `tv-build claude-run --plan --json`, then rerun with --detach --yes.",
-      EXIT.input
-    );
-  }
-
-  const { harness, maxCostUsd } = loadInputs();
-  const runId = randomUUID().slice(0, 8);
-  const outDir = outDirForRun(resolve("."), runId);
-  mkdirSync(outDir, { recursive: true });
-  const logFd = openSync(join(outDir, "run.log"), "a");
-  const childArgs = process.argv.slice(2)
-    .filter((arg) => arg !== "--detach" && arg !== "--yes")
-    .flatMap((arg) => arg === "--json" ? [arg] : [arg]);
-  if (!childArgs.includes("--json")) childArgs.push("--json");
-  if (!childArgs.includes("--no-tui")) childArgs.push("--no-tui");
-  childArgs.push("--run-id", runId);
-
-  const script = process.argv[1];
-  const child = spawn(process.execPath, [...process.execArgv, script, ...childArgs], {
-    cwd: process.cwd(),
-    detached: true,
-    stdio: ["ignore", logFd, logFd],
-    env: process.env,
-  });
-  child.unref();
-
-  initRunStatus(outDir, { runId, pid: child.pid, budget: maxCostUsd ?? harness.maxCostUsd });
-
-  if (jsonMode) {
-    writeJson({ command: "detach", runId, pid: child.pid, out: outDir });
-  } else {
-    console.log(`Detached ${mode} run ${runId}`);
-    console.log(`PID: ${child.pid}`);
-    console.log(`Output: ${outDir}`);
-  }
+  requireDetachedConfirmation(
+    "Detached JSON runs require --yes.",
+    "Show the human `tv-build claude-run --plan --json`, then rerun with --detach --yes."
+  );
+  loadInputs();
+  const resumeDir = resolveRequestedResumeDir(resolve("."));
+  const runId = resumeDir ? basename(resumeDir) : randomUUID().slice(0, 8);
+  const outDir = resumeDir ?? outDirForRun(resolve("."), runId);
+  const pid = spawnDetached(outDir, detachedRunArgs(runId));
+  initRunStatus(outDir, { runId, pid });
+  printDetachedResult(`Detached ${mode} run`, runId, pid, outDir);
 }
 
 function startDetachedRefine(): void {
-  if (jsonMode && !args.includes("--yes")) {
-    fail(
-      "confirmation_required",
-      "Detached JSON refines require --yes.",
-      "Show the human `tv-build refine <target> --phase <phase> \"instruction\" --plan --json`, then rerun with --detach --yes.",
-      EXIT.input
-    );
-  }
-
+  requireDetachedConfirmation(
+    "Detached JSON refines require --yes.",
+    "Show the human `tv-build refine <target> --phase <phase> \"instruction\" --plan --json`, then rerun with --detach --yes."
+  );
   const target = positionalArgs()[0];
   const instruction = positionalArgs().slice(1).join(" ").trim();
   if (!target || !instruction) {
@@ -471,33 +393,61 @@ function startDetachedRefine(): void {
       phase: phaseFlag(),
       rootDir: resolve("."),
       skillsDir: resolveSkillsDir(),
-      maxCostUsd: refineMaxCostFlag(),
     });
   } catch (err) {
     if (err instanceof RefineInputError) fail(err.code, err.message, err.hint, EXIT.input);
     throw err;
   }
 
-  const logFd = openSync(join(plan.outDir, "run.log"), "a");
-  const childArgs = process.argv.slice(2).filter((arg) => arg !== "--detach");
-  if (!childArgs.includes("--json")) childArgs.push("--json");
-  const script = process.argv[1];
-  const child = spawn(process.execPath, [...process.execArgv, script, ...childArgs], {
+  const pid = spawnDetached(plan.outDir, requiredArgs(
+    process.argv.slice(2).filter((arg) => arg !== "--detach"),
+    ["--json"]
+  ));
+  initRunStatus(plan.outDir, { runId: plan.runId, pid });
+  printDetachedResult("Detached refine for run", plan.runId, pid, plan.outDir);
+}
+
+function requireDetachedConfirmation(message: string, hint: string): void {
+  if (jsonMode && !args.includes("--yes")) {
+    fail("confirmation_required", message, hint, EXIT.input);
+  }
+}
+
+function detachedRunArgs(runId: string): string[] {
+  const childArgs = stripInternalRunId(process.argv.slice(2))
+    .filter((arg) => arg !== "--detach" && arg !== "--yes");
+  return [...requiredArgs(childArgs, ["--json", "--no-tui"]), "--run-id", runId];
+}
+
+function requiredArgs(argv: string[], required: string[]): string[] {
+  const result = [...argv];
+  for (const flag of required) {
+    if (!result.includes(flag)) result.push(flag);
+  }
+  return result;
+}
+
+function spawnDetached(outDir: string, childArgs: string[]): number | undefined {
+  mkdirSync(outDir, { recursive: true });
+  const logFd = openSync(join(outDir, "run.log"), "a");
+  const child = spawn(process.execPath, [...process.execArgv, process.argv[1], ...childArgs], {
     cwd: process.cwd(),
     detached: true,
     stdio: ["ignore", logFd, logFd],
     env: process.env,
   });
   child.unref();
+  return child.pid;
+}
 
-  initRunStatus(plan.outDir, { runId: plan.runId, pid: child.pid, budget: plan.maxCostUsd });
+function printDetachedResult(label: string, runId: string, pid: number | undefined, outDir: string): void {
   if (jsonMode) {
-    writeJson({ command: "detach", runId: plan.runId, pid: child.pid, out: plan.outDir });
-  } else {
-    console.log(`Detached refine for run ${plan.runId}`);
-    console.log(`PID: ${child.pid}`);
-    console.log(`Output: ${plan.outDir}`);
+    writeJson({ command: "detach", runId, pid, out: outDir });
+    return;
   }
+  console.log(`${label} ${runId}`);
+  console.log(`PID: ${pid}`);
+  console.log(`Output: ${outDir}`);
 }
 
 function loadHarness(inputDir: string): HarnessConfig {
@@ -522,20 +472,30 @@ function loadHarness(inputDir: string): HarnessConfig {
 function printResolvedPlan(): void {
   const { config, harness } = loadInputs();
   const generateOnly = args.includes("--generate-only");
-  const { active } = selectActivePhases(harness.phases, {
+  const fromFlag = args.indexOf("--from-phase");
+  const fromPhase = fromFlag >= 0 ? args[fromFlag + 1] : undefined;
+  const resumeDir = resolveRequestedResumeDir(resolve("."));
+  const checkpoint = resumeDir ? loadCheckpoint(resumeDir) : null;
+  const { active, completed } = selectActivePhases(harness.phases, {
     platforms: config.platforms,
     generateOnly,
+    fromPhase,
+    resumedPhases: checkpoint ? new Set(checkpoint.completedPhases) : undefined,
   });
+  const phases = active.filter((phase) => !completed.has(phase.name));
 
   if (jsonMode) {
     writeJson({
       command: "plan",
-      phases: active,
-      count: active.length,
+      phases,
+      count: phases.length,
       generateOnly,
+      resume: resumeDir ?? undefined,
+      fromPhase,
+      completedPhases: [...completed],
     });
   } else {
-    console.log(JSON.stringify(active, null, 2));
+    console.log(JSON.stringify(phases, null, 2));
   }
 }
 
@@ -728,7 +688,6 @@ function writeStarterInputs(dir: string, customPipeline: boolean): void {
   if (customPipeline) {
     writeFileSync(join(dir, "harness.config.json"), JSON.stringify({
       tokenBudget: 500000,
-      maxCostUsd: 10,
       phases: [
         { name: "verify", verify: [{ type: "tsc" }] },
       ],
@@ -750,126 +709,19 @@ function starterVideo(id: string, title: string): Record<string, unknown> {
 }
 
 async function runHarness() {
-  // Check for required API key based on provider config
-  const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
-  const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
-  const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-  const hasAWSAuth = !!process.env.AWS_PROFILE || !!process.env.AWS_ACCESS_KEY_ID;
-
-  if (!hasAnthropicKey && !hasOpenRouterKey && !hasOpenAIKey && !hasAWSAuth) {
-    fail(
-      "missing_api_credentials",
-      "No API credentials found for API mode.",
-      "Set one of ANTHROPIC_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, or AWS_PROFILE; or use tv-build claude-run.",
-      EXIT.environment
-    );
-  }
-
-  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, runId, creativeSeed, maxCostUsd } = loadInputs();
-
-  const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
-  const workdir = resolve(".");
+  requireApiCredentials();
+  const input = runnableHarnessInput();
   const generateOnly = args.includes("--generate-only");
   const useTui = !jsonMode && !args.includes("--no-tui") && process.stdout.isTTY;
-
-  const input = { runId, prompt, creativeSeed, maxCostUsd, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
-
   const { StrandsOrchestrator } = await import("./executors/strands.js");
-  const { selectActivePhases } = await import("./pipeline-engine.js");
-
-  const { active } = selectActivePhases(harnessConfig.phases, {
-    platforms: config.platforms,
+  const { active } = selectActivePhases(input.harness.phases, {
+    platforms: input.config.platforms,
     generateOnly,
   });
 
-  if (useTui) {
-    const { TUI } = await import("./tui.js");
-    const tui = new TUI(
-      brand.name,
-      config.platforms,
-      { template: design.template, navigation_style: design.navigation_style },
-      active.map((p) => p.name)
-    );
-    tui.start();
-
-    const harness = new StrandsOrchestrator(input, {
-      onPhaseStart: (phase) => tui.setPhase(phase),
-      onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
-      onTokens: (tokens) => tui.addTokens(tokens),
-      onIteration: (phase, current, max) => tui.setIteration(phase, current, max),
-      onLog: (msg) => tui.log(msg),
-      onPhaseMessage: (phase, msg) => tui.addPhaseMessage(phase, msg),
-    });
-
-    const { state, outDir } = await harness.run({ generateOnly });
-    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
-    tui.finish(failed ? "failed" : "done");
-    tui.log(`Output: ${outDir}`);
-    if (state.abortReason) process.exitCode = EXIT.aborted;
-    else if (failed) process.exitCode = EXIT.runFailure;
-  } else if (jsonMode) {
-    const harness = new StrandsOrchestrator(input, {
-      onPhaseStart: (phase) => {
-        if (runId) updateRunStatus(outDirForRun(workdir, runId), { state: "running", currentPhase: phase });
-        writeEvent("phase_start", { phase });
-      },
-      onPhaseEnd: (phase, result, cost) => {
-        if (runId) updateRunStatus(outDirForRun(workdir, runId), { currentPhase: phase });
-        writeEvent("phase_complete", { phase, result, cost });
-      },
-      onTokens: (tokens) => writeEvent("tokens", { tokens }),
-      onIteration: (phase, current, max) => writeEvent("iteration", { phase, current, max }),
-      onLog: (msg) => console.error(msg),
-      onPhaseMessage: (phase, msg) => writeEvent("phase_message", { phase, message: msg }),
-    });
-
-    writeEvent("run_start", {
-      mode: "run",
-      platforms: config.platforms,
-      seed: input.creativeSeed,
-    });
-    const { state, outDir } = await harness.run({ generateOnly });
-    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
-    updateRunStatus(outDir, {
-      state: state.abortReason ? "aborted" : failed ? "failed" : "complete",
-      exitCode: state.abortReason ? EXIT.aborted : failed ? EXIT.runFailure : EXIT.success,
-      reason: state.abortReason,
-      costSoFar: state.costSoFar,
-      budget: state.maxCostUsd,
-    });
-    writeEvent("run_complete", {
-      runId: state.runId,
-      outDir,
-      seed: state.creativeSeed,
-      status: failed ? "failed" : "success",
-      tokensUsed: state.tokensUsed,
-      costSoFar: state.costSoFar,
-      budget: state.maxCostUsd,
-      reason: state.abortReason,
-      phases: [...state.phaseResults.values()],
-    });
-    if (state.abortReason) process.exitCode = EXIT.aborted;
-    else if (failed) process.exitCode = EXIT.runFailure;
-  } else {
-    const harness = new StrandsOrchestrator(input, {
-      onPhaseStart: (phase) => console.log(`\n  Phase: ${phase}`),
-      onPhaseEnd: (phase, result, cost) => {
-        const icon = result.status === "success" ? "✓" : "✗";
-        console.log(`  ${icon} ${phase}: ${result.status}${cost ? ` ($${cost.toFixed(4)})` : ""}`);
-        if (result.error) console.log(`    ${result.error}`);
-      },
-      onLog: (msg) => console.log(`  ${msg}`),
-    });
-
-    console.log(`\n  TV Build — Strands SDK mode`);
-    console.log(`  Platforms: ${config.platforms.join(", ")}`);
-
-    const { state, outDir } = await harness.run({ generateOnly });
-    console.log(`\n  Output: ${outDir}`);
-    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
-    if (state.abortReason) process.exitCode = EXIT.aborted;
-    else if (failed) process.exitCode = EXIT.runFailure;
-  }
+  if (useTui) return runStrandsTui(StrandsOrchestrator, input, active.map((phase) => phase.name), generateOnly);
+  if (jsonMode) return runStrandsJson(StrandsOrchestrator, input, generateOnly);
+  return runStrandsPlain(StrandsOrchestrator, input, generateOnly);
 }
 
 async function runWithClaude() {
@@ -882,197 +734,330 @@ async function runWithClaude() {
     );
   }
 
-  const { content, brand, config, design, screenTree, prompt, harness: harnessConfig, runId, creativeSeed, maxCostUsd } = loadInputs();
-
-  const skillsDir = existsSync(resolve("skills")) ? resolve("skills") : resolve("..", "..", "skills");
-  const workdir = resolve(".");
-  const generateOnly = args.includes("--generate-only");
-  const record = !args.includes("--no-record");
-
-  const fromFlag = args.indexOf("--from-phase");
-  const fromPhase = fromFlag >= 0 ? args[fromFlag + 1] : undefined;
-
-  // --resume [runId]: pick up a previous run from its checkpoint.
-  let resumeDir: string | null = null;
-  const resumeFlag = args.indexOf("--resume");
-  if (resumeFlag >= 0) {
-    const runId = args[resumeFlag + 1]?.startsWith("--") ? undefined : args[resumeFlag + 1];
-    resumeDir = findResumableRun(workdir, runId);
-    if (!resumeDir) {
-      fail(
-        "resume_not_found",
-        `No resumable run found${runId ? ` for runId "${runId}"` : ""} under ${join(workdir, "out")}.`,
-        "Run a generation until at least one phase completes, then retry --resume.",
-        EXIT.input
-      );
-    }
-  }
-
-  const input = { runId, prompt, creativeSeed, maxCostUsd, content, brand, config, design, screenTree, workdir, skillsDir, harness: harnessConfig };
+  const settings: ClaudeRunSettings = {
+    input: runnableHarnessInput(),
+    generateOnly: args.includes("--generate-only"),
+    record: !args.includes("--no-record"),
+    fromPhase: valueFlag("--from-phase"),
+    resumeDir: resolveRequestedResumeDir(resolve(".")),
+  };
   const useTui = !jsonMode && !args.includes("--no-tui");
+  if (useTui) return runClaudeTui(settings);
+  if (jsonMode) return runClaudeJson(settings);
+  return runClaudePlain(settings);
+}
 
-  const makeOrchestrator = (events: ConstructorParameters<typeof ClaudeOrchestrator>[1]) =>
-    resumeDir
-      ? ClaudeOrchestrator.resume(resumeDir, input, events, { record })
-      : new ClaudeOrchestrator(input, events, { record });
+interface ClaudeRunSettings {
+  input: RunnableHarnessInput;
+  generateOnly: boolean;
+  record: boolean;
+  fromPhase?: string;
+  resumeDir: string | null;
+}
 
-  const resumeBanner = (harness: ClaudeOrchestrator) =>
-    `Resuming ${resumeDir}${fromPhase
-      ? ` (redoing from: ${fromPhase})`
-      : ` (skipping: ${[...harness.getResumedPhases()].join(", ") || "none"})`}`;
+interface RunCompletion {
+  status: "success" | "failed" | "aborted";
+  lifecycle: "complete" | "failed" | "aborted";
+  exitCode: number;
+}
 
-  if (useTui) {
-    const { TUI } = await import("./tui.js");
-    const { selectActivePhases } = await import("./pipeline-engine.js");
+function runnableHarnessInput(): RunnableHarnessInput {
+  const loaded = loadInputs();
+  return {
+    ...loaded,
+    workdir: resolve("."),
+    skillsDir: resolveSkillsDir(),
+  };
+}
 
-    const { active } = selectActivePhases(harnessConfig.phases, {
-      platforms: config.platforms,
-      generateOnly,
-    });
+function requireApiCredentials(): void {
+  const keys = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "AWS_PROFILE", "AWS_ACCESS_KEY_ID"];
+  if (keys.some((key) => Boolean(process.env[key]))) return;
+  fail(
+    "missing_api_credentials",
+    "No API credentials found for API mode.",
+    "Set one of ANTHROPIC_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, or AWS_PROFILE; or use tv-build claude-run.",
+    EXIT.environment
+  );
+}
 
-    const tui = new TUI(
-      brand.name,
-      config.platforms,
-      { template: design.template, navigation_style: design.navigation_style },
-      active.map((p) => p.name)
-    );
-    tui.start();
+async function runStrandsTui(
+  Orchestrator: StrandsOrchestratorClass,
+  input: RunnableHarnessInput,
+  phases: Phase[],
+  generateOnly: boolean
+): Promise<void> {
+  const { TUI } = await import("./tui.js");
+  const tui = createTui(TUI, input, phases);
+  const harness = new Orchestrator(input, tuiEvents(tui));
+  const { state, outDir } = await harness.run({ generateOnly });
+  finishTuiRun(tui, state, outDir);
+}
 
-    const harness = makeOrchestrator({
-      onPhaseStart: (phase) => tui.setPhase(phase),
-      onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
-      onTokens: (tokens) => tui.addTokens(tokens),
-      onIteration: (phase, current, max) => tui.setIteration(phase, current, max),
-      onLog: (msg) => tui.log(msg),
-      onPhaseMessage: (phase, msg) => tui.addPhaseMessage(phase, msg),
-    });
+async function runStrandsJson(
+  Orchestrator: StrandsOrchestratorClass,
+  input: RunnableHarnessInput,
+  generateOnly: boolean
+): Promise<void> {
+  let harness: InstanceType<StrandsOrchestratorClass>;
+  harness = new Orchestrator(input, jsonEvents(input.runId, input.workdir, () => harness.getState()));
+  writeEvent("run_start", {
+    mode: "run",
+    platforms: input.config.platforms,
+    seed: input.creativeSeed,
+  });
+  const { state, outDir } = await harness.run({ generateOnly });
+  completeJsonRun(state, outDir);
+}
 
-    if (resumeDir) tui.log(resumeBanner(harness));
+async function runStrandsPlain(
+  Orchestrator: StrandsOrchestratorClass,
+  input: RunnableHarnessInput,
+  generateOnly: boolean
+): Promise<void> {
+  const harness = new Orchestrator(input, plainEvents());
+  console.log(`\n  TV Build — Strands SDK mode`);
+  console.log(`  Platforms: ${input.config.platforms.join(", ")}`);
+  const { state, outDir } = await harness.run({ generateOnly });
+  console.log(`\n  Output: ${outDir}`);
+  applyExitCode(runCompletion(state));
+}
 
-    const { state, outDir } = await harness.run({ generateOnly, fromPhase });
-    const failed = [...state.phaseResults.values()].some(r => r.status === "failed" && state.phaseResults.keys().next().value === "plan");
-    tui.finish(failed ? "failed" : "done");
-    tui.log(`Output: ${outDir}`);
-    if (state.abortReason) process.exitCode = EXIT.aborted;
-    else if (failed) process.exitCode = EXIT.runFailure;
-  } else if (jsonMode) {
-    const harness = makeOrchestrator({
-      onPhaseStart: (phase) => {
-        if (runId) updateRunStatus(outDirForRun(workdir, runId), { state: "running", currentPhase: phase });
-        writeEvent("phase_start", { phase });
-      },
-      onPhaseEnd: (phase, result, cost) => {
-        if (runId) updateRunStatus(outDirForRun(workdir, runId), { currentPhase: phase });
-        writeEvent("phase_complete", { phase, result, cost });
-      },
-      onTokens: (tokens) => writeEvent("tokens", { tokens }),
-      onIteration: (phase, current, max) => writeEvent("iteration", { phase, current, max }),
-      onLog: (msg) => console.error(msg),
-      onPhaseMessage: (phase, msg) => writeEvent("phase_message", { phase, message: msg }),
-    });
+async function runClaudeTui(settings: ClaudeRunSettings): Promise<void> {
+  const { active } = selectActivePhases(settings.input.harness.phases, {
+    platforms: settings.input.config.platforms,
+    generateOnly: settings.generateOnly,
+  });
+  const { TUI } = await import("./tui.js");
+  const tui = createTui(TUI, settings.input, active.map((phase) => phase.name));
+  const harness = createClaudeHarness(settings, tuiEvents(tui));
+  logResume(settings, harness, (message) => tui.log(message));
+  const { state, outDir } = await harness.run({
+    generateOnly: settings.generateOnly,
+    fromPhase: settings.fromPhase,
+  });
+  finishTuiRun(tui, state, outDir);
+}
 
-    writeEvent("run_start", {
-      mode: "claude-run",
-      platforms: config.platforms,
-      seed: input.creativeSeed,
-      resume: resumeDir ?? undefined,
-      fromPhase,
-    });
-    if (resumeDir) console.error(resumeBanner(harness));
-    const { state, outDir } = await harness.run({ generateOnly, fromPhase });
-    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
-    updateRunStatus(outDir, {
-      state: state.abortReason ? "aborted" : failed ? "failed" : "complete",
-      exitCode: state.abortReason ? EXIT.aborted : failed ? EXIT.runFailure : EXIT.success,
-      reason: state.abortReason,
-      costSoFar: state.costSoFar,
-      budget: state.maxCostUsd,
-    });
-    writeEvent("run_complete", {
-      runId: state.runId,
-      outDir,
-      seed: state.creativeSeed,
-      status: failed ? "failed" : "success",
-      tokensUsed: state.tokensUsed,
-      costSoFar: state.costSoFar,
-      budget: state.maxCostUsd,
-      reason: state.abortReason,
-      phases: [...state.phaseResults.values()],
-    });
-    if (state.abortReason) process.exitCode = EXIT.aborted;
-    else if (failed) process.exitCode = EXIT.runFailure;
-  } else {
-    const harness = makeOrchestrator({});
+async function runClaudeJson(settings: ClaudeRunSettings): Promise<void> {
+  let harness: ClaudeOrchestrator;
+  const events = jsonEvents(settings.input.runId, settings.input.workdir, () => harness.getState());
+  harness = createClaudeHarness(settings, events);
+  writeEvent("run_start", {
+    mode: "claude-run",
+    platforms: settings.input.config.platforms,
+    seed: settings.input.creativeSeed,
+    resume: settings.resumeDir ?? undefined,
+    fromPhase: settings.fromPhase,
+  });
+  logResume(settings, harness, (message) => console.error(message));
+  const { state, outDir } = await harness.run({
+    generateOnly: settings.generateOnly,
+    fromPhase: settings.fromPhase,
+  });
+  completeJsonRun(state, outDir);
+}
 
-    console.log(`\n  TV Build (Claude CLI mode)`);
-    console.log(`  Prompt: ${prompt.slice(0, 80)}...`);
-    console.log(`  Platforms: ${config.platforms.join(", ")}`);
-    console.log(`  Design: ${design.template} (tiles: ${design.tile_size}, spacing: ${design.spacing})`);
-    console.log(`  Skills dir: ${skillsDir}`);
-    if (resumeDir) console.log(`  ${resumeBanner(harness)}`);
-    console.log();
+async function runClaudePlain(settings: ClaudeRunSettings): Promise<void> {
+  const harness = createClaudeHarness(settings, {});
+  const { input } = settings;
+  console.log(`\n  TV Build (Claude CLI mode)`);
+  console.log(`  Prompt: ${input.prompt.slice(0, 80)}...`);
+  console.log(`  Platforms: ${input.config.platforms.join(", ")}`);
+  console.log(`  Design: ${input.design.template} (tiles: ${input.design.tile_size}, spacing: ${input.design.spacing})`);
+  console.log(`  Skills dir: ${input.skillsDir}`);
+  logResume(settings, harness, (message) => console.log(`  ${message}`));
+  console.log();
+  const { state, outDir } = await harness.run({
+    generateOnly: settings.generateOnly,
+    fromPhase: settings.fromPhase,
+  });
+  console.log(`\n  Run complete.`);
+  console.log(`  Output: ${outDir}`);
+  console.log(`  Phases:`);
+  printPhaseResults(state);
+  applyExitCode(runCompletion(state));
+}
 
-    const { state, outDir } = await harness.run({ generateOnly, fromPhase });
+function createClaudeHarness(settings: ClaudeRunSettings, events: HarnessEvents): ClaudeOrchestrator {
+  return settings.resumeDir
+    ? ClaudeOrchestrator.resume(settings.resumeDir, settings.input, events, { record: settings.record })
+    : new ClaudeOrchestrator(settings.input, events, { record: settings.record });
+}
 
-    console.log(`\n  Run complete.`);
-    console.log(`  Output: ${outDir}`);
-    console.log(`  Phases:`);
+function createTui(Tui: TuiClass, input: RunnableHarnessInput, phases: Phase[]): TUI {
+  const tui = new Tui(
+    input.brand.name,
+    input.config.platforms,
+    { template: input.design.template, navigation_style: input.design.navigation_style },
+    phases
+  );
+  tui.start();
+  return tui;
+}
 
-    for (const [phase, result] of state.phaseResults) {
-      const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
-      console.log(`    ${icon} ${phase}: ${result.status} (${result.iterations} iterations)`);
-    }
-    const failed = [...state.phaseResults.values()].some(r => r.status === "failed");
-    if (state.abortReason) process.exitCode = EXIT.aborted;
-    else if (failed) process.exitCode = EXIT.runFailure;
+function tuiEvents(tui: TUI): HarnessEvents {
+  return {
+    onPhaseStart: (phase) => tui.setPhase(phase),
+    onPhaseEnd: (phase, result, cost) => tui.phaseComplete(phase, result, cost),
+    onTokens: (tokens) => tui.addTokens(tokens),
+    onIteration: (phase, current, max) => tui.setIteration(phase, current, max),
+    onLog: (message) => tui.log(message),
+    onPhaseMessage: (phase, message) => tui.addPhaseMessage(phase, message),
+  };
+}
+
+function jsonEvents(
+  runId: string | undefined,
+  workdir: string,
+  getState: () => SessionState
+): HarnessEvents {
+  return {
+    onPhaseStart: (phase) => {
+      updateRunningStatus(runId, workdir, { state: "running", currentPhase: phase });
+      writeEvent("phase_start", { phase });
+    },
+    onPhaseEnd: (phase, result, cost) => {
+      updateRunningStatus(runId, workdir, { currentPhase: phase, costSoFar: getState().costSoFar });
+      writeEvent("phase_complete", { phase, result, cost });
+    },
+    onTokens: (tokens) => writeEvent("tokens", { tokens }),
+    onIteration: (phase, current, max) => writeEvent("iteration", { phase, current, max }),
+    onLog: (message) => console.error(message),
+    onPhaseMessage: (phase, message) => writeEvent("phase_message", { phase, message }),
+  };
+}
+
+function plainEvents(): HarnessEvents {
+  return {
+    onPhaseStart: (phase) => console.log(`\n  Phase: ${phase}`),
+    onPhaseEnd: (phase, result, cost) => {
+      const icon = result.status === "success" ? "✓" : "✗";
+      console.log(`  ${icon} ${phase}: ${result.status}${cost ? ` ($${cost.toFixed(4)})` : ""}`);
+      if (result.error) console.log(`    ${result.error}`);
+    },
+    onLog: (message) => console.log(`  ${message}`),
+  };
+}
+
+function updateRunningStatus(
+  runId: string | undefined,
+  workdir: string,
+  patch: Parameters<typeof updateRunStatus>[1]
+): void {
+  if (runId) updateRunStatus(outDirForRun(workdir, runId), patch);
+}
+
+function runCompletion(state: SessionState): RunCompletion {
+  const results = [...state.phaseResults.values()];
+  const aborted = results.some((result) => result.status === "aborted");
+  const failed = results.some((result) => result.status === "failed");
+  if (aborted) return { status: "aborted", lifecycle: "aborted", exitCode: EXIT.aborted };
+  if (failed) return { status: "failed", lifecycle: "failed", exitCode: EXIT.runFailure };
+  return { status: "success", lifecycle: "complete", exitCode: EXIT.success };
+}
+
+function completeJsonRun(state: SessionState, outDir: string): void {
+  const completion = runCompletion(state);
+  updateRunStatus(outDir, {
+    state: completion.lifecycle,
+    exitCode: completion.exitCode,
+    costSoFar: state.costSoFar,
+  });
+  writeEvent("run_complete", {
+    runId: state.runId,
+    outDir,
+    seed: state.creativeSeed,
+    status: completion.status,
+    tokensUsed: state.tokensUsed,
+    costSoFar: state.costSoFar,
+    phases: [...state.phaseResults.values()],
+  });
+  applyExitCode(completion);
+}
+
+function finishTuiRun(tui: TUI, state: SessionState, outDir: string): void {
+  const completion = runCompletion(state);
+  tui.finish(completion.status === "success" ? "done" : "failed");
+  tui.log(`Output: ${outDir}`);
+  applyExitCode(completion);
+}
+
+function applyExitCode(completion: RunCompletion): void {
+  process.exitCode = completion.exitCode;
+}
+
+function logResume(
+  settings: ClaudeRunSettings,
+  harness: ClaudeOrchestrator,
+  log: (message: string) => void
+): void {
+  if (!settings.resumeDir) return;
+  const scope = settings.fromPhase
+    ? `redoing from: ${settings.fromPhase}`
+    : `skipping: ${[...harness.getResumedPhases()].join(", ") || "none"}`;
+  log(`Resuming ${settings.resumeDir} (${scope})`);
+}
+
+function printPhaseResults(state: SessionState): void {
+  for (const [phase, result] of state.phaseResults) {
+    const icon = result.status === "success" ? "✓" : result.status === "degraded" ? "~" : "✗";
+    console.log(`    ${icon} ${phase}: ${result.status} (${result.iterations} iterations)`);
   }
 }
 
 async function runRefineCommand() {
+  const options = refineOptions();
+  const plan = refinePlan(options);
+  if (args.includes("--plan")) return printRefinePlan(plan);
+  requireInferredPhaseConfirmation(plan);
+  const result = await executeRefineCommand(options);
+  printRefineResult(result);
+  applyRefineExitCode(result);
+}
+
+function refineOptions(): RefineOptions {
   const target = positionalArgs()[0];
   const instruction = positionalArgs().slice(1).join(" ").trim();
   if (!target || !instruction) {
     fail("missing_refine_args", "Missing refine target or instruction.", "Run tv-build refine <runId|appDir> --phase branding \"warmer hero\" --plan.", EXIT.input);
   }
+  return {
+    target,
+    instruction,
+    phase: phaseFlag(),
+    rootDir: resolve("."),
+    skillsDir: resolveSkillsDir(),
+    json: jsonMode,
+    yes: args.includes("--yes"),
+  };
+}
 
-  const phase = phaseFlag();
-  const maxCostUsd = refineMaxCostFlag();
-  const skillsDir = resolveSkillsDir();
-  let plan;
+function refinePlan(options: RefineOptions): RefinePlan {
   try {
-    plan = buildRefinePlan({
-      target,
-      instruction,
-      phase,
-      rootDir: resolve("."),
-      skillsDir,
-      maxCostUsd,
-      json: jsonMode,
-      yes: args.includes("--yes"),
-    });
+    return buildRefinePlan(options);
   } catch (err) {
-    if (err instanceof RefineInputError) fail(err.code, err.message, err.hint, EXIT.input);
-    throw err;
+    throwRefineInputError(err);
   }
+}
 
-  if (args.includes("--plan")) {
-    if (jsonMode) {
-      writeJson({ ...plan });
-    } else {
-      console.log("\n  Refine plan\n");
-      console.log(`  Run: ${plan.runId}`);
-      console.log(`  App: ${plan.appDir}`);
-      console.log(`  Phase: ${plan.phase}${plan.inferredPhase ? " (inferred)" : ""}`);
-      console.log(`  Seed: ${plan.seed}`);
-      console.log(`  Cost cap: $${plan.maxCostUsd.toFixed(2)}`);
-      console.log(`  Verify checks: ${plan.verify.length || "none"}`);
-      console.log(`  Instruction: ${plan.instruction}`);
-      console.log(`  Non-goal: ${plan.nonGoal}`);
-      console.log();
-    }
+function printRefinePlan(plan: RefinePlan): void {
+  if (jsonMode) {
+    writeJson({ ...plan });
     return;
   }
+  console.log("\n  Refine plan\n");
+  console.log(`  Run: ${plan.runId}`);
+  console.log(`  App: ${plan.appDir}`);
+  console.log(`  Phase: ${plan.phase}${plan.inferredPhase ? " (inferred)" : ""}`);
+  console.log(`  Seed: ${plan.seed}`);
+  console.log(`  Verify checks: ${plan.verify.length || "none"}`);
+  console.log(`  Instruction: ${plan.instruction}`);
+  console.log(`  Non-goal: ${plan.nonGoal}`);
+  console.log();
+}
 
+function requireInferredPhaseConfirmation(plan: RefinePlan): void {
   if (plan.inferredPhase && !args.includes("--yes")) {
     fail(
       "phase_confirmation_required",
@@ -1081,35 +1066,34 @@ async function runRefineCommand() {
       EXIT.input
     );
   }
+}
 
-  let result;
+async function executeRefineCommand(options: RefineOptions): Promise<RefineResult> {
   try {
-    result = await executeRefine({
-      target,
-      instruction,
-      phase,
-      rootDir: resolve("."),
-      skillsDir,
-      maxCostUsd,
-      json: jsonMode,
-      yes: args.includes("--yes"),
-    });
+    return await executeRefine(options);
   } catch (err) {
-    if (err instanceof RefineInputError) fail(err.code, err.message, err.hint, EXIT.input);
-    throw err;
+    throwRefineInputError(err);
   }
+}
 
+function printRefineResult(result: RefineResult): void {
   if (!jsonMode) {
     console.log(`\n  Refine ${result.status}: ${result.phase}`);
     console.log(`  Output: ${result.outDir}`);
     console.log(`  Cost: $${result.costUsd.toFixed(4)}`);
     if (result.error) console.log(`  Error: ${result.error}`);
   }
+}
 
+function applyRefineExitCode(result: RefineResult): void {
   if (result.status === "aborted") process.exitCode = EXIT.aborted;
   else if (result.status === "failed") process.exitCode = EXIT.runFailure;
 }
 
+function throwRefineInputError(err: unknown): never {
+  if (err instanceof RefineInputError) fail(err.code, err.message, err.hint, EXIT.input);
+  throw err;
+}
 
 async function addScreen() {
   const screenName = positionalArgs()[0];
@@ -1399,7 +1383,7 @@ function printRunStatus(): void {
   if (summary.pid) console.log(`PID: ${summary.pid}`);
   if (summary.currentPhase) console.log(`Current phase: ${summary.currentPhase}`);
   console.log(`Completed phases: ${summary.phasesComplete.join(", ") || "none"}`);
-  if (summary.costSoFar !== undefined) console.log(`Cost: $${summary.costSoFar.toFixed(4)}${summary.budget ? ` / $${summary.budget.toFixed(2)}` : ""}`);
+  if (summary.costSoFar !== undefined) console.log(`Cost: $${summary.costSoFar.toFixed(4)}`);
   console.log(`Output: ${summary.outDir}`);
   if (summary.lastLogLines.length) {
     console.log("\nLast log lines:");
@@ -1660,7 +1644,6 @@ async function consolidateSkills() {
     return;
   }
 
-  // Group by applies_to overlap
   const groups: Map<string, typeof autoSkills> = new Map();
   for (const skill of autoSkills) {
     const key = skill.applies_to.sort().join(",") || "general";
@@ -1695,12 +1678,10 @@ function findOutDir(): string {
   if (appFlag) {
     const dir = resolve(appFlag.split("=")[1]);
     if (existsSync(join(dir, "spec.json"))) return dir;
-    // If they pointed at the app subdir, go up one level
     const parent = resolve(dir, "..");
     if (existsSync(join(parent, "spec.json"))) return parent;
   }
 
-  // Find the most recent out/ directory
   const outDir = resolve("out");
   if (existsSync(outDir)) {
     const entries = readdirSync(outDir)
@@ -1772,7 +1753,6 @@ function printUsage() {
     --no-record            Disable recording.json creation in claude-run mode
     --speed <x>            With replay: divide stored turn delays by this multiplier
     --seed <value>         Fix the creative seed for repeatable creative constraints
-    --max-cost <usd>       Abort if model cost exceeds this amount; non-examples default to 10, refine defaults to 3
     --from-example <name>  With init: copy a bundled example as the starting point
     --force                With init: allow overwriting files in a non-empty directory
     --custom-pipeline      With init: include a starter harness.config.json

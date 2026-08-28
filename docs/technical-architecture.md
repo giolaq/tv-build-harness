@@ -186,8 +186,8 @@ view of this architecture.
 
 ## Operational safety
 
-- `--max-cost` stops a run at its budget and writes an aborted checkpoint.
-- Non-example inputs receive a default cap.
+- Model cost is tracked in events and reports; live runs are uncapped.
+- The configured token budget can stop work between phases.
 - Template refs are SHA-pinned and can be checked against upstream.
 - Detached runs write a PID, log, checkpoint, and state that `status` reads.
 - Safe process execution uses argument arrays rather than a shell.

@@ -32,7 +32,6 @@ describe("harness config defaults", () => {
     expect(config.template.repo).toContain("AmazonAppDev");
     expect(config.template.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(config.tokenBudget).toBe(500_000);
-    expect(config.maxCostUsd).toBeUndefined();
     expect(config.vega.ttff_ms_max).toBe(1500);
     expect(config.vega.max_hot_function_percent).toBe(20);
     expect(config.phases).toHaveLength(DEFAULT_PHASES.length);
@@ -54,7 +53,6 @@ describe("mergeHarnessConfig", () => {
 
     expect(branding.skills).toEqual(["my-theming"]);
     expect(branding.retries).toBe(2);
-    // untouched fields keep their defaults
     expect(branding.prompt).toBe("branding");
     expect(branding.verify.length).toBeGreaterThan(0);
   });
@@ -98,7 +96,6 @@ describe("loadHarnessConfig", () => {
         models: { plan: "claude-opus-4-6", execution: "claude-haiku-4-5-20251001" },
         vega: { ttff_ms_max: 1200, max_hot_function_percent: 15 },
         tokenBudget: 100_000,
-        maxCostUsd: 7.5,
         phases: [{ name: "verify", verify: [{ type: "tsc" }] }],
       })
     );
@@ -111,8 +108,17 @@ describe("loadHarnessConfig", () => {
     expect(config.vega.ttff_ms_max).toBe(1200);
     expect(config.vega.max_hot_function_percent).toBe(15);
     expect(config.tokenBudget).toBe(100_000);
-    expect(config.maxCostUsd).toBe(7.5);
     expect(config.phases.find((p) => p.name === "verify")!.verify).toEqual([{ type: "tsc" }]);
+  });
+
+  it("rejects the removed maxCostUsd config field", () => {
+    writeFileSync(
+      join(TEST_DIR, "harness.config.json"),
+      JSON.stringify({ maxCostUsd: 7.5 })
+    );
+
+    expect(() => loadHarnessConfig({ inputDir: TEST_DIR, cwd: "/tmp" }))
+      .toThrow(/removed.*uncapped/i);
   });
 
   it("throws when an explicit config path does not exist", () => {

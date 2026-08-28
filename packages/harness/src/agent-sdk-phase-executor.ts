@@ -8,7 +8,7 @@ import type { RunLog } from "./run-log.js";
 import type { SkillLibrary } from "./skill-library.js";
 import { buildDesignContext } from "./phase-prompts.js";
 import { createAgentSdkToolServer } from "./agent-sdk-tools.js";
-import { bookCost, executeClonePhase, isBudgetAbort, writeHarnessReports, writeSpec } from "./run-context.js";
+import { bookCost, executeClonePhase, writeHarnessReports, writeSpec } from "./run-context.js";
 import { buildAgentPhaseUserMessage, buildSdkSystemPrompt } from "./phase-context.js";
 
 export class AgentSdkPhaseExecutor {
@@ -137,10 +137,6 @@ export class AgentSdkPhaseExecutor {
 
       return { phase, status: "success", iterations: turns };
     } catch (err) {
-      if (isBudgetAbort(err)) {
-        this.ctx.log.error(phase, this.ctx.state.totalIterations, err.message);
-        return { phase, status: "aborted", iterations: 1, error: err.message };
-      }
       const message = err instanceof Error ? err.message : String(err);
       this.ctx.log.error(phase, this.ctx.state.totalIterations, message);
       return { phase, status: "failed", iterations: 1, error: message };
@@ -228,9 +224,6 @@ export class AgentSdkPhaseExecutor {
       writeSpec(this.ctx.state.workdir, this.ctx.state.spec, this.ctx.state.creativeSeed);
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
-      if (isBudgetAbort(err)) {
-        return { phase: "plan", status: "aborted", iterations: 1, error: err.message };
-      }
       const message = err instanceof Error ? err.message : String(err);
       return { phase: "plan", status: "failed", iterations: 1, error: message };
     }

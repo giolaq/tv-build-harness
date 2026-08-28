@@ -4,7 +4,6 @@ import { join } from "node:path";
 export interface Checkpoint {
   runId: string;
   creativeSeed?: string;
-  abortReason?: "budget" | "user";
   completedPhases: string[];
   updatedAt: string;
 }
@@ -28,10 +27,6 @@ export function loadCheckpoint(outDir: string): Checkpoint | null {
   }
 }
 
-/**
- * Resolves the out dir to resume: an explicit runId under out/, or the most
- * recently modified run that has a checkpoint.
- */
 export function findResumableRun(baseDir: string, runId?: string): string | null {
   const outRoot = join(baseDir, "out");
   if (runId) {

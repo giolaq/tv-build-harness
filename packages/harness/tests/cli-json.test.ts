@@ -32,14 +32,15 @@ describe("CLI JSON contract", () => {
     });
   });
 
-  it("rejects invalid max-cost values as JSON input errors", () => {
-    const result = runCli(["src/index.ts", "claude-run", "--example", "changelog-site", "--plan", "--json", "--max-cost", "nope"]);
+  it("rejects the removed max-cost flag with a migration hint", () => {
+    const result = runCli(["src/index.ts", "claude-run", "--example", "changelog-site", "--plan", "--json", "--max-cost", "10"]);
 
     expect(result.status).toBe(1);
     const payload = parseJson(result.stdout);
     expect(payload.error).toMatchObject({
-      code: "invalid_max_cost",
-      hint: expect.stringContaining("--max-cost"),
+      code: "removed_max_cost",
+      message: expect.stringContaining("uncapped"),
+      hint: expect.stringContaining("Remove --max-cost"),
     });
   });
 

@@ -43,7 +43,6 @@ export function createRunContext(input: HarnessInput, options: { tokenBudget?: n
       tokenBudget: options.tokenBudget ?? harness.tokenBudget,
       tokensUsed: 0,
       costSoFar: 0,
-      maxCostUsd: input.maxCostUsd ?? harness.maxCostUsd,
       messages: [],
     },
   };
@@ -122,9 +121,7 @@ export function commitAfterPhase(outDir: string, phase: Phase): void {
       cwd: appDir,
       stdio: ["pipe", "pipe", "pipe"],
     });
-  } catch {
-    // non-fatal: commits are diagnostic snapshots only.
-  }
+  } catch {}
 }
 
 export function writeAppOriginMarker(outDir: string): void {
@@ -147,9 +144,7 @@ export function writeAppOriginMarker(outDir: string): void {
     try {
       const existing = JSON.parse(readFileSync(markerPath, "utf-8")) as { createdAt?: string };
       createdAt = existing.createdAt ?? createdAt;
-    } catch {
-      // Keep the fresh timestamp when the marker is corrupt.
-    }
+    } catch {}
   }
   const next = JSON.stringify({
     runId,
@@ -167,7 +162,6 @@ function writeRunInput(outDir: string, input: HarnessInput, harness: HarnessConf
   writeFileSync(join(outDir, "input.json"), JSON.stringify({
     prompt: input.prompt,
     creativeSeed: input.creativeSeed,
-    maxCostUsd: input.maxCostUsd,
     content: input.content,
     brand: input.brand,
     config: input.config,
@@ -204,7 +198,6 @@ export function writeHarnessReports(input: {
     tokensUsed: input.state.tokensUsed,
     tokenBudget: input.state.tokenBudget,
     totalCost: input.totalCost,
-    maxCostUsd: input.state.maxCostUsd,
     phaseResults: input.state.phaseResults,
     phaseCosts: input.phaseCosts,
     spec: input.state.spec,
@@ -224,31 +217,7 @@ function normalizeCreativeSeed(seed: string | undefined): string {
   return trimmed || randomUUID().slice(0, 12);
 }
 
-export class BudgetAbortError extends Error {
-  reason = "budget" as const;
-
-  constructor(message: string) {
-    super(message);
-    this.name = "BudgetAbortError";
-  }
-}
-
 export function bookCost(state: SessionState, costUsd: number): void {
   if (!Number.isFinite(costUsd) || costUsd <= 0) return;
   state.costSoFar += costUsd;
-  if (state.maxCostUsd !== undefined && state.costSoFar > state.maxCostUsd) {
-    state.abortReason = "budget";
-    throw new BudgetAbortError(`Cost budget exceeded: $${state.costSoFar.toFixed(4)} > $${state.maxCostUsd.toFixed(4)}`);
-  }
-}
-
-export function budgetStopReason(state: SessionState): string | null {
-  if (state.abortReason === "budget") {
-    return `Cost budget exceeded ($${state.costSoFar.toFixed(4)}/${state.maxCostUsd?.toFixed(4) ?? "unknown"})`;
-  }
-  return null;
-}
-
-export function isBudgetAbort(err: unknown): err is BudgetAbortError {
-  return err instanceof BudgetAbortError;
 }

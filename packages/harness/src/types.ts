@@ -1,8 +1,6 @@
 import { z } from "zod";
 import type { HarnessConfig } from "./harness-config.js";
 
-// ─── Phase Machine ───────────────────────────────────────────────────────────
-
 export const PHASES = [
   "plan",
   "scaffold",
@@ -29,7 +27,6 @@ export const PHASES = [
 
 export type BuiltinPhase = (typeof PHASES)[number];
 
-// Phases are config-driven: custom pipelines may define phases beyond the built-ins.
 export type Phase = string;
 
 export const PHASE_DEPS: Record<string, Phase[]> = {
@@ -91,8 +88,6 @@ export interface PhaseResult {
   error?: string;
 }
 
-// ─── Screen Tree (Developer Input) ──────────────────────────────────────────
-
 export interface ScreenNode {
   id: string;
   name: string;
@@ -124,8 +119,6 @@ export interface ScreenTree {
   home: ScreenNode;
   screens: ScreenNode[];
 }
-
-// ─── AppSpec (Planner Output) ────────────────────────────────────────────────
 
 export const RouteSchema = z.object({
   id: z.string(),
@@ -195,8 +188,6 @@ export type AppSpec = z.infer<typeof AppSpecSchema>;
 export type Screen = z.infer<typeof ScreenSchema>;
 export type Section = z.infer<typeof SectionSchema>;
 
-// ─── Content Manifest ────────────────────────────────────────────────────────
-
 export const VideoSchema = z.object({
   id: z.string().describe("Stable video id referenced by categories and featured lists."),
   title: z.string().describe("Display title."),
@@ -224,8 +215,6 @@ export const ContentManifestSchema = z.object({
 
 export type ContentManifest = z.infer<typeof ContentManifestSchema>;
 
-// ─── Brand Kit ───────────────────────────────────────────────────────────────
-
 export const BrandKitSchema = z.object({
   name: z.string().describe("App display name."),
   primary_color: z.string().describe("Primary brand color, usually a hex color."),
@@ -237,8 +226,6 @@ export const BrandKitSchema = z.object({
 }).strict();
 
 export type BrandKit = z.infer<typeof BrandKitSchema>;
-
-// ─── Design Tokens ──────────────────────────────────────────────────────────
 
 export const ScreenTemplateSchema = z.enum([
   "netflix-style",
@@ -271,8 +258,6 @@ export const DesignTokensSchema = z.object({
 export type DesignTokens = z.infer<typeof DesignTokensSchema>;
 export type ScreenTemplate = z.infer<typeof ScreenTemplateSchema>;
 
-// ─── Run Config ──────────────────────────────────────────────────────────────
-
 export const PlatformSchema = z.enum([
   "androidtv",
   "appletv",
@@ -296,8 +281,6 @@ export const RunConfigSchema = z.object({
 
 export type RunConfig = z.infer<typeof RunConfigSchema>;
 
-// ─── Tool Layer ──────────────────────────────────────────────────────────────
-
 export interface ToolResult {
   ok: boolean;
   output: unknown;
@@ -316,8 +299,6 @@ export interface ToolDefinition {
 
 export type ToolHandler = (input: Record<string, unknown>) => Promise<ToolResult>;
 
-// ─── Session State ───────────────────────────────────────────────────────────
-
 export interface SessionState {
   runId: string;
   workdir: string;
@@ -331,12 +312,8 @@ export interface SessionState {
   tokenBudget: number;
   tokensUsed: number;
   costSoFar: number;
-  maxCostUsd?: number;
-  abortReason?: "budget" | "user";
   messages: Array<{ role: "user" | "assistant"; content: unknown }>;
 }
-
-// ─── Skill Metadata ──────────────────────────────────────────────────────────
 
 export interface SkillMeta {
   name: string;
@@ -344,13 +321,10 @@ export interface SkillMeta {
   filePath: string;
 }
 
-// ─── Harness Input (shared by both orchestrators) ────────────────────────────
-
 export interface HarnessInput {
   runId?: string;
   prompt: string;
   creativeSeed?: string;
-  maxCostUsd?: number;
   content: ContentManifest;
   brand: BrandKit;
   config: RunConfig;

@@ -11,7 +11,6 @@ import type { HarnessEvents } from "./claude-cli.js";
 import {
   createPromptLoader,
   createRunContext,
-  budgetStopReason,
 } from "../run-context.js";
 import { StrandsPhaseExecutor } from "../strands-phase-executor.js";
 import { SkillLibrary } from "../skill-library.js";
@@ -88,10 +87,9 @@ export class StrandsOrchestrator {
           this.events.onLog?.(msg);
         },
         shouldStop: () =>
-          budgetStopReason(this.state) ??
-          (this.state.tokenBudget > 0 && this.state.tokensUsed >= this.state.tokenBudget
+          this.state.tokenBudget > 0 && this.state.tokensUsed >= this.state.tokenBudget
             ? `Token budget exhausted (${this.state.tokensUsed}/${this.state.tokenBudget})`
-            : null),
+            : null,
       },
     });
 

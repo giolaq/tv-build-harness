@@ -2,23 +2,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 
-// ─── Verify Checks (declarative phase verification) ─────────────────────────
-
 export const VerifyCheckSchema = z.discriminatedUnion("type", [
-  // At least one of the given paths must exist (relative to the app dir).
   z.object({
     type: z.literal("file_exists").describe("Check kind."),
     path: z.union([z.string(), z.array(z.string())]).describe("Required path or fallback paths relative to the app dir."),
     error: z.string().optional().describe("Custom failure message."),
   }),
-  // Pattern (supports {{var}} substitution) must grep-match inside `path`.
   z.object({
     type: z.literal("grep").describe("Check kind."),
     pattern: z.string().describe("String pattern after template substitution."),
     path: z.string().default(".").describe("File or directory to search relative to the app dir."),
     error: z.string().optional().describe("Custom failure message."),
   }),
-  // The app git worktree must have changes (skipped if git isn't initialized).
   z.object({
     type: z.literal("git_dirty").describe("Check kind."),
     error: z.string().optional().describe("Custom failure message."),
@@ -31,7 +26,6 @@ export const VerifyCheckSchema = z.discriminatedUnion("type", [
     path: z.string().default(".").describe("File or directory to search relative to the app dir."),
     error: z.string().optional().describe("Custom failure message."),
   }),
-  // Arbitrary shell command; non-zero exit fails the check.
   z.object({
     type: z.literal("command").describe("Check kind."),
     command: z.string().optional().describe("Executable to run without a shell."),
@@ -44,33 +38,22 @@ export const VerifyCheckSchema = z.discriminatedUnion("type", [
 
 export type VerifyCheck = z.infer<typeof VerifyCheckSchema>;
 
-// ─── Phase Spec ──────────────────────────────────────────────────────────────
-
 export const PhaseSpecSchema = z.object({
   name: z.string().describe("Phase name."),
-  // "agent": prompt-driven Claude phase. "plan" and "visual_qa" are built-in handlers.
   kind: z.enum(["agent", "plan", "visual_qa"]).default("agent").describe("Executor behavior for the phase."),
-  // Prompt file name (without .md) in the prompts directory. Required for kind=agent.
   prompt: z.string().optional().describe("Prompt file name without .md."),
   skills: z.array(z.string()).default([]).describe("Skill names loaded for this phase."),
   deps: z.array(z.string()).default([]).describe("Phase names that must complete first."),
   retries: z.number().optional().describe("Phase-specific retry count."),
   timeoutMs: z.number().default(600_000).describe("Phase timeout in milliseconds."),
   model: z.string().optional().describe("Claude model override for this phase."),
-  // Phase only runs when this platform is targeted.
   requiresPlatform: z.string().optional().describe("Only run when this platform is targeted."),
-  // Skipped when running with --generate-only.
   buildPhase: z.boolean().default(false).describe("Skip this phase when --generate-only is used."),
-  // Phase manages its own iteration; the engine must not retry it externally.
   internalLoop: z.boolean().default(false).describe("Phase manages its own retries/iterations."),
-  // A failure here aborts the whole pipeline.
   abortOnFailure: z.boolean().default(false).describe("Abort the pipeline if this phase ultimately fails."),
-  // Working directory for the agent: the run out dir or the app dir.
   cwd: z.enum(["app", "out"]).default("app").describe("Working directory for the agent."),
   verify: z.array(VerifyCheckSchema).default([]).describe("Verification checks after the phase."),
-  // Explicit tool allowlist for the Claude subprocess (comma-separated). Includes MCP tool names.
   allowedTools: z.string().optional().describe("Comma-separated tool allowlist for the Claude subprocess (e.g. 'Bash,Read,Write,Edit,mcp__server__tool')."),
-  // For user-added phases: insert after this default phase instead of appending.
   insertAfter: z.string().optional().describe("Insert a new phase after this existing phase."),
 });
 
@@ -94,8 +77,6 @@ export const PhaseOverrideSchema = z.object({
   allowedTools: z.string().optional().describe("Comma-separated tool allowlist for the Claude subprocess."),
   insertAfter: z.string().optional().describe("Insert a new phase after this existing phase."),
 });
-
-// ─── Harness Config ──────────────────────────────────────────────────────────
 
 export const TemplateConfigSchema = z.object({
   repo: z.string().describe("Git repository for the app template."),
@@ -151,7 +132,6 @@ export const HarnessConfigSchema = z.object({
   models: ModelsConfigSchema.default({ plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" }).describe("Model selection."),
   vega: VegaConfigSchema.default(DEFAULT_VEGA_CONFIG).describe("Vega build and performance thresholds."),
   tokenBudget: z.number().default(500_000).describe("Maximum token budget for a run."),
-  maxCostUsd: z.number().optional().describe("Optional maximum run cost in US dollars."),
   android: z.object({
     projectDir: z.string().optional().describe("Gradle project directory relative to the generated app."),
     module: z.string().optional().describe("Android application module."),
@@ -171,20 +151,13 @@ export interface HarnessConfig {
   models: z.infer<typeof ModelsConfigSchema>;
   vega: z.infer<typeof VegaConfigSchema>;
   tokenBudget: number;
-  maxCostUsd?: number;
   android: z.infer<typeof HarnessConfigSchema>["android"];
   phases: PhaseSpec[];
 }
 
 
-// ─── Default Pipeline ────────────────────────────────────────────────────────
-// This encodes the built-in TV app pipeline. A harness.config.json can override
-// any field of any phase by name, add new phases, or swap the template.
-
 export const DEFAULT_PHASES: PhaseSpec[] = [
   {
-    // Plan failures are often transient (rate limits, malformed JSON) — retry
-    // twice, then abort: nothing downstream works without an AppSpec.
     name: "plan", kind: "plan", skills: [], deps: [], retries: 2, timeoutMs: 600_000,
     buildPhase: false, internalLoop: false, abortOnFailure: true, cwd: "out", verify: [],
   },
@@ -291,11 +264,9 @@ export const DEFAULT_PHASES: PhaseSpec[] = [
   },
 ];
 
-// Default skills per phase, kept for API-mode back-compat (SkillLibrary.loadForPhase).
 export const DEFAULT_PHASE_SKILLS: Record<string, string[]> = Object.fromEntries(
   DEFAULT_PHASES.map((p) => [p.name, p.skills])
 );
-// Phases known to the type system but not in the default pipeline.
 Object.assign(DEFAULT_PHASE_SKILLS, {
   prebuild: ["firetv-leanback"],
   visual_correctness: ["10ft-ui", "rn-theming"],
@@ -312,12 +283,9 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
   models: { plan: "claude-opus-4-6", execution: "claude-sonnet-4-6" },
   vega: DEFAULT_VEGA_CONFIG,
   tokenBudget: 500_000,
-  maxCostUsd: undefined,
   android: { variant: "debug" },
   phases: DEFAULT_PHASES,
 };
-
-// ─── Loading & merging ───────────────────────────────────────────────────────
 
 export function mergeHarnessConfig(user: z.infer<typeof HarnessConfigSchema>): HarnessConfig {
   const phases: PhaseSpec[] = DEFAULT_PHASES.map((p) => ({ ...p, verify: [...p.verify] }));
@@ -344,16 +312,11 @@ export function mergeHarnessConfig(user: z.infer<typeof HarnessConfigSchema>): H
     models: user.models,
     vega: user.vega,
     tokenBudget: user.tokenBudget,
-    maxCostUsd: user.maxCostUsd,
     android: user.android,
     phases,
   };
 }
 
-/**
- * Loads harness.config.json from (in order): an explicit path, the input dir,
- * or the current working directory. Falls back to the built-in defaults.
- */
 export function loadHarnessConfig(opts: {
   explicitPath?: string;
   inputDir?: string;
@@ -373,6 +336,9 @@ export function loadHarnessConfig(opts: {
       continue;
     }
     const raw = JSON.parse(readFileSync(path, "utf-8"));
+    if (raw && typeof raw === "object" && "maxCostUsd" in raw) {
+      throw new Error("maxCostUsd has been removed; runs are uncapped. Remove it from harness.config.json.");
+    }
     const parsed = HarnessConfigSchema.parse(raw);
     return { config: mergeHarnessConfig(parsed), source: path };
   }

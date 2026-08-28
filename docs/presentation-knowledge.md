@@ -517,7 +517,7 @@ your-harness-repo/
 │  brand.json    — colors, logo, name          │
 │  design.json   — nav style, layout, mood     │
 │  prompt.txt    — natural language brief       │
-│  run.json      — platforms, model, budget     │
+│  run.json      — platforms and run settings   │
 └──────────────────┬───────────────────────────┘
                    │
             ┌──────▼──────┐

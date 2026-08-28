@@ -20,7 +20,6 @@ describe("harness client", () => {
     const result = await runHarness(input, {
       command: FAKE_COMMAND,
       seed: "fixed-seed",
-      maxCostUsd: 2,
       extraArgs: ["--fake-run-id", "run-123", "--fake-cost", "0.42"],
     });
 
@@ -47,7 +46,7 @@ describe("harness client", () => {
   it.each([
     [2, "harness_failure"],
     [3, "infra_error"],
-    [4, "budget_abort"],
+    [4, "infra_error"],
     [9, "infra_error"],
   ] as const)("classifies exit code %s as %s", async (exitCode, outcome) => {
     const input = inputDir(`exit-${exitCode}`);

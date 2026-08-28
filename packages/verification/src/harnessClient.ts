@@ -31,7 +31,6 @@ interface HarnessRunOptions {
   command?: string;
   extraArgs?: string[];
   seed?: string;
-  maxCostUsd?: number;
   seedPolicy?: SeedPolicy;
   fixedSeed?: string;
   judge?: { model: string; promptHash: string };
@@ -82,7 +81,6 @@ export async function runHarness(
     "--no-tui",
     "--generate-only",
     ...(options.seed ? ["--seed", options.seed] : []),
-    ...(options.maxCostUsd !== undefined ? ["--max-cost", String(options.maxCostUsd)] : []),
     ...(options.extraArgs ?? []),
     resolvedInput,
   ];
@@ -144,7 +142,7 @@ export function classifyHarnessExit(
 ): RunOutcome {
   if (code === 2) return "harness_failure";
   if (code === 3) return "infra_error";
-  if (code === 4) return "budget_abort";
+  if (code === 4) return "infra_error";
   if (code === null) {
     const fallback = classifyExitlessFailure(output);
     console.warn(`Harness exited without code${signal ? ` (${signal})` : ""}; using text fallback: ${fallback}`);
@@ -165,9 +163,7 @@ export function captureEnv(options: CaptureEnvOptions = {}): PinnedEnv {
   let claudeCliVersion = "unknown";
   try {
     claudeCliVersion = execSync("claude --version", { encoding: "utf-8", timeout: 500 }).trim();
-  } catch {
-    // Claude CLI may not be available
-  }
+  } catch {}
 
   let harnessCommit = "unknown";
   try {
@@ -175,9 +171,7 @@ export function captureEnv(options: CaptureEnvOptions = {}): PinnedEnv {
       cwd: REPO_ROOT,
       encoding: "utf-8",
     }).trim();
-  } catch {
-    // Not in a git repo or git not available
-  }
+  } catch {}
 
   return {
     modelPlan: "unknown",
@@ -365,14 +359,11 @@ function killProcessGroup(pid: number | undefined): void {
   } catch {
     try {
       process.kill(pid, "SIGTERM");
-    } catch {
-      // Process already gone.
-    }
+    } catch {}
   }
 }
 
 function classifyExitlessFailure(output: string): RunOutcome {
-  if (/budget|cost budget/i.test(output)) return "budget_abort";
   if (/ETIMEDOUT|ECONNREFUSED|ECONNRESET|rate_limit|overloaded|529|503|emulator.*crash|simulator.*timeout/i.test(output)) {
     return "infra_error";
   }

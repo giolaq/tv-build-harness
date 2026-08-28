@@ -9,7 +9,7 @@ describe("detached run status", () => {
     const root = mkdtempSync(join(tmpdir(), "tv-build-status-"));
     try {
       const outDir = join(root, "out", "run-1");
-      initRunStatus(outDir, { runId: "run-1", pid: process.pid, budget: 5 });
+      initRunStatus(outDir, { runId: "run-1", pid: process.pid });
       updateRunStatus(outDir, { state: "running", currentPhase: "branding", costSoFar: 1.25 });
       writeFileSync(join(outDir, "checkpoint.json"), JSON.stringify({
         runId: "run-1",
@@ -26,8 +26,8 @@ describe("detached run status", () => {
         currentPhase: "branding",
         phasesComplete: ["plan"],
         costSoFar: 1.25,
-        budget: 5,
       });
+      expect(summary).not.toHaveProperty("budget");
       expect(summary?.lastLogLines).toHaveLength(1);
     } finally {
       rmSync(root, { recursive: true, force: true });

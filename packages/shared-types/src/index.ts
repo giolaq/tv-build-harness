@@ -145,7 +145,7 @@ export interface VerifyConfig {
   seedPolicy?: SeedPolicy;
   fixedSeed?: string;
   maxBatchCostUsd: number;
-  perRunMaxCostUsd?: number;
+  estimatedRunCostUsd?: number;
   tierLevelMap: Record<SpecTier, number[]>;
   regressionRule: "ci_below_point";
   baselinePath?: string;

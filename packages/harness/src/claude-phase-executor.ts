@@ -16,7 +16,6 @@ import {
   buildVerifyVars,
   bookCost,
   commitAfterPhase,
-  isBudgetAbort,
   writeHarnessReports,
   writeSpec,
 } from "./run-context.js";
@@ -122,10 +121,6 @@ export class ClaudePhaseExecutor {
       this.lastVerifyError.delete(phase);
       return { phase, status: "success", iterations: 1 };
     } catch (err) {
-      if (isBudgetAbort(err)) {
-        this.ctx.log.error(phase, this.ctx.state.totalIterations, err.message);
-        return { phase, status: "aborted", iterations: 1, error: err.message };
-      }
       const message = err instanceof Error ? err.message : String(err);
       this.ctx.log.error(phase, this.ctx.state.totalIterations, message);
       return { phase, status: "failed", iterations: 1, error: message };
@@ -218,9 +213,6 @@ export class ClaudePhaseExecutor {
       writeSpec(this.ctx.state.workdir, this.ctx.state.spec, this.ctx.state.creativeSeed);
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
-      if (isBudgetAbort(err)) {
-        return { phase: "plan", status: "aborted", iterations: 1, error: err.message };
-      }
       const message = err instanceof Error ? err.message : String(err);
       return { phase: "plan", status: "failed", iterations: 1, error: message };
     }

@@ -12,7 +12,6 @@ import type { HarnessConfig } from "../harness-config.js";
 import { runPipeline, selectActivePhases } from "../pipeline-engine.js";
 import { saveCheckpoint, loadCheckpoint } from "../checkpoint.js";
 import {
-  budgetStopReason,
   createPromptLoader,
   createRunContext,
   loadSpecIfPresent,
@@ -54,7 +53,6 @@ export class ClaudeOrchestrator {
   private executor: ClaudePhaseExecutor;
   private options: ClaudeOrchestratorOptions;
   private resumedPhases: Set<string> = new Set();
-  // Resolved by the engine at run start; checkpoints are built from this.
   private effectiveCompleted: Set<string> = new Set();
 
   constructor(input: HarnessInput, events: HarnessEvents = {}, options: ClaudeOrchestratorOptions = {}) {
@@ -101,7 +99,6 @@ export class ClaudeOrchestrator {
     return instance;
   }
 
-  /** Resumes a previous run from its checkpoint, skipping completed phases. */
   static resume(outDir: string, input: HarnessInput, events: HarnessEvents = {}, options: ClaudeOrchestratorOptions = {}): ClaudeOrchestrator {
     const instance = ClaudeOrchestrator.fromExistingRun(outDir, input, events, options);
     const checkpoint = loadCheckpoint(outDir);
@@ -136,8 +133,6 @@ export class ClaudeOrchestrator {
       resumedPhases: this.resumedPhases,
     });
 
-    // The engine's resolved completion set is also what checkpoints build on —
-    // under --from-phase it deliberately excludes the phases being redone.
     this.effectiveCompleted = completed;
 
     const results = await runPipeline({
@@ -175,7 +170,6 @@ export class ClaudeOrchestrator {
         onPhaseSkipped: (spec) => {
           const skipped: PhaseResult = { phase: spec.name, status: "success", iterations: 0 };
           this.state.phaseResults.set(spec.name, skipped);
-          // Surface to the UI too, or skipped phases sit "pending" forever in the TUI.
           this.events.onPhaseEnd?.(spec.name, skipped, 0);
           this.events.onLog?.(`Phase ${spec.name} skipped (already completed)`);
         },
@@ -189,10 +183,9 @@ export class ClaudeOrchestrator {
           this.events.onLog?.(msg);
         },
         shouldStop: () =>
-          budgetStopReason(this.state) ??
-          (this.state.tokensUsed >= this.state.tokenBudget
+          this.state.tokensUsed >= this.state.tokenBudget
             ? `Token budget exhausted (${this.state.tokensUsed}/${this.state.tokenBudget})`
-            : null),
+            : null,
       },
     });
 
@@ -214,7 +207,6 @@ export class ClaudeOrchestrator {
     saveCheckpoint(this.state.workdir, {
       runId: this.state.runId,
       creativeSeed: this.state.creativeSeed,
-      abortReason: this.state.abortReason,
       completedPhases,
     });
   }

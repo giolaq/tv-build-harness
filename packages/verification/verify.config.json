@@ -4,7 +4,7 @@
   "seedPolicy": "fixed",
   "fixedSeed": "verification-fixed-seed",
   "maxBatchCostUsd": 30,
-  "perRunMaxCostUsd": 10,
+  "estimatedRunCostUsd": 10,
   "tierLevelMap": {
     "easy": [1, 2],
     "medium": [1, 2, 3, 4],

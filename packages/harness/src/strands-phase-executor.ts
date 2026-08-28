@@ -17,7 +17,6 @@ import {
   bookCost,
   commitAfterPhase,
   executeClonePhase,
-  isBudgetAbort,
   writeHarnessReports,
   writeSpec,
 } from "./run-context.js";
@@ -111,11 +110,6 @@ export class StrandsPhaseExecutor {
       return { phase, status: "success", iterations: turns };
     } catch (err) {
       if (useTui) { console.warn = origWarn; console.log = origLog; }
-      if (isBudgetAbort(err)) {
-        this.ctx.log.error(phase, this.ctx.state.totalIterations, err.message);
-        this.ctx.events.onLog?.(`Phase ${phase} aborted: ${err.message}`);
-        return { phase, status: "aborted", iterations: turns || 1, error: err.message };
-      }
       const message = err instanceof Error ? err.message : String(err);
       const fullError = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : JSON.stringify(err);
       this.ctx.log.error(phase, this.ctx.state.totalIterations, message);
@@ -187,9 +181,6 @@ export class StrandsPhaseExecutor {
       writeSpec(this.ctx.state.workdir, this.ctx.state.spec, this.ctx.state.creativeSeed);
       return { phase: "plan", status: "success", iterations: 1 };
     } catch (err) {
-      if (isBudgetAbort(err)) {
-        return { phase: "plan", status: "aborted", iterations: 1, error: err.message };
-      }
       const message = err instanceof Error ? `${err.message}\n${err.stack}` : JSON.stringify(err);
       return { phase: "plan", status: "failed", iterations: 1, error: message };
     }

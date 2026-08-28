@@ -145,8 +145,8 @@ describe("Claude CLI executor subprocess behavior", () => {
     expect(replay.total).toBe(1);
   });
 
-  it("aborts a phase when a model turn exceeds the max cost", async () => {
-    const workdir = mkdtempSync(join(tmpdir(), "tv-build-claude-budget-"));
+  it("tracks model cost without aborting the phase", async () => {
+    const workdir = mkdtempSync(join(tmpdir(), "tv-build-claude-cost-"));
     const promptsDir = join(workdir, "prompts");
     const skillsDir = join(workdir, "skills");
     mkdirSync(promptsDir, { recursive: true });
@@ -154,7 +154,7 @@ describe("Claude CLI executor subprocess behavior", () => {
     writeFileSync(join(promptsDir, "plan.md"), "{{brief}}");
     writeFileSync(join(skillsDir, "meta", "SKILL.md"), "---\nname: meta\napplies_to: [all]\n---\n\n# Meta");
 
-    const input = { ...harnessInput(workdir, skillsDir), maxCostUsd: 0.01 };
+    const input = harnessInput(workdir, skillsDir);
     const ctx = createRunContext(input);
     const fake = createFakeSpawn({
       stdout: [
@@ -182,9 +182,7 @@ describe("Claude CLI executor subprocess behavior", () => {
 
     const result = await executor.executePhase(phase("plan", { kind: "plan" }));
 
-    expect(result.status).toBe("aborted");
-    expect(result.error).toContain("Cost budget exceeded");
-    expect(ctx.state.abortReason).toBe("budget");
+    expect(result.status).toBe("success");
     expect(ctx.state.costSoFar).toBe(0.05);
   });
 });

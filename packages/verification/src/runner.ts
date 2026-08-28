@@ -18,7 +18,7 @@ export interface RunnerOptions {
 interface NormalizedVerifyConfig extends VerifyConfig {
   seedPolicy: "fixed" | "random";
   fixedSeed: string;
-  perRunMaxCostUsd: number;
+  estimatedRunCostUsd: number;
 }
 
 function isInfraError(error: string): boolean {
@@ -54,7 +54,7 @@ export async function runSuite(options: RunnerOptions): Promise<RunRecord[]> {
     const levels = config.tierLevelMap[spec.tier];
 
     for (let i = 0; i < n; i++) {
-      if (spentUsd + config.perRunMaxCostUsd > config.maxBatchCostUsd) {
+      if (spentUsd + config.estimatedRunCostUsd > config.maxBatchCostUsd) {
         records.push(skippedBudgetRecord(spec, config, env, `Batch budget would be exceeded before run ${i + 1}/${n}`));
         continue;
       }
@@ -64,11 +64,10 @@ export async function runSuite(options: RunnerOptions): Promise<RunRecord[]> {
       records.push(record);
       spentUsd += record.costUsd + (record.judgeCostUsd ?? 0);
 
-      // Retry infra errors up to infraRetryMax
       if (record.outcome === "infra_error") {
         let retries = 0;
         while (retries < config.infraRetryMax && records[records.length - 1].outcome === "infra_error") {
-          if (spentUsd + config.perRunMaxCostUsd > config.maxBatchCostUsd) {
+          if (spentUsd + config.estimatedRunCostUsd > config.maxBatchCostUsd) {
             records.push(skippedBudgetRecord(spec, config, env, `Batch budget would be exceeded before retry ${retries + 1}`));
             break;
           }
@@ -83,7 +82,6 @@ export async function runSuite(options: RunnerOptions): Promise<RunRecord[]> {
     }
   }
 
-  // Write artifacts
   const artifactsDir = config.artifactsDir;
   mkdirSync(artifactsDir, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -102,7 +100,7 @@ function normalizeConfig(config: VerifyConfig): NormalizedVerifyConfig {
     ...config,
     seedPolicy: config.seedPolicy ?? "fixed",
     fixedSeed: config.fixedSeed ?? "verification-fixed-seed",
-    perRunMaxCostUsd: config.perRunMaxCostUsd ?? 10,
+    estimatedRunCostUsd: config.estimatedRunCostUsd ?? 10,
   };
 }
 
@@ -129,7 +127,6 @@ async function runSingleSpec(
     const result = await runHarness(spec.inputDir, {
       command: normalized.harnessCommand,
       seed: normalized.seedPolicy === "fixed" ? normalized.fixedSeed : undefined,
-      maxCostUsd: normalized.perRunMaxCostUsd,
       seedPolicy: normalized.seedPolicy,
       fixedSeed: normalized.seedPolicy === "fixed" ? normalized.fixedSeed : undefined,
       judge: normalized.judge ? { model: normalized.judge.model, promptHash: JUDGE_PROMPT_HASH } : undefined,
@@ -139,31 +136,26 @@ async function runSingleSpec(
     appPath = result.appPath;
     seed = result.seed ?? seed;
 
-    // Level 1: Structural
     if (levels.includes(1)) {
       const structural = runStructuralChecks(appPath, spec.expected);
       checks.push(...structural);
     }
 
-    // Level 2: Build
     if (levels.includes(2) && spec.expected.platforms_build.length > 0) {
       const buildChecks = runBuildChecks(appPath, spec.expected.platforms_build);
       checks.push(...buildChecks);
     }
 
-    // Level 3: Smoke/Focus
     if (levels.includes(3)) {
       const smokeChecks = await runSmokeChecks({ appPath });
       checks.push(...smokeChecks);
     }
 
-    // Level 4: Content fidelity
     if (levels.includes(4)) {
       const contentChecks = runContentChecks(appPath, spec.inputDir, spec.expected);
       checks.push(...contentChecks);
     }
 
-    // Level 5: Rubric/Judge
     if (levels.includes(5)) {
       const judgeConfig = config.judge
         ? { model: config.judge.model, validated: config.judge.validated, apiKey: process.env.ANTHROPIC_API_KEY, costUsd: 0 }
@@ -181,7 +173,6 @@ async function runSingleSpec(
       }
     }
 
-    // Determine outcome from checks
     const hasFail = checks.some(c => c.severity === "fail");
     outcome = hasFail ? "harness_failure" : "pass";
   } catch (err: unknown) {

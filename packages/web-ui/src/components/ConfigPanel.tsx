@@ -50,7 +50,7 @@ export function ConfigPanel() {
   return (
     <div className="p-4 space-y-4 overflow-y-auto">
       <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Read-only run explorer</h2>
-      <p className="text-xs text-gray-500">Launch runs with the CLI after reviewing the plan and cost cap.</p>
+      <p className="text-xs text-gray-500">Launch runs with the CLI after reviewing the plan.</p>
 
       <div>
         <label className="text-xs text-gray-400 block mb-1">Example</label>

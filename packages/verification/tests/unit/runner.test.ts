@@ -32,10 +32,10 @@ describe("runner governance", () => {
     await expect(runSuite({ specs: [spec()], config: bad as VerifyConfig })).rejects.toThrow(/maxBatchCostUsd/);
   });
 
-  it("skips planned runs before launching when per-run cost would exceed batch budget", async () => {
+  it("skips planned runs when estimated run cost would exceed batch budget", async () => {
     const records = await runSuite({
       specs: [spec()],
-      config: config({ n: 2, maxBatchCostUsd: 5, perRunMaxCostUsd: 10 }),
+      config: config({ n: 2, maxBatchCostUsd: 5, estimatedRunCostUsd: 10 }),
     });
     expect(records).toHaveLength(2);
     expect(records.every((record) => record.outcome === "budget_abort" && record.skipped === "budget")).toBe(true);
@@ -47,7 +47,7 @@ describe("runner governance", () => {
       config: config({
         n: 2,
         maxBatchCostUsd: 11,
-        perRunMaxCostUsd: 10,
+        estimatedRunCostUsd: 10,
         harnessCommand: `${process.execPath} ${FAKE} claude-run --fake-cost 10.5`,
       }),
     });
@@ -56,12 +56,12 @@ describe("runner governance", () => {
     expect(records[1]).toMatchObject({ outcome: "budget_abort", skipped: "budget" });
   });
 
-  it("records budget-aborted harness exits as budget_abort", async () => {
+  it("treats generic harness abort exits as infrastructure errors", async () => {
     const records = await runSuite({
       specs: [spec()],
       config: config({ harnessCommand: `${process.execPath} ${FAKE} claude-run --fake-exit-code 4` }),
     });
-    expect(records[0]).toMatchObject({ outcome: "budget_abort" });
+    expect(records[0]).toMatchObject({ outcome: "infra_error" });
   });
 });
 
@@ -89,7 +89,7 @@ function config(patch: Partial<VerifyConfig> = {}): VerifyConfig {
     seedPolicy: "fixed",
     fixedSeed: "runner-seed",
     maxBatchCostUsd: 20,
-    perRunMaxCostUsd: 10,
+    estimatedRunCostUsd: 10,
     tierLevelMap: { easy: [], medium: [], hard: [] },
     regressionRule: "ci_below_point",
     artifactsDir: join(ROOT, "artifacts"),

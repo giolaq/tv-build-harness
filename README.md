@@ -87,8 +87,8 @@ npx tsx src/index.ts schema --json
 npx tsx src/index.ts init my-inputs
 npx tsx src/index.ts validate my-inputs --json
 npx tsx src/index.ts claude-run my-inputs --plan --json
-# Show the human the plan and cost cap.
-npx tsx src/index.ts claude-run my-inputs --detach --yes --json --max-cost 10
+# Show the human the plan and state that execution is uncapped.
+npx tsx src/index.ts claude-run my-inputs --detach --yes --json
 npx tsx src/index.ts status <runId> --json
 ```
 
@@ -107,10 +107,10 @@ Agent-facing features added in v0.3:
 - `schema` prints the input contract on demand, including JSON Schema with `--json`.
 - `init` scaffolds a valid input directory or copies an existing example.
 - `validate --json` returns schema errors plus semantic warnings such as sparse rails, weak contrast, insecure image URLs, and instruction-like content.
-- `--plan --json` lets an agent show the resolved phases and cost estimate before it starts work.
+- `--plan --json` lets an agent show the resolved phases before it starts work.
 - `--detach --yes --json` starts long runs in the background, while `status`, `logs`, and `abort` let an agent supervise the run without holding a terminal open.
 - Every machine-readable payload includes `schemaVersion: 1`; errors include `code`, `message`, and `hint`.
-- `--max-cost` enforces a hard spend cap, and non-example runs default to a `$10` cap.
+- Model cost is tracked in events and reports but does not stop a run.
 - `--seed` records creative randomness so fixtures, golden runs, and demos are repeatable.
 
 ## What it does, step by step
@@ -156,7 +156,7 @@ Use `refine` when the current app is mostly right and the feedback is scoped to 
 
 ```bash
 npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --plan --json
-npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes --max-cost 3
+npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes
 ```
 
 `refine` amends the current app state. It does not rewind to the old phase commit or replay downstream phases. It inherits the original creative seed, reuses the phase's prompt context, reruns that phase's verify checks, and commits as `refine(<phase>): ...` only when the app tree is clean and the checks pass.
@@ -321,10 +321,9 @@ You can swap the template, add custom phases, change retry counts:
 | `--generate-only` | No build, no QA |
 | `--no-tui` | Plain output |
 | `--json` | Emit versioned JSON or NDJSON with human logs on stderr |
-| `--plan` | Print resolved phases and estimate without running them |
+| `--plan` | Print resolved phases without running them |
 | `--detach` | Start a run in the background |
 | `--yes` | Confirm a detached JSON run after the human has seen the plan |
-| `--max-cost <usd>` | Abort cleanly when model cost exceeds the cap |
 | `--seed <value>` | Fix creative constraints for repeatable output |
 | `--setup-agent` | Install/update the official Android CLI agent skill with `android init` |
 | `--require-android-cli` | Fail the Android lifecycle instead of using compatibility mode |

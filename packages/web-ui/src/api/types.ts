@@ -17,7 +17,6 @@ export interface WSEvent {
   result?: PhaseResult;
   cost?: number;
   total?: number;
-  budget?: number;
   current?: number;
   max?: number;
   message?: string;

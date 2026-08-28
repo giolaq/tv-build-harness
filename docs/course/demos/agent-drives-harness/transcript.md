@@ -24,15 +24,16 @@ npx tsx src/index.ts validate ../../docs/course/demos/agent-drives-harness/input
 Result: validation returned `errors: []`. The warnings were kept intentionally so the lesson can show lint feedback.
 
 ```sh
-npx tsx src/index.ts claude-run ../../docs/course/demos/agent-drives-harness/input --plan --json --max-cost 10
+npx tsx src/index.ts claude-run ../../docs/course/demos/agent-drives-harness/input --plan --json
 ```
 
-Result: the CLI returned a schema-versioned plan object. A real agent must show this plan and cost cap to the human before running.
+Result: the CLI returned a schema-versioned plan object. A real agent must show
+this plan and state that execution is uncapped before running.
 
 Deferred live step:
 
 ```sh
-npx tsx src/index.ts claude-run ../../docs/course/demos/agent-drives-harness/input --detach --yes --json --max-cost 10
+npx tsx src/index.ts claude-run ../../docs/course/demos/agent-drives-harness/input --detach --yes --json
 npx tsx src/index.ts status <runId> --json
 npx tsx src/index.ts logs <runId>
 ```

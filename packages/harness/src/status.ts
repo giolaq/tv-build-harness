@@ -14,7 +14,6 @@ export interface RunStatusFile {
   updatedAt: string;
   currentPhase?: Phase;
   costSoFar?: number;
-  budget?: number;
   exitCode?: number;
   reason?: string;
 }
@@ -32,7 +31,7 @@ export function outDirForRun(baseDir: string, runId: string): string {
   return join(baseDir, "out", runId);
 }
 
-export function initRunStatus(outDir: string, input: { runId: string; pid?: number; budget?: number }): RunStatusFile {
+export function initRunStatus(outDir: string, input: { runId: string; pid?: number }): RunStatusFile {
   mkdirSync(outDir, { recursive: true });
   const now = new Date().toISOString();
   const status: RunStatusFile = {
@@ -42,7 +41,6 @@ export function initRunStatus(outDir: string, input: { runId: string; pid?: numb
     outDir,
     startedAt: now,
     updatedAt: now,
-    budget: input.budget,
   };
   writeRunStatus(outDir, status);
   if (input.pid) writeFileSync(join(outDir, PID_FILE), `${input.pid}\n`);
@@ -66,7 +64,9 @@ export function readRunStatus(outDir: string): RunStatusFile | null {
   const path = join(outDir, STATUS_FILE);
   if (!existsSync(path)) return null;
   try {
-    return JSON.parse(readFileSync(path, "utf-8")) as RunStatusFile;
+    const parsed = JSON.parse(readFileSync(path, "utf-8")) as RunStatusFile & { budget?: unknown };
+    const { budget: _removedBudget, ...status } = parsed;
+    return status;
   } catch {
     return null;
   }
@@ -105,9 +105,7 @@ export function abortRun(baseDir: string, runId: string): RunStatusSummary | nul
   if (pid && isPidAlive(pid)) {
     try {
       process.kill(pid, "SIGTERM");
-    } catch {
-      // The status update below records the requested abort even if the pid raced.
-    }
+    } catch {}
   }
   updateRunStatus(outDir, { state: "aborted", reason: "user", exitCode: 4 });
   return summarizeRun(baseDir, runId);

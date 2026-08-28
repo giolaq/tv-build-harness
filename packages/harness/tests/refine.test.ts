@@ -57,8 +57,8 @@ describe("refine", () => {
       phase: "branding",
       inferredPhase: false,
       seed: "seed-run-2",
-      maxCostUsd: 3,
     });
+    expect(plan).not.toHaveProperty("maxCostUsd");
     expect(plan.verify.map((check) => check.type)).toContain("grep");
     expect(plan.nonGoal).toContain("does not rewind");
   });
@@ -196,7 +196,6 @@ function harnessInput(outDir: string, runId: string): HarnessInput {
   return {
     prompt: "Make it editorial.",
     creativeSeed: `seed-${runId}`,
-    maxCostUsd: 3,
     content: {
       title: "Acme Catalog",
       description: "Demo catalog.",

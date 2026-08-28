@@ -56,7 +56,9 @@ packages/
 
 5. **Seed regime is part of the result.** `seedPolicy: "fixed"` measures the pipeline at one design point. `seedPolicy: "random"` estimates the deployment distribution. Do not compare across regimes.
 
-6. **Batch cost is capped.** `maxBatchCostUsd` is required. The runner stops before launching a run that could exceed the batch budget and records skipped runs as budget skips.
+6. **Batch launch cost is guarded.** `maxBatchCostUsd` is required. The runner
+uses `estimatedRunCostUsd` to decide whether to launch another uncapped harness
+run and records skipped runs as budget skips. A single run can exceed its estimate.
 
 ## Verification levels
 
@@ -134,7 +136,7 @@ Set in `verify.config.json`:
   "seedPolicy": "fixed",
   "fixedSeed": "verification-fixed-seed",
   "maxBatchCostUsd": 30,
-  "perRunMaxCostUsd": 10,
+  "estimatedRunCostUsd": 10,
   "perSpecN": {
     "GS-08-full-parity": 5  // Override for specific specs
   }
@@ -159,7 +161,7 @@ Before computing statistics, compare checks `PinnedEnv`. Drift in model identity
 | `pass` | — | Yes (numerator) | All checks pass |
 | `harness_failure` | **Never** | Yes (denominator only) | TSC fails, missing files, build error |
 | `infra_error` | Up to `infraRetryMax` | **No** (excluded from denominator) | API timeout, emulator crash, rate limit |
-| `budget_abort` | No | **No** (reported separately) | Per-run or batch budget cap hit |
+| `budget_abort` | No | **No** (reported separately) | Batch budget guard skipped the run |
 
 Retrying a genuine failure is p-hacking. Counting infra noise as failure pollutes CIs.
 

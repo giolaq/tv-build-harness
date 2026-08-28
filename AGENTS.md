@@ -14,8 +14,8 @@ npx tsx src/index.ts schema --json
 npx tsx src/index.ts init my-inputs
 npx tsx src/index.ts validate my-inputs --json
 npx tsx src/index.ts claude-run my-inputs --plan --json
-# Show the human the plan, expected platforms, and max-cost setting.
-npx tsx src/index.ts claude-run my-inputs --detach --yes --json --max-cost 10
+# Show the human the plan, expected platforms, and that execution is uncapped.
+npx tsx src/index.ts claude-run my-inputs --detach --yes --json
 npx tsx src/index.ts status <runId> --json
 npx tsx src/index.ts logs <runId>
 ```
@@ -31,7 +31,7 @@ Optional files:
 - `design.json`: layout, focus, spacing, tile, and mood preferences.
 - `screens.json`: explicit navigation and screen tree.
 - `run.json`: target platforms and run settings.
-- `harness.config.json`: custom template, phases, models, checks, and budgets.
+- `harness.config.json`: custom template, phases, models, checks, and token budget.
 
 Inspect exact contracts with:
 
@@ -60,7 +60,8 @@ Warnings do not block a run, but you should address them before asking for confi
 
 ## Plan Gate
 
-Always show the human the plan and cost cap before launching a live run.
+Always show the human the plan and state that monetary cost is tracked but
+uncapped before launching a live run.
 
 ```sh
 npx tsx src/index.ts claude-run my-inputs --plan --json
@@ -69,10 +70,11 @@ npx tsx src/index.ts claude-run my-inputs --plan --json
 Do not run without `--yes` after confirmation. In JSON mode, detached runs require it.
 
 ```sh
-npx tsx src/index.ts claude-run my-inputs --detach --yes --json --max-cost 10
+npx tsx src/index.ts claude-run my-inputs --detach --yes --json
 ```
 
-Set `--max-cost` explicitly. Non-example inputs default to `$10`, but you should still state the cap to the human. If a run exits `4` with `reason: "budget"`, report that to the human. Do not raise the cap yourself.
+There is no monetary cost cap. Monitor status and logs, report accumulated cost,
+and use `abort` only when the human asks or the run is clearly wrong.
 
 ## Status Loop
 
@@ -109,8 +111,8 @@ When the human asks for a change scoped to one concern, prefer `refine` over a f
 
 ```sh
 npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --plan --json
-# Show the human the phase, instruction, verify checks, seed, and $3 default cap.
-npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes --json --max-cost 3
+# Show the human the phase, instruction, verify checks, and seed.
+npx tsx src/index.ts refine <runId> --phase branding "warmer palette, larger hero cards" --yes --json
 ```
 
 Use `refine` for phase concerns such as branding, content, screens, creative UI, and navigation. It amends the current app state; it does not rewind to the old phase commit. Never refine without showing the plan. On exit `2`, report the failed checks and stop.
@@ -136,7 +138,7 @@ Read `docs/android-cli-workflow.md` before an Android presentation or live valid
 | 1 | Input or validation error | Fix input files, then rerun `validate`. |
 | 2 | Run failed after retries | Read `status` and `logs`, then report the failing phase. |
 | 3 | Environment or doctor error | Run `doctor --fix` once, then stop and report. |
-| 4 | Aborted | Report the reason. Do not resume or raise budget without approval. |
+| 4 | Aborted | Report the reason. Resume only after human confirmation. |
 
 ## JSON Events
 

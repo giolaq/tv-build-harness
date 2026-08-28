@@ -17,7 +17,7 @@ failed phase once, and records what happened.
   10-foot UI design.
 - Check work after every phase and feed failures back into one retry.
 - Commit successful phases in the generated app's Git repository.
-- Stop work when it reaches a cost cap.
+- Track model cost in events and reports.
 - Run in the background and expose progress, logs, and abort controls.
 - Replay committed recordings without a model key.
 - Refine one concern, such as branding, without rerunning the entire pipeline.
@@ -83,16 +83,16 @@ Before spending model tokens, inspect the resolved pipeline:
 npx tsx src/index.ts claude-run my-tv-app --plan --json
 ```
 
-Review the phase list and cost cap with the person requesting the app. Then
-start the run in the background:
+Review the phase list and tell the person requesting the app that execution is
+uncapped. Then start the run in the background:
 
 ```sh
 npx tsx src/index.ts claude-run my-tv-app \
-  --detach --yes --json --max-cost 10
+  --detach --yes --json
 ```
 
-The command returns a `runId`. A non-example input has a default cap of $10,
-but always set and communicate a cap explicitly.
+The command returns a `runId`. Model cost is tracked but does not stop the run,
+so monitor status and logs while it executes.
 
 ## Follow a run
 
@@ -121,7 +121,7 @@ Show that plan first. Then execute the focused pass:
 ```sh
 npx tsx src/index.ts refine <runId> \
   --phase branding "make the palette warmer and the hero cards larger" \
-  --yes --json --max-cost 3
+  --yes --json
 ```
 
 Refine changes the app as it is now. It does not rewind to an earlier phase,
@@ -183,7 +183,7 @@ behaves without calling a model.
 | `1` | Input or validation error | Fix inputs and validate again. |
 | `2` | Run or refine failed after retries | Read status and logs. |
 | `3` | Environment error | Run `doctor --fix` once, then report the result. |
-| `4` | Aborted, often due to budget | Report why it stopped; do not raise the cap without approval. |
+| `4` | Aborted | Report why it stopped; resume only after human confirmation. |
 
 For the complete machine-readable agent contract, read `AGENTS.md`. For local
 validation and workshop preparation, use `docs/run-and-test.md`.

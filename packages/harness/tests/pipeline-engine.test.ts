@@ -8,7 +8,6 @@ function phase(name: string, overrides: Partial<PhaseSpec> = {}): PhaseSpec {
   return { ...PhaseSpecSchema.parse({ name }), ...overrides };
 }
 
-// Builds an executor that returns scripted statuses per phase (consumed in order).
 function scriptedExecutor(script: Record<string, PhaseStatus[]>) {
   const calls: Array<{ phase: string; attempt: number }> = [];
   const executor = async (spec: PhaseSpec, attempt: number): Promise<PhaseResult> => {
@@ -64,7 +63,6 @@ describe("runPipeline", () => {
 
     expect(calls.filter((c) => c.phase === "a")).toHaveLength(3);
     expect(results.get("a")!.status).toBe("degraded");
-    // degraded counts as completed — downstream phases still run
     expect(results.get("b")!.status).toBe("success");
   });
 
@@ -104,6 +102,24 @@ describe("runPipeline", () => {
     expect(results.get("b")!.status).toBe("success");
   });
 
+  it("does not retry an aborted phase or execute downstream phases", async () => {
+    const { executor, calls } = scriptedExecutor({ verify: ["aborted", "success"] });
+    const retries: string[] = [];
+    const results = await runPipeline({
+      phases: [phase("verify", { retries: 5 }), phase("build")],
+      executor,
+      maxRetries: 5,
+      hooks: {
+        onRetry: (spec) => retries.push(spec.name),
+      },
+    });
+
+    expect(calls).toEqual([{ phase: "verify", attempt: 1 }]);
+    expect(retries).toEqual([]);
+    expect(results.get("verify")!.status).toBe("aborted");
+    expect(results.has("build")).toBe(false);
+  });
+
   it("blocks phases whose dependencies failed", async () => {
     const { executor, calls } = scriptedExecutor({ b: ["failed", "failed", "failed"] });
     const results = await runPipeline({
@@ -114,7 +130,6 @@ describe("runPipeline", () => {
 
     expect(results.get("c")!.status).toBe("failed");
     expect(results.get("c")!.error).toContain("Blocked by failed dependency: b");
-    // c was never executed, d was (its dep succeeded)
     expect(calls.some((c) => c.phase === "c")).toBe(false);
     expect(results.get("d")!.status).toBe("success");
   });
@@ -229,8 +244,6 @@ describe("selectActivePhases", () => {
       platforms: ["web"],
       resumedPhases: new Set(["plan", "scaffold", "vega_build_loop"]),
     });
-    // vega_build_loop isn't active for web-only — a stale checkpoint entry
-    // must not leak into the completed set.
     expect([...completed].sort()).toEqual(["plan", "scaffold"]);
   });
 

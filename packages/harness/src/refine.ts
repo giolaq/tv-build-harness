@@ -9,7 +9,7 @@ import { RunLog } from "./run-log.js";
 import { SkillLibrary } from "./skill-library.js";
 import { PromptLoader } from "./prompt-loader.js";
 import { runPipeline } from "./pipeline-engine.js";
-import { budgetStopReason, createPromptLoader, writeAppOriginMarker } from "./run-context.js";
+import { createPromptLoader, writeAppOriginMarker } from "./run-context.js";
 import { getPhaseInstructions, promptContext } from "./phase-context.js";
 import { ClaudePhaseExecutor } from "./claude-phase-executor.js";
 import { writeEvent } from "./output.js";
@@ -32,7 +32,6 @@ export interface RefinePlan {
   instruction: string;
   seed: string;
   verify: VerifyCheck[];
-  maxCostUsd: number;
   nonGoal: string;
 }
 
@@ -54,7 +53,6 @@ export interface RefineOptions {
   instruction: string;
   rootDir?: string;
   skillsDir: string;
-  maxCostUsd?: number;
   json?: boolean;
   yes?: boolean;
   executor?: RefineExecutor;
@@ -66,7 +64,6 @@ export type RefineExecutor = (input: {
   target: RefineTarget;
   harnessInput: HarnessInput;
   harness: HarnessConfig;
-  maxCostUsd: number;
   events?: RefineEvents;
 }) => Promise<{ result: PhaseResult; costUsd: number }>;
 
@@ -76,6 +73,19 @@ export interface RefineEvents {
   onRetry?: (phase: Phase, attempt: number, max: number, result: PhaseResult) => void;
   onLog?: (message: string) => void;
 }
+
+interface RefineExecution {
+  plan: RefinePlan;
+  target: RefineTarget;
+  harnessInput: HarnessInput;
+  harness: HarnessConfig;
+  phaseSpec: PhaseSpec;
+  prompt: string;
+  executor: RefineExecutor;
+}
+
+type RefineOutcome = { result: PhaseResult; costUsd: number };
+type RefineGuard = ReturnType<typeof createGuardBranch>;
 
 export function resolveRefineTarget(targetArg: string, rootDir = process.cwd()): RefineTarget {
   const root = resolve(rootDir);
@@ -116,7 +126,7 @@ export function resolveRefineTarget(targetArg: string, rootDir = process.cwd()):
 export function buildRefinePlan(options: RefineOptions): RefinePlan {
   const rootDir = options.rootDir ?? process.cwd();
   const target = resolveRefineTarget(options.target, rootDir);
-  const { harnessInput, harness } = loadRefineInput(target, options.skillsDir, options.maxCostUsd);
+  const { harnessInput, harness } = loadRefineInput(target, options.skillsDir);
   const { phase, inferred } = resolvePhase(options.phase, options.instruction, harness);
   const phaseSpec = phaseSpecFor(phase, harness);
 
@@ -130,7 +140,6 @@ export function buildRefinePlan(options: RefineOptions): RefinePlan {
     instruction: options.instruction,
     seed: harnessInput.creativeSeed ?? target.spec.creative_seed ?? "unknown",
     verify: phaseSpec.verify,
-    maxCostUsd: options.maxCostUsd ?? 3,
     nonGoal: "refine amends the current app state; it does not rewind to the phase commit or replay downstream phases.",
   };
 }
@@ -177,6 +186,31 @@ export function buildRefineInstructions(input: {
 }
 
 export async function executeRefine(options: RefineOptions): Promise<RefineResult> {
+  const execution = prepareRefineExecution(options);
+  const guard = createGuardBranch(execution.target.appDir, execution.plan.phase);
+  let outcome: RefineOutcome | null = null;
+  try {
+    emitRefineEvent(options.json, "phase_start", {
+      phase: execution.plan.phase,
+      refine: true,
+      runId: execution.plan.runId,
+    });
+    outcome = await execution.executor({
+      phase: execution.phaseSpec,
+      prompt: execution.prompt,
+      target: execution.target,
+      harnessInput: execution.harnessInput,
+      harness: execution.harness,
+      events: refineEvents(options.json),
+    });
+    requireSuccessfulRefine(outcome.result);
+    return completeSuccessfulRefine(options, execution, guard, outcome);
+  } catch (err) {
+    return completeFailedRefine(options, execution, guard, outcome, err);
+  }
+}
+
+function prepareRefineExecution(options: RefineOptions): RefineExecution {
   const plan = buildRefinePlan(options);
   if (options.json && !options.yes) {
     throw new RefineInputError(
@@ -187,76 +221,118 @@ export async function executeRefine(options: RefineOptions): Promise<RefineResul
   }
 
   const target = resolveRefineTarget(options.target, options.rootDir);
-  const { harnessInput, harness } = loadRefineInput(target, options.skillsDir, plan.maxCostUsd);
+  const { harnessInput, harness } = loadRefineInput(target, options.skillsDir);
   const phaseSpec = { ...phaseSpecFor(plan.phase, harness), retries: 2, internalLoop: false };
   const prompts = createPromptLoader({ ...harnessInput, workdir: target.outDir });
   const prompt = buildRefineInstructions({ phaseSpec, instruction: options.instruction, target, harnessInput, harness, prompts });
   const executor = options.executor ?? defaultClaudeRefineExecutor;
+  return { plan, target, harnessInput, harness, phaseSpec, prompt, executor };
+}
 
-  const guard = createGuardBranch(target.appDir, plan.phase);
-  let outcome: { result: PhaseResult; costUsd: number } | null = null;
-  try {
-    options.json && writeEvent("phase_start", { phase: plan.phase, refine: true, runId: plan.runId });
-    outcome = await executor({
-      phase: phaseSpec,
-      prompt,
-      target,
-      harnessInput,
-      harness,
-      maxCostUsd: plan.maxCostUsd,
-      events: options.json ? {
-        onRetry: (phase, attempt, max, result) => {
-          writeEvent("verify_failed", { phase, refine: true, error: result.error });
-          writeEvent("retry", { phase, refine: true, attempt, max, result });
-        },
-        onLog: (message) => console.error(message),
-      } : undefined,
-    });
+function refineEvents(enabled?: boolean): RefineEvents | undefined {
+  if (!enabled) return undefined;
+  return {
+    onRetry: (phase, attempt, max, result) => {
+      writeEvent("verify_failed", { phase, refine: true, error: result.error });
+      writeEvent("retry", { phase, refine: true, attempt, max, result });
+    },
+    onLog: (message) => console.error(message),
+  };
+}
 
-    if (outcome.result.status === "aborted") {
-      throw new RefineRunError("aborted", outcome.result.error ?? "Refine aborted.");
-    }
-    if (outcome.result.status !== "success") {
-      throw new RefineRunError("failed", outcome.result.error ?? "Refine failed verification.");
-    }
-
-    const commit = commitRefine(target.appDir, plan.phase, options.instruction);
-    mergeGuardBranch(target.appDir, guard);
-    appendRefineReport(target.outDir, {
-      phase: plan.phase,
-      instruction: options.instruction,
-      costUsd: outcome.costUsd,
-      checks: phaseSpec.verify,
-      commit,
-    });
-    options.json && writeEvent("phase_complete", { phase: plan.phase, refine: true, result: outcome.result, cost: outcome.costUsd });
-    options.json && writeEvent("run_complete", {
-      runId: plan.runId,
-      outDir: target.outDir,
-      seed: plan.seed,
-      status: "success",
-      costSoFar: outcome.costUsd,
-      budget: plan.maxCostUsd,
-      phases: [outcome.result],
-    });
-    return { status: "success", runId: plan.runId, outDir: target.outDir, appDir: target.appDir, phase: plan.phase, instruction: options.instruction, costUsd: outcome.costUsd, result: outcome.result };
-  } catch (err) {
-    cleanupGuardBranch(target.appDir, guard);
-    const error = err instanceof Error ? err.message : String(err);
-    const status = err instanceof RefineRunError && err.kind === "aborted" ? "aborted" : "failed";
-    const result = outcome?.result ?? { phase: plan.phase, status: status === "aborted" ? "aborted" : "failed", iterations: 0, error };
-    options.json && writeEvent("run_complete", {
-      runId: plan.runId,
-      outDir: target.outDir,
-      seed: plan.seed,
-      status,
-      costSoFar: outcome?.costUsd ?? 0,
-      budget: plan.maxCostUsd,
-      reason: status === "aborted" ? "budget" : undefined,
-      phases: [result],
-    });
-    return { status, runId: plan.runId, outDir: target.outDir, appDir: target.appDir, phase: plan.phase, instruction: options.instruction, costUsd: outcome?.costUsd ?? 0, result, error };
+function requireSuccessfulRefine(result: PhaseResult): void {
+  if (result.status === "aborted") {
+    throw new RefineRunError("aborted", result.error ?? "Refine aborted.");
   }
+  if (result.status !== "success") {
+    throw new RefineRunError("failed", result.error ?? "Refine failed verification.");
+  }
+}
+
+function completeSuccessfulRefine(
+  options: RefineOptions,
+  execution: RefineExecution,
+  guard: RefineGuard,
+  outcome: RefineOutcome
+): RefineResult {
+  const { plan, target, phaseSpec } = execution;
+  const commit = commitRefine(target.appDir, plan.phase, options.instruction);
+  mergeGuardBranch(target.appDir, guard);
+  appendRefineReport(target.outDir, {
+    phase: plan.phase,
+    instruction: options.instruction,
+    costUsd: outcome.costUsd,
+    checks: phaseSpec.verify,
+    commit,
+  });
+  emitRefineEvent(options.json, "phase_complete", {
+    phase: plan.phase,
+    refine: true,
+    result: outcome.result,
+    cost: outcome.costUsd,
+  });
+  emitRefineEvent(options.json, "run_complete", {
+    runId: plan.runId,
+    outDir: target.outDir,
+    seed: plan.seed,
+    status: "success",
+    costSoFar: outcome.costUsd,
+    phases: [outcome.result],
+  });
+  return refineResult(options, execution, "success", outcome.costUsd, outcome.result);
+}
+
+function completeFailedRefine(
+  options: RefineOptions,
+  execution: RefineExecution,
+  guard: RefineGuard,
+  outcome: RefineOutcome | null,
+  err: unknown
+): RefineResult {
+  cleanupGuardBranch(execution.target.appDir, guard);
+  const error = err instanceof Error ? err.message : String(err);
+  const status = err instanceof RefineRunError && err.kind === "aborted" ? "aborted" : "failed";
+  const costUsd = outcome?.costUsd ?? 0;
+  const result = outcome?.result ?? {
+    phase: execution.plan.phase,
+    status,
+    iterations: 0,
+    error,
+  };
+  emitRefineEvent(options.json, "run_complete", {
+    runId: execution.plan.runId,
+    outDir: execution.target.outDir,
+    seed: execution.plan.seed,
+    status,
+    costSoFar: costUsd,
+    phases: [result],
+  });
+  return refineResult(options, execution, status, costUsd, result, error);
+}
+
+function refineResult(
+  options: RefineOptions,
+  execution: RefineExecution,
+  status: RefineResult["status"],
+  costUsd: number,
+  result: PhaseResult,
+  error?: string
+): RefineResult {
+  return {
+    status,
+    runId: execution.plan.runId,
+    outDir: execution.target.outDir,
+    appDir: execution.target.appDir,
+    phase: execution.plan.phase,
+    instruction: options.instruction,
+    costUsd,
+    result,
+    error,
+  };
+}
+
+function emitRefineEvent(enabled: boolean | undefined, event: string, payload: Record<string, unknown>): void {
+  if (enabled) writeEvent(event, payload);
 }
 
 export class RefineInputError extends Error {
@@ -288,7 +364,7 @@ function targetFromOutDir(outDir: string, source: RefineTarget["source"], appDir
   };
 }
 
-function loadRefineInput(target: RefineTarget, skillsDir: string, maxCostUsd?: number): { harnessInput: HarnessInput; harness: HarnessConfig } {
+function loadRefineInput(target: RefineTarget, skillsDir: string): { harnessInput: HarnessInput; harness: HarnessConfig } {
   const inputPath = join(target.outDir, "input.json");
   if (!existsSync(inputPath)) {
     throw new RefineInputError(
@@ -307,7 +383,6 @@ function loadRefineInput(target: RefineTarget, skillsDir: string, maxCostUsd?: n
   const harnessInput: HarnessInput = {
     prompt: String(raw.prompt ?? ""),
     creativeSeed,
-    maxCostUsd: maxCostUsd ?? 3,
     content: ContentManifestSchema.parse(raw.content),
     brand: BrandKitSchema.parse(raw.brand),
     config: RunConfigSchema.parse(raw.config),
@@ -368,7 +443,6 @@ async function defaultClaudeRefineExecutor(input: Parameters<RefineExecutor>[0])
     abortOnFailure: true,
   };
   const state = refineState(input.target, input.harnessInput, input.harness, input.target.spec);
-  state.maxCostUsd = input.maxCostUsd;
   const log = new RunLog(join(input.target.outDir, "run.log"));
   const executor = new ClaudePhaseExecutor({
     state,
@@ -394,13 +468,13 @@ async function defaultClaudeRefineExecutor(input: Parameters<RefineExecutor>[0])
         input.events?.onPhaseEnd?.(spec.name, result, executor.finishPhaseCost(spec.name));
       },
       onRetry: (spec, attempt, max, result) => input.events?.onRetry?.(spec.name, attempt, max, result),
-      shouldStop: () => budgetStopReason(state),
+      shouldStop: () =>
+        state.tokensUsed >= state.tokenBudget
+          ? `Token budget exhausted (${state.tokensUsed}/${state.tokenBudget})`
+          : null,
     },
   });
   const result = results.get(phase.name) ?? { phase: phase.name, status: "failed", iterations: 0, error: "Refine did not return a result" };
-  if (state.abortReason === "budget" && result.status !== "aborted") {
-    return { result: { ...result, status: "aborted", error: "Cost budget exceeded" }, costUsd: state.costSoFar };
-  }
   return { result, costUsd: state.costSoFar };
 }
 
@@ -418,7 +492,6 @@ function refineState(target: RefineTarget, input: HarnessInput, harness: Harness
     tokenBudget: harness.tokenBudget,
     tokensUsed: 0,
     costSoFar: 0,
-    maxCostUsd: input.maxCostUsd ?? 3,
     messages: [],
   };
 }
@@ -462,9 +535,7 @@ function cleanupGuardBranch(appDir: string, guard: { originalBranch: string; tem
     execFileSync("git", ["clean", "-fd"], { cwd: appDir, stdio: ["pipe", "pipe", "pipe"] });
     execFileSync("git", ["switch", guard.originalBranch], { cwd: appDir, stdio: ["pipe", "pipe", "pipe"] });
     execFileSync("git", ["branch", "-D", guard.tempBranch], { cwd: appDir, stdio: ["pipe", "pipe", "pipe"] });
-  } catch {
-    // Best-effort cleanup; caller reports the refine failure.
-  }
+  } catch {}
 }
 
 function appendRefineReport(outDir: string, input: {
